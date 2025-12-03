@@ -36,7 +36,6 @@ import XIcon from "@/assets/icons/x.svg?react";
 import ChatBotIcon from "@/assets/icons/chatbot.svg?react";
 import ChatIcon from "@/assets/icons/chat.svg?react";
 import SendIcon2 from "@/assets/icons/send-icon-2.svg?react";
-import ChatBot from "../chatbot/chatbot";
 
 const Icons = {
   ArrowsRotate: (props: any) => (
@@ -84,7 +83,7 @@ const Icons = {
   XIcon: (props: any) => <XIcon {...props} />,
 
   ChatBot: (props: any) => <ChatBotIcon {...props} />,
-  Chatbot: (props: any) => <ChatIcon {...props} />,
+  ChatIcon: (props: any) => <ChatIcon {...props} />,
   Send: (props: any) => <SendIcon2 {...props} />,
 };
 

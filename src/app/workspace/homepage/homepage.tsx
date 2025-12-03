@@ -4,11 +4,8 @@ import { useState } from "react";
 import { SearchDocument } from "../document-management/search-document/search-document";
 import { DocumentTable } from "../document-management/document-table/document-table";
 import Pagination from "../document-management/pagination/pagination";
-import ChatBot from "@/components/chatbot/chatbot";
 
 export function HomePage() {
-  const [openChat, setOpenChat] = useState(false);
-
   const generalInfo = [
     { label: "Số văn bản", value: "150" },
     { label: "Chủ đề", value: "5" },
@@ -81,13 +78,6 @@ export function HomePage() {
           Trang chủ{" "}
         </Link>
         <Icons.AngleRight />
-        <Link
-          to="/document-management"
-          className="font-bold text-black no-underline"
-        >
-          {" "}
-          Quản lý văn bản{" "}
-        </Link>
       </div>
       <SearchDocument />
       <div className="flex gap-4 mt-6 mb-10">
@@ -111,13 +101,6 @@ export function HomePage() {
           onPageChange={(page) => console.log("Page:", page)}
         />
       </div>
-      <button
-        className="fixed bottom-20 right-30 z-50 cursor-pointer"
-        onClick={() => setOpenChat(true)}
-      >
-        <Icons.Chatbot className="hover:scale-110 transition-transform duration-200" />
-      </button>
-      <ChatBot open={openChat} onClose={() => setOpenChat(false)} />
     </>
   );
 }
