@@ -17,7 +17,7 @@ export function WorkspaceLayout(): JSX.Element {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen">
       <aside className="w-1/5 bg-gray-100">
         <Navigation />
       </aside>
@@ -25,8 +25,8 @@ export function WorkspaceLayout(): JSX.Element {
       <div className="flex-1 flex flex-col">
         <TitleSection />
 
-        <div className="bg-gray-100">
-          <main className="flex-1 p-6 border border-[#EBEBEB] bg-white rounded-t-3xl overflow-hidden">
+        <div className="bg-gray-100 flex-1 overflow-hidden">
+          <main className="h-full p-6 border border-[#EBEBEB] bg-white rounded-t-3xl">
             <Outlet />
           </main>
         </div>

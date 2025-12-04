@@ -1,4 +1,3 @@
-import React from "react";
 import Logos from "../logos/logos";
 import Icons from "../icons/icons";
 
