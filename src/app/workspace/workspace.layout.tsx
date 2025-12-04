@@ -1,8 +1,8 @@
 import { Outlet, useNavigate, useLocation } from "@tanstack/react-router";
 import type { JSX } from "react";
-import { Header } from "@/components/layout/header";
 import { TitleSection } from "@/components/layout/title-section";
 import { itemNavigation } from "@/constants/item-navigation";
+import Navigation from "@/components/layout/navigation";
 
 export function WorkspaceLayout(): JSX.Element {
   const navigate = useNavigate();
@@ -17,19 +17,19 @@ export function WorkspaceLayout(): JSX.Element {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen">
+      <aside className="w-1/5 bg-gray-100">
+        <Navigation />
+      </aside>
+
       <div className="flex-1 flex flex-col">
-        <Header
-          itemNavigation={itemNavigation}
-          activeLink={currentItem.link}
-          onNavigate={handleNavigation}
-        />
+        <TitleSection />
 
-        <TitleSection title={currentItem.titleSection ?? ""} />
-
-        <main className="flex-1 px-30">
-          <Outlet />
-        </main>
+        <div className="bg-gray-100 flex-1 overflow-hidden">
+          <main className="h-full p-6 border border-[#EBEBEB] bg-white rounded-t-3xl">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );
