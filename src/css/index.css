@@ -126,3 +126,7 @@
   border-left: 1px solid #EFEEF5 !important;
   box-shadow: none !important;
 }
+
+body {
+  color: #464646;
+}
