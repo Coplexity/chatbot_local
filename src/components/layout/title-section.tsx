@@ -2,12 +2,17 @@ import Icons from "../icons/icons";
 
 export function TitleSection() {
   return (
-    <div className="p-6 w-full pb-10 bg-gray-100 flex items-center justify-between">
+    <div className="p-6 w-full pb-10 bg-bg-aside flex items-center justify-between">
       <h2>Chatbot y tế</h2>
-      <div className="flex gap-2">
-        <Icons.UploadIcon className="w-6 h-6 cursor-pointer" />
-        <Icons.Copy className="w-6 h-6 cursor-pointer" />
+      <div className="flex gap-3">
+        <button className="p-2 rounded-lg hover:bg-white/50 transition-colors cursor-pointer">
+          <Icons.UploadIcon className="w-5 h-5" />
+        </button>
+        <button className="p-2 rounded-lg hover:bg-white/50 transition-colors cursor-pointer">
+          <Icons.Copy className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );
 }
+

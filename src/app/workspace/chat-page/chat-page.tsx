@@ -1,70 +1,72 @@
 import Icons from "@/components/icons/icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearch } from "@tanstack/react-router";
-import { chatHistoryData } from "@/mocks/chat-history";
-import { Message, Reference } from "@/types/chat-types";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { chatService } from "@/services/chat.service";
+import type { Message } from "@/types/api-types";
+import { MessageRole } from "@/types/api-types";
+import { Reference } from "@/types/chat-types";
 import { ReferencePanel } from "@/components/reference-panel/reference-panel";
+import { App } from "antd";
 
 export function ChatPage() {
   const search = useSearch({ from: "/workspace/chat" });
   const chatId = search?.chatId;
+  const queryClient = useQueryClient();
+  const { message } = App.useApp();
 
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [selectedReference, setSelectedReference] = useState<Reference | null>(
     null
   );
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (chatId) {
-      const chatHistory = chatHistoryData.find(
-        (chat) => chat.chatId === chatId
-      );
-      if (chatHistory) {
-        setMessages(chatHistory.messages);
+  // Fetch messages for the current conversation
+  const { data: messagesData, isLoading } = useQuery({
+    queryKey: ["messages", chatId],
+    queryFn: async () => {
+      if (!chatId || typeof chatId !== "string") {
+        return { conversation: null, messages: [] };
       }
-    } else {
-      setMessages([]);
-    }
-  }, [chatId]);
+      return chatService.getMessages(chatId);
+    },
+    enabled: !!chatId && typeof chatId === "string",
+  });
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const messages = messagesData?.messages || [];
 
-    const currentTime = new Date().toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  // Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: (content: string) => {
+      if (!chatId || typeof chatId !== "string") {
+        throw new Error("No conversation selected");
+      }
+      return chatService.sendMessage(chatId, { content });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
+      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        sender: "user",
-        text: input,
-        time: currentTime,
-      },
-    ]);
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
+  const handleSend = async () => {
+    if (!input.trim() || !chatId) return;
+
+    const userInput = input;
     setInput("");
 
-    setTimeout(() => {
-      const botTime = new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: "bot",
-          text: "Đây là câu trả lời ngẫu nhiên từ bot cho câu hỏi của bạn.",
-          time: botTime,
-        },
-      ]);
-    }, 1000);
+    try {
+      await sendMessageMutation.mutateAsync(userInput);
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+      message.error(error?.message || "Gửi tin nhắn thất bại. Vui lòng thử lại.");
+      setInput(userInput); // Restore input on error
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -86,43 +88,38 @@ export function ChatPage() {
   };
 
   const renderMessageText = (message: Message) => {
-    if (!message.references || message.references.length === 0) {
-      return message.text;
-    }
-
-    let text = message.text;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-
-    message.references.forEach((ref) => {
-      const refPattern = `[${ref.number}]`;
-      const index = text.indexOf(refPattern, lastIndex);
-
-      if (index !== -1) {
-        if (index > lastIndex) {
-          parts.push(text.substring(lastIndex, index));
-        }
-
-        parts.push(
-          <button
-            key={ref.id}
-            onClick={() => handleReferenceClick(ref)}
-            className="text-[#50ACB7] cursor-pointer font-bold hover:underline"
-          >
-            [{ref.number}]
-          </button>
-        );
-
-        lastIndex = index + refPattern.length;
-      }
-    });
-
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-
-    return <>{parts}</>;
+    // For now, just render the content
+    // TODO: Parse citations from metadata if available
+    return message.content;
   };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  if (!chatId) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <p className="text-lg mb-2">Chọn một cuộc trò chuyện</p>
+          <p className="text-sm">hoặc tạo cuộc trò chuyện mới để bắt đầu</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-500">Đang tải tin nhắn...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full flex">
@@ -132,43 +129,56 @@ export function ChatPage() {
             {messages.map((m) => (
               <div key={m.id}>
                 <div
-                  className={`flex items-start mb-4 gap-x-4 ${
-                    m.sender === "user" ? "justify-end" : ""
-                  }`}
-                >
-                  {m.sender === "bot" && <Icons.BotChat />}
-                  <div
-                    className={`px-4 py-3 rounded-t-2xl ${
-                      m.sender === "user"
-                        ? "rounded-bl-2xl bg-white border border-[#EBEBEB]"
-                        : "rounded-br-2xl bg-[#F6FEFF] w-full"
+                  className={`flex items-start mb-4 gap-x-4 ${m.role === MessageRole.USER ? "justify-end" : ""
                     }`}
+                >
+                  {m.role === MessageRole.ASSISTANT && <Icons.BotChat />}
+                  <div
+                    className={`px-4 py-3 rounded-t-2xl ${m.role === MessageRole.USER
+                      ? "rounded-bl-2xl bg-white border border-design-border shadow-sm max-w-[70%]"
+                      : "rounded-br-2xl bg-bg-answer w-full border border-bg-answer"
+                      }`}
                   >
                     {renderMessageText(m)}
                   </div>
                 </div>
-                <div className="mt-2 text-right text-sm text-gray-500">
-                  {m.time}
+                <div className={`mt-2 text-sm text-gray-400 ${m.role === MessageRole.USER ? "text-right" : "text-left ml-12"}`}>
+                  {formatTime(m.createdAt)}
                 </div>
               </div>
             ))}
+            {sendMessageMutation.isPending && (
+              <div className="flex items-start mb-4 gap-x-4">
+                <Icons.BotChat />
+                <div className="px-4 py-3 rounded-t-2xl rounded-br-2xl bg-bg-answer w-full border border-bg-answer">
+                  <div className="flex gap-1 text-cite">
+                    <span className="animate-bounce">●</span>
+                    <span className="animate-bounce" style={{ animationDelay: '100ms' }}>●</span>
+                    <span className="animate-bounce" style={{ animationDelay: '200ms' }}>●</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         </div>
 
-        <div className="absolute bottom-6 px-6 left-0 right-0 bg-white">
-          <div className="w-full border border-gray-200 rounded-xl flex items-center px-3 py-2">
+        <div className="absolute bottom-6 px-6 left-0 right-0 bg-bg-main">
+          <div className="w-full border border-design-border rounded-2xl flex items-center px-4 py-3 shadow-sm focus-within:border-btn-text focus-within:ring-2 focus-within:ring-btn-text/10 transition-all">
             <textarea
-              className="w-full resize-none outline-none text-base max-h-40 overflow-y-auto"
+              className="w-full resize-none outline-none text-base max-h-40 overflow-y-auto bg-transparent"
               rows={1}
               placeholder="Bạn cần hỏi gì?"
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
+              disabled={sendMessageMutation.isPending}
             />
 
             <button
               onClick={handleSend}
-              className="ml-2 text-gray-400 hover:text-gray-600 transition"
+              disabled={sendMessageMutation.isPending || !input.trim()}
+              className="ml-3 p-2 rounded-xl bg-btn-bg text-btn-text hover:bg-btn-hover-bg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Icons.SendIcon className="w-5 h-5" />
             </button>

@@ -14,7 +14,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
       <div className="p-6 border-b border-[#EBEBEB] flex items-center justify-between">
         <div className="font-bold">
           <span className="text-[#50ACB7]">
-            Tham chiếu [{reference.number}] - 
+            Tham chiếu [{reference.number}] -
           </span>
           <span> Nguồn gốc</span>
         </div>

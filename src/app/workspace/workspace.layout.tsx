@@ -5,16 +5,16 @@ import Navigation from "@/components/layout/navigation";
 
 export function WorkspaceLayout(): JSX.Element {
   return (
-    <div className="flex h-screen">
-      <aside className="w-1/5 bg-gray-100">
+    <div className="flex h-screen bg-bg-app">
+      <aside className="w-1/5 bg-bg-aside">
         <Navigation />
       </aside>
 
       <div className="flex-1 flex flex-col">
         <TitleSection />
 
-        <div className="bg-gray-100 flex-1 overflow-hidden">
-          <main className="h-full border border-[#EBEBEB] bg-white rounded-t-3xl">
+        <div className="bg-bg-app flex-1 overflow-hidden">
+          <main className="h-full border border-design-border bg-bg-main rounded-t-3xl shadow-sm">
             <Outlet />
           </main>
         </div>
