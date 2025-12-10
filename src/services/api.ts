@@ -130,6 +130,32 @@ class ApiClient {
 
     return new EventSource(url.toString());
   }
+
+  /**
+   * POST request with streaming response (SSE via fetch)
+   * Returns a Response object with readable body for streaming
+   */
+  async fetchStream(endpoint: string, body?: any): Promise<Response> {
+    const token = this.getAuthToken();
+    const url = `${this.baseURL}${endpoint}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, response.statusText, data);
+    }
+
+    return response;
+  }
 }
 
 export const api = new ApiClient(API_BASE_URL);
+

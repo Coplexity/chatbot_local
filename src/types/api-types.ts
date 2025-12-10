@@ -88,3 +88,23 @@ export interface SearchMessageParams {
   page?: number;
   limit?: number;
 }
+
+// Citation from AI response (matches backend Citation interface)
+export interface Citation {
+  chuong?: number;
+  dieu?: number;
+  khoan?: number;
+  phu_luc?: number;
+  noi_dung_da_su_dung?: string;
+  start_char: number;
+  end_char: number;
+  resource_type?: string;
+  resource_content?: string;
+}
+
+// Streaming chunk from SSE response
+export interface StreamChunk {
+  text: string;
+  citation?: Citation;
+}
+

@@ -1,9 +1,9 @@
-export interface Reference {
+import type { Citation } from "./api-types";
+
+// Reference extends Citation with display properties
+export interface Reference extends Citation {
   id: string;
   number: number;
-  title: string;
-  content: string;
-  source: string;
 }
 
 export interface Message {
@@ -19,3 +19,4 @@ export interface ChatHistory {
   title: string;
   messages: Message[];
 }
+

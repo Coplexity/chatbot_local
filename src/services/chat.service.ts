@@ -7,6 +7,7 @@ import type {
   SearchMessageParams,
   SendMessageRequest,
   SendMessageResponse,
+  StreamChunk,
 } from "@/types/api-types";
 
 export const chatService = {
@@ -71,6 +72,63 @@ export const chatService = {
   },
 
   /**
+   * Send a message with streaming response
+   * Yields text chunks and citations as they arrive from SSE stream
+   */
+  async *sendMessageStream(
+    conversationId: string,
+    content: string
+  ): AsyncGenerator<StreamChunk> {
+    const response = await api.fetchStream(
+      `/chat/conversations/${conversationId}/messages/stream`,
+      { content }
+    );
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("No response body reader available");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+
+        // Keep the last incomplete line in buffer
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+          if (trimmedLine === "data: [DONE]") return;
+
+          if (trimmedLine.startsWith("data: ")) {
+            try {
+              const jsonStr = trimmedLine.substring(6);
+              const data = JSON.parse(jsonStr) as StreamChunk;
+
+              // Yield the chunk directly - backend now sends text and citation separately
+              if (data.text || data.citation) {
+                yield data;
+              }
+            } catch {
+              // Skip invalid JSON lines
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  /**
    * Send a message with streaming response (SSE)
    * Returns EventSource for listening to streaming chunks
    */
@@ -95,3 +153,4 @@ export const chatService = {
     });
   },
 };
+
