@@ -1,6 +1,6 @@
 import Icons from "@/components/icons/icons";
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { useSearch } from "@tanstack/react-router";
+import { useSearch, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatService } from "@/services/chat.service";
 import type { Message, Citation } from "@/types/api-types";
@@ -197,7 +197,9 @@ function processCitationMarkers(
 
 export function ChatPage() {
   const search = useSearch({ from: "/workspace/chat" });
+  const navigate = useNavigate();
   const chatId = search?.chatId;
+  const isNewChat = chatId === "new";
   const queryClient = useQueryClient();
   const { message: antMessage } = App.useApp();
 
@@ -208,16 +210,21 @@ export function ChatPage() {
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch messages for the current conversation
+  // Close reference panel when switching conversations
+  useEffect(() => {
+    setSelectedReference(null);
+  }, [chatId]);
+
+  // Fetch messages for the current conversation (skip for new chat)
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["messages", chatId],
     queryFn: async () => {
-      if (!chatId || typeof chatId !== "string") {
+      if (!chatId || typeof chatId !== "string" || chatId === "new") {
         return { conversation: null, messages: [] };
       }
       return chatService.getMessages(chatId);
     },
-    enabled: !!chatId && typeof chatId === "string",
+    enabled: !!chatId && typeof chatId === "string" && chatId !== "new",
   });
 
   const messages = messagesData?.messages || [];
@@ -233,7 +240,7 @@ export function ChatPage() {
   }, []);
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || !chatId || isStreaming) return;
+    if (!input.trim() || isStreaming) return;
 
     const userInput = input;
     setInput("");
@@ -252,17 +259,35 @@ export function ChatPage() {
     setStreamingText("");
 
     try {
-      // Consume streaming response
-      for await (const chunk of chatService.sendMessageStream(chatId as string, userInput)) {
-        if (chunk.text) {
-          setStreamingText((prev) => prev + chunk.text);
-        }
-        // Citations during streaming are ignored - they will be processed after refresh
-      }
+      if (isNewChat) {
+        // Start new conversation with first message
+        let newConversationId: string | null = null;
 
-      // Streaming complete - refresh messages from server
-      await queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
-      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        for await (const chunk of chatService.startConversationStream(userInput)) {
+          if (chunk.type === "conversation") {
+            newConversationId = chunk.conversationId;
+          } else if (chunk.type === "text" && chunk.text) {
+            setStreamingText((prev) => prev + chunk.text);
+          }
+        }
+
+        // Navigate to the new conversation
+        if (newConversationId) {
+          await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          navigate({ to: "/chat", search: { chatId: newConversationId } });
+        }
+      } else {
+        // Send message to existing conversation
+        for await (const chunk of chatService.sendMessageStream(chatId as string, userInput)) {
+          if (chunk.text) {
+            setStreamingText((prev) => prev + chunk.text);
+          }
+        }
+
+        // Streaming complete - refresh messages from server
+        await queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
+        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      }
     } catch (error: any) {
       console.error("Failed to send message:", error);
       antMessage.error(
@@ -275,7 +300,7 @@ export function ChatPage() {
       setStreamingText("");
       setOptimisticMessage(null);
     }
-  }, [input, chatId, isStreaming, queryClient, antMessage]);
+  }, [input, chatId, isNewChat, isStreaming, queryClient, antMessage, navigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -299,6 +324,7 @@ export function ChatPage() {
     });
   };
 
+  // Show welcome screen for new chat or no chat selected
   if (!chatId) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
@@ -310,7 +336,7 @@ export function ChatPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !isNewChat) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-gray-500">Đang tải tin nhắn...</div>

@@ -35,14 +35,7 @@ export default function Navigation() {
     },
   });
 
-  // Create new conversation mutation
-  const createConversationMutation = useMutation({
-    mutationFn: () => chatService.createConversation(),
-    onSuccess: (newConversation) => {
-      void queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      navigate({ to: "/chat", search: { chatId: newConversation.id } });
-    },
-  });
+
 
   const handleChatClick = (chatId: string) => {
     navigate({
@@ -69,7 +62,7 @@ export default function Navigation() {
   };
 
   const handleNewChat = () => {
-    createConversationMutation.mutate();
+    navigate({ to: "/chat", search: { chatId: "new" } });
   };
 
   const handleLogout = () => {
@@ -115,17 +108,16 @@ export default function Navigation() {
   }, []);
 
   return (
-    <div className="w-full p-6 border-r border-1 border-design-border min-h-screen flex flex-col gap-4 bg-bg-aside">
+    <div className="w-full p-6 border-r border-1 border-design-border h-screen flex flex-col gap-4 bg-bg-aside overflow-hidden">
       <div className="flex justify-center mb-8">
         <Logos.Logo className="h-6" />
       </div>
 
       <button
         onClick={handleNewChat}
-        disabled={createConversationMutation.isPending}
-        className="w-full px-4 py-3 bg-btn-bg text-btn-text font-medium rounded-xl hover:bg-btn-hover-bg hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        className="w-full px-4 py-3 bg-btn-bg text-btn-text font-medium rounded-xl hover:bg-btn-hover-bg hover:shadow-md transition-all duration-200 cursor-pointer flex-shrink-0"
       >
-        {createConversationMutation.isPending ? "Đang tạo..." : "+ Cuộc trò chuyện mới"}
+        + Cuộc trò chuyện mới
       </button>
 
       <div className="relative">
@@ -139,12 +131,12 @@ export default function Navigation() {
         <Icons.SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 text-gray-400" />
       </div>
 
-      <div className="font-bold mt-4">Lịch sử trò chuyện</div>
+      <div className="font-bold mt-4 flex-shrink-0">Lịch sử trò chuyện</div>
 
       {isLoading ? (
         <div className="text-center text-gray-400 py-4">Đang tải...</div>
       ) : (
-        <ul className="space-y-2 flex-1 overflow-y-auto">
+        <ul className="space-y-2 flex-1 overflow-y-auto min-h-0">
           {filteredChats.length > 0 ? (
             filteredChats.map((chat) => (
               <li

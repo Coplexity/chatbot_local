@@ -143,6 +143,63 @@ export const chatService = {
   },
 
   /**
+   * Start a new conversation with streaming first response
+   * Yields conversation info first, then text chunks
+   */
+  async *startConversationStream(
+    content: string
+  ): AsyncGenerator<{ type: "conversation"; conversationId: string } | { type: "text"; text: string }> {
+    const response = await api.fetchStream(
+      "/chat/conversations/start/stream",
+      { content }
+    );
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("No response body reader available");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+
+        // Keep the last incomplete line in buffer
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+          if (trimmedLine === "data: [DONE]") return;
+
+          if (trimmedLine.startsWith("data: ")) {
+            try {
+              const jsonStr = trimmedLine.substring(6);
+              const data = JSON.parse(jsonStr);
+
+              if (data.type === "conversation") {
+                yield { type: "conversation", conversationId: data.conversationId };
+              } else if (data.type === "text" && data.text) {
+                yield { type: "text", text: data.text };
+              }
+            } catch {
+              // Skip invalid JSON lines
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  /**
    * Search messages across conversations
    */
   async searchMessages(
