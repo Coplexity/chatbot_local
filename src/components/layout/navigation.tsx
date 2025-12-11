@@ -109,9 +109,13 @@ export default function Navigation() {
 
   return (
     <div className="w-full p-6 border-r border-1 border-design-border h-screen flex flex-col gap-4 bg-bg-aside overflow-hidden">
-      <div className="flex justify-center mb-4 items-center">
-        <Logos.Logo className="h-6" />
-        <Logos.LogoHust className="h-10" width="auto" />
+      <div className="flex justify-around mb-4 items-center h-12">
+        <div className="w-8 h-12">
+          <Logos.LogoHust className="w-full h-full" />
+        </div>
+        <div className="w-24 h-12">
+          <Logos.Logo className="w-full h-full" />
+        </div>
       </div>
 
       <button
