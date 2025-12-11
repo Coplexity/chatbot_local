@@ -32,6 +32,11 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# Create directory for static files (optional: copy if exists)
+RUN mkdir -p /usr/share/nginx/static
+# Uncomment the line below if you have a static folder in your project
+# COPY --from=builder /app/static /usr/share/nginx/static
+
 # Expose port 80
 EXPOSE 80
 
