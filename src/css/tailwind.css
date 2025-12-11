@@ -34,8 +34,18 @@
   --color-design-secondary: #3b82f6;
   --color-dark-blue: #02093f;
   --color-primary-blue: #027bff;
-  --color-design-border: #efeef5;  
-  --color-design-lightblue: #f2f8ff
+  --color-design-border: #EBEBEB;
+  --color-design-lightblue: #f2f8ff;
+
+  /* Medical Chatbot Theme Colors */
+  --color-bg-app: #F9F9F9;
+  --color-bg-main: #FFFFFF;
+  --color-bg-aside: #F9F9F9;
+  --color-bg-answer: #F6FEFF;
+  --color-cite: #50ACB7;
+  --color-btn-bg: #F2F8FF;
+  --color-btn-text: #027BFF;
+  --color-btn-hover-bg: #E5F0FF;
 }
 
 @theme inline {

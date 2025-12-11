@@ -1,71 +1,306 @@
 import Icons from "@/components/icons/icons";
-import { useState, useEffect } from "react";
-import { useSearch } from "@tanstack/react-router";
-import { chatHistoryData } from "@/mocks/chat-history";
-import { Message, Reference } from "@/types/chat-types";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useSearch, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { chatService } from "@/services/chat.service";
+import type { Message, Citation } from "@/types/api-types";
+import { MessageRole } from "@/types/api-types";
+import { Reference } from "@/types/chat-types";
 import { ReferencePanel } from "@/components/reference-panel/reference-panel";
+import { App } from "antd";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { parseTextAndCitations, citationToReference, formatCitationLabel } from "@/utils/citation-parser";
 
-export function ChatPage() {
-  const search = useSearch({ from: "/workspace/chat" });
-  const chatId = search?.chatId;
+// Optimistic user message for immediate display
+interface OptimisticMessage {
+  id: string;
+  role: MessageRole;
+  content: string;
+  createdAt: string;
+}
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [selectedReference, setSelectedReference] = useState<Reference | null>(
-    null
-  );
+// Props for memoized message bubble
+interface MessageBubbleProps {
+  message: Message;
+  onCitationClick: (citation: Citation, index: number) => void;
+}
 
-  useEffect(() => {
-    if (chatId) {
-      const chatHistory = chatHistoryData.find(
-        (chat) => chat.chatId === chatId
-      );
-      if (chatHistory) {
-        setMessages(chatHistory.messages);
-      }
-    } else {
-      setMessages([]);
+// Memoized message bubble component for optimized rendering
+const MessageBubble = memo(function MessageBubble({ message, onCitationClick }: MessageBubbleProps) {
+  const isAssistant = message.role === MessageRole.ASSISTANT;
+
+  // Parse citations only for assistant messages (non-streaming, complete messages)
+  const parsedContent = useMemo(() => {
+    if (!isAssistant) {
+      return { textWithMarkers: message.content, cleanedText: message.content, citations: [] };
     }
-  }, [chatId]);
+    return parseTextAndCitations(message.content);
+  }, [message.content, isAssistant]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    const currentTime = new Date().toLocaleTimeString("en-US", {
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     });
+  };
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        sender: "user",
-        text: input,
-        time: currentTime,
-      },
-    ]);
+  // Render message content with markdown and clickable citation markers
+  const renderMessageContent = () => {
+    if (!isAssistant) {
+      return <span className="whitespace-pre-wrap">{message.content}</span>;
+    }
 
+    // Render text with clickable citation markers for assistant messages
+    const { textWithMarkers, citations } = parsedContent;
+
+    return (
+      <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 whitespace-pre-wrap">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            // Custom renderer to handle citation markers [n]
+            p: ({ children }) => {
+              return <p>{processCitationMarkers(children, citations, onCitationClick)}</p>;
+            },
+            li: ({ children }) => {
+              return <li>{processCitationMarkers(children, citations, onCitationClick)}</li>;
+            },
+          }}
+        >
+          {textWithMarkers}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+
+  // Render citation summary at the bottom
+  const renderCitationSummary = () => {
+    const { citations } = parsedContent;
+    if (citations.length === 0) return null;
+
+    return (
+      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-200">
+        {citations.map((citation, index) => (
+          <button
+            key={`${citation.start_char}-${index}`}
+            onClick={() => onCitationClick(citation, index)}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-cite/10 text-cite hover:bg-cite/20 transition-colors cursor-pointer"
+            title={formatCitationLabel(citation)}
+          >
+            <span className="font-medium">[{index + 1}]</span>
+            <span className="text-gray-600 max-w-32 truncate">
+              {formatCitationLabel(citation)}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div
+        className={`flex items-start mb-4 gap-x-4 ${message.role === MessageRole.USER ? "justify-end" : ""}`}
+      >
+        {isAssistant && <Icons.BotChat />}
+        <div
+          className={`px-4 py-3 rounded-t-2xl ${message.role === MessageRole.USER
+            ? "rounded-bl-2xl bg-white border border-design-border"
+            : "rounded-br-2xl bg-bg-answer w-full border border-bg-answer"
+            }`}
+        >
+          {renderMessageContent()}
+          {isAssistant && renderCitationSummary()}
+        </div>
+      </div>
+      <div
+        className={`mt-2 text-sm text-gray-400 ${message.role === MessageRole.USER ? "text-right" : "text-left ml-12"}`}
+      >
+        {formatTime(message.createdAt)}
+      </div>
+    </div>
+  );
+});
+
+// Process text children to replace [n] markers with clickable buttons
+function processCitationMarkers(
+  children: React.ReactNode,
+  citations: Citation[],
+  onCitationClick: (citation: Citation, index: number) => void
+): React.ReactNode {
+  if (!children) return children;
+
+  if (typeof children === "string") {
+    children = children.trim();
+  }
+
+  // If children is an array, process each element
+  if (Array.isArray(children)) {
+    return children.map((child, idx) => (
+      <span key={idx}>{processCitationMarkers(child, citations, onCitationClick)}</span>
+    ));
+  }
+
+  // If it's a string, replace [n] markers with buttons
+  if (typeof children === "string") {
+    const markerRegex = /\[(\d+)\]/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = markerRegex.exec(children)) !== null) {
+      // Add text before the marker
+      if (match.index > lastIndex) {
+        parts.push(children.slice(lastIndex, match.index));
+      }
+
+      const markerNum = parseInt(match[1], 10);
+      const citationIndex = markerNum - 1;
+
+      if (citationIndex >= 0 && citationIndex < citations.length) {
+        const citation = citations[citationIndex];
+        parts.push(
+          <button
+            key={`marker-${match.index}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCitationClick(citation, citationIndex);
+            }}
+            className="inline-flex items-center justify-center text-cite font-semibold hover:bg-cite/20 rounded px-0.5 cursor-pointer transition-colors"
+            title={formatCitationLabel(citation)}
+          >
+            [{markerNum}]
+          </button>
+        );
+      } else {
+        // Keep the marker as-is if no matching citation
+        parts.push(match[0]);
+      }
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after last marker
+    if (lastIndex < children.length) {
+      parts.push(children.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : children;
+  }
+
+  // For other React elements, return as-is
+  return children;
+}
+
+export function ChatPage() {
+  const search = useSearch({ from: "/workspace/chat" });
+  const navigate = useNavigate();
+  const chatId = search?.chatId;
+  const isNewChat = chatId === "new";
+  const queryClient = useQueryClient();
+  const { message: antMessage } = App.useApp();
+
+  const [input, setInput] = useState("");
+  const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Close reference panel when switching conversations
+  useEffect(() => {
+    setSelectedReference(null);
+  }, [chatId]);
+
+  // Fetch messages for the current conversation (skip for new chat)
+  const { data: messagesData, isLoading } = useQuery({
+    queryKey: ["messages", chatId],
+    queryFn: async () => {
+      if (!chatId || typeof chatId !== "string" || chatId === "new") {
+        return { conversation: null, messages: [] };
+      }
+      return chatService.getMessages(chatId);
+    },
+    enabled: !!chatId && typeof chatId === "string" && chatId !== "new",
+  });
+
+  const messages = messagesData?.messages || [];
+
+  // Auto-scroll to bottom when messages or streaming content changes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamingText, optimisticMessage]);
+
+  const handleCitationClick = useCallback((citation: Citation, index: number) => {
+    const reference = citationToReference(citation, index);
+    setSelectedReference(reference);
+  }, []);
+
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || isStreaming) return;
+
+    const userInput = input;
     setInput("");
 
-    setTimeout(() => {
-      const botTime = new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: "bot",
-          text: "Đây là câu trả lời ngẫu nhiên từ bot cho câu hỏi của bạn.",
-          time: botTime,
-        },
-      ]);
-    }, 1000);
-  };
+    // Show user message immediately (optimistic update)
+    const tempMessage: OptimisticMessage = {
+      id: `temp-${Date.now()}`,
+      role: MessageRole.USER,
+      content: userInput,
+      createdAt: new Date().toISOString(),
+    };
+    setOptimisticMessage(tempMessage);
+
+    // Start streaming
+    setIsStreaming(true);
+    setStreamingText("");
+
+    try {
+      if (isNewChat) {
+        // Start new conversation with first message
+        let newConversationId: string | null = null;
+
+        for await (const chunk of chatService.startConversationStream(userInput)) {
+          if (chunk.type === "conversation") {
+            newConversationId = chunk.conversationId;
+          } else if (chunk.type === "text" && chunk.text) {
+            setStreamingText((prev) => prev + chunk.text);
+          }
+        }
+
+        // Navigate to the new conversation
+        if (newConversationId) {
+          await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          navigate({ to: "/chat", search: { chatId: newConversationId } });
+        }
+      } else {
+        // Send message to existing conversation
+        for await (const chunk of chatService.sendMessageStream(chatId as string, userInput)) {
+          if (chunk.text) {
+            setStreamingText((prev) => prev + chunk.text);
+          }
+        }
+
+        // Streaming complete - refresh messages from server
+        await queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
+        await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      }
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+      antMessage.error(
+        error?.message || "Gửi tin nhắn thất bại. Vui lòng thử lại."
+      );
+      // Restore input on error
+      setInput(userInput);
+    } finally {
+      setIsStreaming(false);
+      setStreamingText("");
+      setOptimisticMessage(null);
+    }
+  }, [input, chatId, isNewChat, isStreaming, queryClient, antMessage, navigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -76,99 +311,121 @@ export function ChatPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-
     e.target.style.height = "auto";
     e.target.style.height = e.target.scrollHeight + "px";
   };
 
-  const handleReferenceClick = (reference: Reference) => {
-    setSelectedReference(reference);
-  };
-
-  const renderMessageText = (message: Message) => {
-    if (!message.references || message.references.length === 0) {
-      return message.text;
-    }
-
-    let text = message.text;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-
-    message.references.forEach((ref) => {
-      const refPattern = `[${ref.number}]`;
-      const index = text.indexOf(refPattern, lastIndex);
-
-      if (index !== -1) {
-        if (index > lastIndex) {
-          parts.push(text.substring(lastIndex, index));
-        }
-
-        parts.push(
-          <button
-            key={ref.id}
-            onClick={() => handleReferenceClick(ref)}
-            className="text-[#50ACB7] cursor-pointer font-bold hover:underline"
-          >
-            [{ref.number}]
-          </button>
-        );
-
-        lastIndex = index + refPattern.length;
-      }
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     });
-
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-
-    return <>{parts}</>;
   };
+
+  // Show welcome screen for new chat or no chat selected
+  if (!chatId) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500">
+        <div className="text-center">
+          <p className="text-lg mb-2">Chọn một cuộc trò chuyện</p>
+          <p className="text-sm">hoặc tạo cuộc trò chuyện mới để bắt đầu</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && !isNewChat) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-500">Đang tải tin nhắn...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full flex">
       <div className="flex-1 flex flex-col relative py-6">
         <div className="flex-1 overflow-y-auto p-4 pb-24">
           <div className="flex flex-col gap-4">
+            {/* Existing messages - memoized for performance */}
             {messages.map((m) => (
-              <div key={m.id}>
-                <div
-                  className={`flex items-start mb-4 gap-x-4 ${
-                    m.sender === "user" ? "justify-end" : ""
-                  }`}
-                >
-                  {m.sender === "bot" && <Icons.BotChat />}
-                  <div
-                    className={`px-4 py-3 rounded-t-2xl ${
-                      m.sender === "user"
-                        ? "rounded-bl-2xl bg-white border border-[#EBEBEB]"
-                        : "rounded-br-2xl bg-[#F6FEFF] w-full"
-                    }`}
-                  >
-                    {renderMessageText(m)}
+              <MessageBubble
+                key={m.id}
+                message={m}
+                onCitationClick={handleCitationClick}
+              />
+            ))}
+
+            {/* Optimistic user message (shown immediately when sending) */}
+            {optimisticMessage && (
+              <div>
+                <div className="flex items-start mb-4 gap-x-4 justify-end">
+                  <div className="px-4 py-3 rounded-t-2xl rounded-bl-2xl bg-white border border-design-border shadow-sm max-w-[70%]">
+                    <span className="whitespace-pre-wrap">
+                      {optimisticMessage.content}
+                    </span>
                   </div>
                 </div>
-                <div className="mt-2 text-right text-sm text-gray-500">
-                  {m.time}
+                <div className="mt-2 text-sm text-gray-400 text-right">
+                  {formatTime(optimisticMessage.createdAt)}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* Streaming assistant response - raw text without citation processing */}
+            {isStreaming && (
+              <div>
+                <div className="flex items-start mb-4 gap-x-4">
+                  <Icons.BotChat />
+                  <div className="px-4 py-3 rounded-t-2xl rounded-br-2xl bg-bg-answer w-full border border-bg-answer">
+                    {streamingText ? (
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 text-cite">
+                        <span className="animate-bounce">●</span>
+                        <span
+                          className="animate-bounce"
+                          style={{ animationDelay: "100ms" }}
+                        >
+                          ●
+                        </span>
+                        <span
+                          className="animate-bounce"
+                          style={{ animationDelay: "200ms" }}
+                        >
+                          ●
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
         </div>
 
-        <div className="absolute bottom-6 px-6 left-0 right-0 bg-white">
-          <div className="w-full border border-gray-200 rounded-xl flex items-center px-3 py-2">
+        <div className="absolute bottom-6 px-6 left-0 right-0 bg-bg-main">
+          <div className="w-full border border-design-border rounded-2xl flex items-center px-4 py-3 shadow-sm focus-within:border-btn-text focus-within:ring-2 focus-within:ring-btn-text/10 transition-all">
             <textarea
-              className="w-full resize-none outline-none text-base max-h-40 overflow-y-auto"
+              className="w-full resize-none outline-none text-base max-h-40 overflow-y-auto bg-transparent"
               rows={1}
               placeholder="Bạn cần hỏi gì?"
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
+              disabled={isStreaming}
             />
 
             <button
               onClick={handleSend}
-              className="ml-2 text-gray-400 hover:text-gray-600 transition"
+              disabled={isStreaming || !input.trim()}
+              className="ml-3 p-2 rounded-xl bg-btn-bg text-btn-text hover:bg-btn-hover-bg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Icons.SendIcon className="w-5 h-5" />
             </button>
@@ -185,3 +442,4 @@ export function ChatPage() {
     </div>
   );
 }
+
