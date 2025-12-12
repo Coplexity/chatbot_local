@@ -20,10 +20,13 @@
     "@tanstack/react-router": "^1.134.9",
     "@tanstack/react-router-devtools": "^1.134.9",
     "antd": "^5.28.0",
+    "katex": "^0.16.27",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "tailwindcss": "^4.1.16"
   },
   "devDependencies": {

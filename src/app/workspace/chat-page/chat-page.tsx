@@ -10,7 +10,11 @@ import { ReferencePanel } from "@/components/reference-panel/reference-panel";
 import { App } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { parseTextAndCitations, citationToReference, formatCitationLabel } from "@/utils/citation-parser";
+import {
+  parseTextAndCitations,
+  citationToReference,
+  formatCitationLabel,
+} from "@/utils/citation-parser";
 
 // Optimistic user message for immediate display
 interface OptimisticMessage {
@@ -27,13 +31,20 @@ interface MessageBubbleProps {
 }
 
 // Memoized message bubble component for optimized rendering
-const MessageBubble = memo(function MessageBubble({ message, onCitationClick }: MessageBubbleProps) {
+const MessageBubble = memo(function MessageBubble({
+  message,
+  onCitationClick,
+}: MessageBubbleProps) {
   const isAssistant = message.role === MessageRole.ASSISTANT;
 
   // Parse citations only for assistant messages (non-streaming, complete messages)
   const parsedContent = useMemo(() => {
     if (!isAssistant) {
-      return { textWithMarkers: message.content, cleanedText: message.content, citations: [] };
+      return {
+        textWithMarkers: message.content,
+        cleanedText: message.content,
+        citations: [],
+      };
     }
     return parseTextAndCitations(message.content);
   }, [message.content, isAssistant]);
@@ -63,10 +74,18 @@ const MessageBubble = memo(function MessageBubble({ message, onCitationClick }: 
           components={{
             // Custom renderer to handle citation markers [n]
             p: ({ children }) => {
-              return <p>{processCitationMarkers(children, citations, onCitationClick)}</p>;
+              return (
+                <p>
+                  {processCitationMarkers(children, citations, onCitationClick)}
+                </p>
+              );
             },
             li: ({ children }) => {
-              return <li>{processCitationMarkers(children, citations, onCitationClick)}</li>;
+              return (
+                <li>
+                  {processCitationMarkers(children, citations, onCitationClick)}
+                </li>
+              );
             },
           }}
         >
@@ -82,16 +101,16 @@ const MessageBubble = memo(function MessageBubble({ message, onCitationClick }: 
     if (citations.length === 0) return null;
 
     return (
-      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-200">
+      <div className="flex flex-wrap gap-1.5 lg:gap-2 mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-gray-200">
         {citations.map((citation, index) => (
           <button
             key={`${citation.start_char}-${index}`}
             onClick={() => onCitationClick(citation, index)}
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-cite/10 text-cite hover:bg-cite/20 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 px-1.5 lg:px-2 py-0.5 lg:py-1 text-xs rounded-md bg-cite/10 text-cite hover:bg-cite/20 transition-colors cursor-pointer"
             title={formatCitationLabel(citation)}
           >
             <span className="font-medium">[{index + 1}]</span>
-            <span className="text-gray-600 max-w-32 truncate">
+            <span className="text-gray-600 max-w-24 lg:max-w-32 truncate">
               {formatCitationLabel(citation)}
             </span>
           </button>
@@ -103,21 +122,30 @@ const MessageBubble = memo(function MessageBubble({ message, onCitationClick }: 
   return (
     <div>
       <div
-        className={`flex items-start mb-4 gap-x-4 ${message.role === MessageRole.USER ? "justify-end" : ""}`}
+        className={`flex items-start mb-3 lg:mb-4 gap-x-3 lg:gap-x-4 ${
+          message.role === MessageRole.USER ? "justify-end" : ""
+        }`}
       >
-        {isAssistant && <Icons.BotChat />}
+        {isAssistant && (
+          <Icons.BotChat className="w-6 h-6 lg:w-8 lg:h-8 shrink-0" />
+        )}
         <div
-          className={`px-4 py-3 rounded-t-2xl ${message.role === MessageRole.USER
-            ? "rounded-bl-2xl bg-white border border-design-border"
-            : "rounded-br-2xl bg-bg-answer w-full border border-bg-answer"
-            }`}
+          className={`px-3 lg:px-4 py-2 lg:py-3 rounded-t-xl lg:rounded-t-2xl text-sm lg:text-base ${
+            message.role === MessageRole.USER
+              ? "rounded-bl-xl lg:rounded-bl-2xl bg-white border border-design-border max-w-[85%] lg:max-w-[70%]"
+              : "rounded-br-xl lg:rounded-br-2xl bg-bg-answer w-full border border-bg-answer"
+          }`}
         >
           {renderMessageContent()}
           {isAssistant && renderCitationSummary()}
         </div>
       </div>
       <div
-        className={`mt-2 text-sm text-gray-400 ${message.role === MessageRole.USER ? "text-right" : "text-left ml-12"}`}
+        className={`mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400 ${
+          message.role === MessageRole.USER
+            ? "text-right"
+            : "text-left ml-9 lg:ml-12"
+        }`}
       >
         {formatTime(message.createdAt)}
       </div>
@@ -140,7 +168,9 @@ function processCitationMarkers(
   // If children is an array, process each element
   if (Array.isArray(children)) {
     return children.map((child, idx) => (
-      <span key={idx}>{processCitationMarkers(child, citations, onCitationClick)}</span>
+      <span key={idx}>
+        {processCitationMarkers(child, citations, onCitationClick)}
+      </span>
     ));
   }
 
@@ -152,7 +182,6 @@ function processCitationMarkers(
     let match;
 
     while ((match = markerRegex.exec(children)) !== null) {
-      // Add text before the marker
       if (match.index > lastIndex) {
         parts.push(children.slice(lastIndex, match.index));
       }
@@ -169,21 +198,19 @@ function processCitationMarkers(
               e.stopPropagation();
               onCitationClick(citation, citationIndex);
             }}
-            className="inline-flex items-center justify-center text-cite font-semibold hover:bg-cite/20 rounded px-0.5 cursor-pointer transition-colors"
+            className="inline-flex items-center justify-center text-cite font-semibold hover:bg-cite/20 rounded px-0.5 cursor-pointer transition-colors text-xs lg:text-sm"
             title={formatCitationLabel(citation)}
           >
             [{markerNum}]
           </button>
         );
       } else {
-        // Keep the marker as-is if no matching citation
         parts.push(match[0]);
       }
 
       lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text after last marker
     if (lastIndex < children.length) {
       parts.push(children.slice(lastIndex));
     }
@@ -204,10 +231,13 @@ export function ChatPage() {
   const { message: antMessage } = App.useApp();
 
   const [input, setInput] = useState("");
-  const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
+  const [selectedReference, setSelectedReference] = useState<Reference | null>(
+    null
+  );
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
-  const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
+  const [optimisticMessage, setOptimisticMessage] =
+    useState<OptimisticMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Close reference panel when switching conversations
@@ -234,10 +264,13 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, optimisticMessage]);
 
-  const handleCitationClick = useCallback((citation: Citation, index: number) => {
-    const reference = citationToReference(citation, index);
-    setSelectedReference(reference);
-  }, []);
+  const handleCitationClick = useCallback(
+    (citation: Citation, index: number) => {
+      const reference = citationToReference(citation, index);
+      setSelectedReference(reference);
+    },
+    []
+  );
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
@@ -263,7 +296,9 @@ export function ChatPage() {
         // Start new conversation with first message
         let newConversationId: string | null = null;
 
-        for await (const chunk of chatService.startConversationStream(userInput)) {
+        for await (const chunk of chatService.startConversationStream(
+          userInput
+        )) {
           if (chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if (chunk.type === "text" && chunk.text) {
@@ -278,7 +313,10 @@ export function ChatPage() {
         }
       } else {
         // Send message to existing conversation
-        for await (const chunk of chatService.sendMessageStream(chatId as string, userInput)) {
+        for await (const chunk of chatService.sendMessageStream(
+          chatId as string,
+          userInput
+        )) {
           if (chunk.text) {
             setStreamingText((prev) => prev + chunk.text);
           }
@@ -300,7 +338,15 @@ export function ChatPage() {
       setStreamingText("");
       setOptimisticMessage(null);
     }
-  }, [input, chatId, isNewChat, isStreaming, queryClient, antMessage, navigate]);
+  }, [
+    input,
+    chatId,
+    isNewChat,
+    isStreaming,
+    queryClient,
+    antMessage,
+    navigate,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -345,11 +391,12 @@ export function ChatPage() {
   }
 
   return (
-    <div className="relative h-full flex">
-      <div className="flex-1 flex flex-col relative py-6">
-        <div className="flex-1 overflow-y-auto p-4 pb-24">
-          <div className="flex flex-col gap-4">
-            {/* Existing messages - memoized for performance */}
+    <div className="relative h-full flex flex-col lg:flex-row overflow-hidden">
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col relative py-4 lg:py-6 min-h-0">
+        <div className="flex-1 overflow-y-auto px-3 lg:px-4 pb-24 lg:pb-24 overscroll-contain">
+          <div className="flex flex-col gap-3 lg:gap-4">
+            {/* Messages rendering - keep your existing code */}
             {messages.map((m) => (
               <MessageBubble
                 key={m.id}
@@ -358,31 +405,31 @@ export function ChatPage() {
               />
             ))}
 
-            {/* Optimistic user message (shown immediately when sending) */}
             {optimisticMessage && (
               <div>
-                <div className="flex items-start mb-4 gap-x-4 justify-end">
-                  <div className="px-4 py-3 rounded-t-2xl rounded-bl-2xl bg-white border border-design-border shadow-sm max-w-[70%]">
-                    <span className="whitespace-pre-wrap">
+                <div className="flex items-start mb-3 lg:mb-4 gap-x-3 lg:gap-x-4 justify-end">
+                  <div className="px-3 lg:px-4 py-2 lg:py-3 rounded-t-2xl rounded-bl-2xl bg-white border border-design-border shadow-sm max-w-[85%] lg:max-w-[70%]">
+                    <span className="whitespace-pre-wrap text-sm lg:text-base">
                       {optimisticMessage.content}
                     </span>
                   </div>
                 </div>
-                <div className="mt-2 text-sm text-gray-400 text-right">
+                <div className="mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400 text-right">
                   {formatTime(optimisticMessage.createdAt)}
                 </div>
               </div>
             )}
 
-            {/* Streaming assistant response - raw text without citation processing */}
             {isStreaming && (
               <div>
-                <div className="flex items-start mb-4 gap-x-4">
-                  <Icons.BotChat />
-                  <div className="px-4 py-3 rounded-t-2xl rounded-br-2xl bg-bg-answer w-full border border-bg-answer">
+                <div className="flex items-start mb-3 lg:mb-4 gap-x-3 lg:gap-x-4">
+                  <Icons.BotChat className="w-6 h-6 lg:w-8 lg:h-8 shrink-0" />
+                  <div className="px-3 lg:px-4 py-2 lg:py-3 rounded-t-2xl rounded-br-2xl bg-bg-answer w-full border border-bg-answer">
                     {streamingText ? (
-                      <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm lg:text-base">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {streamingText}
+                        </ReactMarkdown>
                       </div>
                     ) : (
                       <div className="flex gap-1 text-cite">
@@ -410,10 +457,11 @@ export function ChatPage() {
           </div>
         </div>
 
-        <div className="absolute bottom-6 px-6 left-0 right-0 bg-bg-main">
-          <div className="w-full border border-design-border rounded-2xl flex items-center px-4 py-3 shadow-sm focus-within:border-btn-text focus-within:ring-2 focus-within:ring-btn-text/10 transition-all">
+        {/* Input area - responsive positioning and sizing */}
+        <div className="absolute bottom-4 lg:bottom-6 px-3 lg:px-6 left-0 right-0 bg-bg-main">
+          <div className="w-full border border-design-border rounded-xl lg:rounded-2xl flex items-center px-3 lg:px-4 py-2 lg:py-3 shadow-sm focus-within:border-btn-text focus-within:ring-2 focus-within:ring-btn-text/10 transition-all">
             <textarea
-              className="w-full resize-none outline-none text-base max-h-40 overflow-y-auto bg-transparent"
+              className="w-full resize-none outline-none text-sm lg:text-base max-h-32 lg:max-h-40 overflow-y-auto bg-transparent"
               rows={1}
               placeholder="Bạn cần hỏi gì?"
               value={input}
@@ -425,14 +473,15 @@ export function ChatPage() {
             <button
               onClick={handleSend}
               disabled={isStreaming || !input.trim()}
-              className="ml-3 p-2 rounded-xl bg-btn-bg text-btn-text hover:bg-btn-hover-bg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="ml-2 lg:ml-3 p-2 rounded-lg lg:rounded-xl bg-btn-bg text-btn-text hover:bg-btn-hover-bg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
             >
-              <Icons.SendIcon className="w-5 h-5" />
+              <Icons.SendIcon className="w-4 h-4 lg:w-5 lg:h-5" />
             </button>
           </div>
         </div>
       </div>
 
+      {/* Reference panel - overlays on mobile, sidebar on desktop */}
       {selectedReference && (
         <ReferencePanel
           reference={selectedReference}
@@ -442,4 +491,3 @@ export function ChatPage() {
     </div>
   );
 }
-
