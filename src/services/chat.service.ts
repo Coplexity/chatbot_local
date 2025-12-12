@@ -113,9 +113,8 @@ export const chatService = {
               const jsonStr = trimmedLine.substring(6);
               const data = JSON.parse(jsonStr) as StreamChunk;
 
-              // Yield the chunk directly - backend now sends text and citation separately
-              if (data.text || data.citation) {
-                yield data;
+              if ((data.text && data.text.length > 0) || data.citation) {
+                yield { text: data.text, citation: data.citation};
               }
             } catch {
               // Skip invalid JSON lines
@@ -185,7 +184,7 @@ export const chatService = {
 
               if (data.type === "conversation") {
                 yield { type: "conversation", conversationId: data.conversationId };
-              } else if (data.type === "text" && data.text) {
+              } else if (data.type === "text" && data.text && data.text.length > 0) {
                 yield { type: "text", text: data.text };
               }
             } catch {
