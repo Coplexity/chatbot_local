@@ -104,7 +104,7 @@ export interface Citation {
 
 // Streaming chunk from SSE response
 export interface StreamChunk {
-  text: string;
+  text?: string;
   citation?: Citation;
 }
 

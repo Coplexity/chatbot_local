@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from 'rehype-raw';
 import "katex/dist/katex.min.css";
 import Icons from "@/components/icons/icons";
 import { Reference } from "@/types/chat-types";
@@ -18,36 +19,10 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
 
   const processMarkdownContent = (content: string) => {
     if (!content) return "";
-
-    // Clean up LaTeX formulas - remove extra backslashes
-    let cleaned = content.replace(/\\\\/g, "\\");
-
-    // Handle HTML breaks in table cells
-    cleaned = cleaned.replace(/<br>/g, " ");
-    cleaned = cleaned.replace(/<br\s*\/?>/gi, " ");
-
-    // Process table format
-    if (cleaned.includes("|") && cleaned.includes(":--")) {
-      // Split into lines and clean up
-      const lines = cleaned
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line);
-
-      // Find header separator line
-      const separatorIndex = lines.findIndex((line) => line.includes(":--"));
-
-      if (separatorIndex > 0) {
-        const headerLine = lines[separatorIndex - 1];
-        const separatorLine = lines[separatorIndex];
-        const dataLines = lines.slice(separatorIndex + 1);
-
-        // Rebuild table with proper formatting
-        return [headerLine, separatorLine, ...dataLines].join("\n");
-      }
-
-      return cleaned;
-    }
+    let cleaned = content;
+    // Fix LLM formatting issues with \n
+    cleaned = cleaned.replace(/\| \|/g, "|\n|");
+    cleaned = cleaned.trim();
 
     return cleaned;
   };
@@ -152,7 +127,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
                     </div>
                   )}
                   <img
-                    src={`https://medical-chatbot.fdn.li/static/figure/img-1.jpeg`}
+                    src={`https://medical-chatbot.fdn.li/static/figure/${reference.resource_content}`}
                     alt="Reference figure"
                     className={`w-full transition-opacity duration-200 ${
                       imageLoading ? "opacity-0" : "opacity-100"
@@ -166,7 +141,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
+                      rehypePlugins={[rehypeKatex, rehypeRaw]}
                       components={{
                         table: ({ children }) => (
                           <table className="min-w-full border-collapse border border-gray-300 text-xs lg:text-sm">
