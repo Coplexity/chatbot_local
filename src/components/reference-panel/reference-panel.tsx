@@ -68,6 +68,20 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col gap-3 lg:gap-4">
+          {/* Document name */}
+          {reference.van_ban && (
+            <div className="mb-1">
+              <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
+                Văn bản
+              </h4>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 lg:p-4">
+                <p className="font-medium text-sm lg:text-base wrap-break-word">
+                  {reference.van_ban}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Citation location info */}
           <div className="grid grid-cols-2 gap-2 text-sm">
             {reference.chuong !== undefined && reference.chuong !== null && (

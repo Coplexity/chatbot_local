@@ -91,6 +91,7 @@ export interface SearchMessageParams {
 
 // Citation from AI response (matches backend Citation interface)
 export interface Citation {
+  van_ban?: string;
   chuong?: number;
   dieu?: number;
   khoan?: number;
