@@ -45,7 +45,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         className={`
         fixed lg:relative
         top-0 right-0 bottom-0
-        w-full sm:w-96 lg:w-xs
+        w-full sm:w-96 lg:w-sm
         transform transition-transform duration-300 ease-in-out
         z-50 lg:z-auto
         border-l border-design-border bg-white h-full flex flex-col
@@ -54,8 +54,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         {/* Header */}
         <div className="p-4 lg:p-6 border-b border-design-border flex items-center justify-between">
           <div className="font-bold text-sm lg:text-base">
-            <span className="text-cite">Tham chiếu [{reference.number}] -</span>
-            <span> Nguồn gốc</span>
+            <span className="text-cite">Tham chiếu [{reference.number}]</span>
           </div>
           <button
             onClick={onClose}
@@ -69,12 +68,15 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col gap-3 lg:gap-4">
           {/* Document name */}
+          <h4 className="text-xs lg:text-sm font-medium text-gray-500">
+            Nguồn gốc
+          </h4>
           {reference.van_ban && (
             <div className="mb-1">
-              <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
-                Văn bản
-              </h4>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 lg:p-4">
+                <span className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
+                  Văn bản
+                </span>
                 <p className="font-medium text-sm lg:text-base wrap-break-word">
                   {reference.van_ban}
                 </p>
@@ -143,9 +145,8 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
                   <img
                     src={`https://medical-chatbot.fdn.li/static/figure/${reference.resource_content}`}
                     alt="Reference figure"
-                    className={`w-full transition-opacity duration-200 ${
-                      imageLoading ? "opacity-0" : "opacity-100"
-                    }`}
+                    className={`w-full transition-opacity duration-200 ${imageLoading ? "opacity-0" : "opacity-100"
+                      }`}
                     onLoad={() => setImageLoading(false)}
                     onError={() => setImageLoading(false)}
                   />
@@ -202,10 +203,10 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
 
             {(reference.start_char !== undefined ||
               reference.end_char !== undefined) && (
-              <p className="text-xs text-gray-400 mt-1">
-                Vị trí: {reference.start_char} - {reference.end_char}
-              </p>
-            )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Vị trí: {reference.start_char} - {reference.end_char}
+                </p>
+              )}
 
             <button className="bg-btn-bg py-2 px-4 w-full items-center rounded-md text-btn-text font-medium underline mt-4 hover:bg-[#E1EFFF] cursor-pointer hidden text-sm">
               Xem tài liệu đầy đủ
