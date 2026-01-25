@@ -382,18 +382,6 @@ export function ChatPage() {
     });
   };
 
-  // Show welcome screen for new chat or no chat selected
-  if (!chatId) {
-    return (
-      <div className="h-full flex items-center justify-center text-gray-500">
-        <div className="text-center">
-          <p className="text-lg mb-2">Chọn một cuộc trò chuyện</p>
-          <p className="text-sm">hoặc tạo cuộc trò chuyện mới để bắt đầu</p>
-        </div>
-      </div>
-    );
-  }
-
   if (isLoading && !isNewChat) {
     return (
       <div className="h-full flex items-center justify-center">
