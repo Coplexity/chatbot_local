@@ -119,6 +119,17 @@ const MessageBubble = memo(function MessageBubble({
     );
   };
 
+  // Render disclaimer for assistant messages
+  const renderDisclaimer = () => {
+    return (
+      <div className="mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-gray-200">
+        <p className="text-xs lg:text-sm text-gray-500 italic">
+          Chatbot chỉ cung cấp thông tin y tế mang tính tham khảo, không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.
+        </p>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div
@@ -138,6 +149,7 @@ const MessageBubble = memo(function MessageBubble({
         >
           {renderMessageContent()}
           {isAssistant && renderCitationSummary()}
+          {isAssistant && renderDisclaimer()}
         </div>
       </div>
       <div
@@ -426,11 +438,18 @@ export function ChatPage() {
                   <Icons.BotChat className="w-6 h-6 lg:w-8 lg:h-8 shrink-0" />
                   <div className="px-3 lg:px-4 py-2 lg:py-3 rounded-t-2xl rounded-br-2xl bg-bg-answer w-full border border-bg-answer">
                     {streamingText ? (
-                      <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm lg:text-base">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {streamingText}
-                        </ReactMarkdown>
-                      </div>
+                      <>
+                        <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm lg:text-base">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {streamingText}
+                          </ReactMarkdown>
+                        </div>
+                        <div className="mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-gray-200">
+                          <p className="text-xs lg:text-sm text-gray-500 italic">
+                            Chatbot chỉ cung cấp thông tin y tế mang tính tham khảo, không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.
+                          </p>
+                        </div>
+                      </>
                     ) : (
                       <div className="flex gap-1 text-cite">
                         <span className="animate-bounce">●</span>

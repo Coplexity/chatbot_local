@@ -21,7 +21,7 @@ export function LoginPage() {
 
     try {
       await login(formData);
-      navigate({ to: "/chat", search: { chatId: undefined } });
+      navigate({ to: "/chat", search: { chatId: "new" } });
     } catch (err: any) {
       setError(err?.data?.message || "Login failed. Please try again.");
     } finally {
