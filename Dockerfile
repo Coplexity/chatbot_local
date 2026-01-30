@@ -6,20 +6,20 @@ FROM node:22-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Install yarn (if not already included)
-RUN corepack enable && corepack prepare yarn@1.22.22 --activate
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy package files first for better layer caching
-COPY package.json yarn.lock ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN yarn install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY . .
 
 # Build the application
-RUN yarn build
+RUN pnpm build
 
 # ============================================
 # Stage 2: Serve with nginx
