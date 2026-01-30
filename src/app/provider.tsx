@@ -43,7 +43,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         <AntdApp>
           <AuthProvider>
             {children}
-            <ReactQueryDevtools />
           </AuthProvider>
         </AntdApp>
       </ConfigProvider>

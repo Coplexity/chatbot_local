@@ -5,7 +5,7 @@ import Logos from "@/components/logos/logos";
 
 export function SignupPage() {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, continueAsGuest } = useAuth();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -181,6 +181,21 @@ export function SignupPage() {
               >
                 Đăng nhập ngay
               </button>
+            </p>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-design-border">
+            <button
+              onClick={() => {
+                continueAsGuest();
+                navigate({ to: "/chat", search: { chatId: "new" } });
+              }}
+              className="w-full py-3 px-4 text-gray-600 font-medium rounded-xl border border-design-border hover:bg-gray-50 hover:border-gray-300 transition-all cursor-pointer"
+            >
+              Tiếp tục mà không cần đăng nhập
+            </button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              Lịch sử trò chuyện sẽ được lưu trên thiết bị của bạn
             </p>
           </div>
         </div>

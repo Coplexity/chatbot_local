@@ -5,7 +5,7 @@ import Logos from "@/components/logos/logos";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, continueAsGuest } = useAuth();
 
   const [formData, setFormData] = useState({
     username: "",
@@ -21,7 +21,7 @@ export function LoginPage() {
 
     try {
       await login(formData);
-      navigate({ to: "/chat", search: { chatId: "new" } });
+      navigate({ to: "/chat" });
     } catch (err: any) {
       setError(err?.data?.message || "Login failed. Please try again.");
     } finally {
@@ -45,7 +45,7 @@ export function LoginPage() {
             Đăng nhập
           </h1>
           <p className="text-gray-500 mt-2">
-            Chào mừng bạn quay trở lại
+            AI4Life Medical Chatbot
           </p>
         </div>
 
@@ -114,6 +114,18 @@ export function LoginPage() {
                 Đăng ký ngay
               </button>
             </p>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-design-border">
+            <button
+              onClick={() => {
+                continueAsGuest();
+                navigate({ to: "/chat", search: { chatId: "new" } });
+              }}
+              className="w-full py-3 px-4 text-gray-600 font-medium rounded-xl border border-design-border hover:bg-gray-50 hover:border-gray-300 transition-all cursor-pointer"
+            >
+              Khách
+            </button>
           </div>
         </div>
       </div>

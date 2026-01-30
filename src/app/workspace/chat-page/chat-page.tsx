@@ -2,7 +2,7 @@ import Icons from "@/components/icons/icons";
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useSearch, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { chatService } from "@/services/chat.service";
+import { useGuestChat } from "@/hooks/useGuestChat";
 import type { Message, Citation } from "@/types/api-types";
 import { MessageRole } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
@@ -241,6 +241,7 @@ export function ChatPage() {
   const isNewChat = chatId === "new";
   const queryClient = useQueryClient();
   const { message: antMessage } = App.useApp();
+  const { isGuest, getMessages, sendMessageStream, startConversationStream } = useGuestChat();
 
   const [input, setInput] = useState("");
   const [selectedReference, setSelectedReference] = useState<Reference | null>(
@@ -259,12 +260,12 @@ export function ChatPage() {
 
   // Fetch messages for the current conversation (skip for new chat)
   const { data: messagesData, isLoading } = useQuery({
-    queryKey: ["messages", chatId],
+    queryKey: ["messages", chatId, isGuest],
     queryFn: async () => {
       if (!chatId || typeof chatId !== "string" || chatId === "new") {
         return { conversation: null, messages: [] };
       }
-      return chatService.getMessages(chatId);
+      return getMessages(chatId);
     },
     enabled: !!chatId && typeof chatId === "string" && chatId !== "new",
   });
@@ -308,9 +309,7 @@ export function ChatPage() {
         // Start new conversation with first message
         let newConversationId: string | null = null;
 
-        for await (const chunk of chatService.startConversationStream(
-          userInput
-        )) {
+        for await (const chunk of startConversationStream(userInput)) {
           if (chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if (chunk.type === "text" && chunk.text) {
@@ -325,7 +324,7 @@ export function ChatPage() {
         }
       } else {
         // Send message to existing conversation
-        for await (const chunk of chatService.sendMessageStream(
+        for await (const chunk of sendMessageStream(
           chatId as string,
           userInput
         )) {
@@ -335,7 +334,7 @@ export function ChatPage() {
         }
 
         // Streaming complete - refresh messages from server
-        await queryClient.invalidateQueries({ queryKey: ["messages", chatId] });
+        await queryClient.invalidateQueries({ queryKey: ["messages", chatId, isGuest] });
         await queryClient.invalidateQueries({ queryKey: ["conversations"] });
       }
     } catch (error: any) {
@@ -355,9 +354,12 @@ export function ChatPage() {
     chatId,
     isNewChat,
     isStreaming,
+    isGuest,
     queryClient,
     antMessage,
     navigate,
+    sendMessageStream,
+    startConversationStream,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

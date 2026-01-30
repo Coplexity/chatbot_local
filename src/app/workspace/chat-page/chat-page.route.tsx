@@ -6,9 +6,7 @@ export const chatPageRoute = createRoute({
   getParentRoute: () => workspaceRoute,
   path: "/chat",
   component: ChatPage,
-  validateSearch: (search) => {
-    return {
-      chatId: search.chatId ?? undefined,
-    };
-  },
+  validateSearch: (search: {
+    chatId?: string;
+  }) => search,
 });

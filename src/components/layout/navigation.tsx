@@ -3,7 +3,7 @@ import Logos from "../logos/logos";
 import Icons from "../icons/icons";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { chatService } from "@/services/chat.service";
+import { useGuestChat } from "@/hooks/useGuestChat";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navigation({
@@ -20,19 +20,20 @@ export default function Navigation({
   const [searchQuery, setSearchQuery] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
-  const { logout } = useAuth();
+  const { logout, isGuest, isAuthenticated } = useAuth();
+  const { getConversations, deleteConversation } = useGuestChat();
 
-  // Fetch conversations from API
+  // Fetch conversations from API or localStorage
   const { data: conversationsData, isLoading } = useQuery({
-    queryKey: ["conversations", searchQuery],
-    queryFn: () => chatService.getConversations(1, 50, searchQuery),
+    queryKey: ["conversations", searchQuery, isGuest],
+    queryFn: () => getConversations(1, 50, searchQuery),
   });
 
   const conversations = conversationsData?.items || [];
 
   // Delete conversation mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => chatService.deleteConversation(id),
+    mutationFn: (id: string) => deleteConversation(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
       if (currentChatId === openMenuId) {
@@ -185,11 +186,10 @@ export default function Navigation({
                 <li
                   key={chat.id}
                   onClick={() => handleChatClick(chat.id)}
-                  className={`cursor-pointer transition-all duration-200 px-4 py-2.5 h-10 rounded-xl flex justify-between gap-2 relative ${
-                    currentChatId === chat.id
+                  className={`cursor-pointer transition-all duration-200 px-4 py-2.5 h-10 rounded-xl flex justify-between gap-2 relative ${currentChatId === chat.id
                       ? "bg-design-border shadow-sm"
                       : "hover:shadow-sm hover:bg-black/10"
-                  }`}
+                    }`}
                 >
                   <span className="block truncate">
                     {highlightText(
@@ -234,13 +234,26 @@ export default function Navigation({
         )}
 
         <div className="border-t border-design-border pt-4">
-          <button
-            onClick={handleLogout}
-            className="w-full px-4 py-2.5 text-left hover:bg-white/60 rounded-xl flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
-          >
-            <Icons.DoorOpen className="w-4 h-4" />
-            <span>Đăng xuất</span>
-          </button>
+          {isGuest && (
+            <button
+              onClick={() => {
+                navigate({ to: "/login" });
+                onClose?.();
+              }}
+              className="w-full px-3 py-2 bg-btn-bg text-btn-text text-sm font-medium rounded-lg hover:bg-btn-hover-bg transition-colors cursor-pointer"
+            >
+              Đăng nhập
+            </button>
+          )}
+          {isAuthenticated && (
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2.5 text-left hover:bg-white/60 rounded-xl flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
+            >
+              <Icons.DoorOpen className="w-4 h-4" />
+              <span>Đăng xuất</span>
+            </button>
+          )}
         </div>
       </div>
     </>

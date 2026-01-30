@@ -1,11 +1,32 @@
 import { Outlet } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { JSX } from "react";
 import { TitleSection } from "@/components/layout/title-section";
 import Navigation from "@/components/layout/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
-export function WorkspaceLayout(): JSX.Element {
+export function WorkspaceLayout(): JSX.Element | null {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isAuthenticated, isGuest, isLoading, continueAsGuest } = useAuth();
+
+  // Auto-enable guest mode when not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !isGuest) {
+      continueAsGuest();
+    }
+  }, [isAuthenticated, isGuest, isLoading, continueAsGuest]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-bg-app">
+        <div className="text-gray-500">Đang tải...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated && !isGuest) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen bg-bg-app">
