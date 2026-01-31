@@ -1,8 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { chatService } from "@/services/chat.service";
 import { guestStorageService } from "@/services/guest-storage.service";
-import type { Conversation, Message, StreamChunk } from "@/types/api-types";
-import { MessageRole } from "@/types/api-types";
+import { Conversation, Message, StreamChunk, MessageRole } from "@/types/api-types";
 import { api } from "@/services/api";
 
 export function useGuestChat() {

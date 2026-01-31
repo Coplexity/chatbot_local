@@ -69,7 +69,7 @@ export default function Navigation({
   };
 
   const handleNewChat = () => {
-    navigate({ to: "/chat", search: { chatId: "new" } });
+    navigate({ to: "/chat" });
     onClose?.();
   };
 

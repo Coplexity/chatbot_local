@@ -7,7 +7,6 @@ export const indexPageRoute = createRoute({
   beforeLoad: () => {
     throw redirect({
       to: "/chat",
-      search: { chatId: "new" },
     });
   },
 });

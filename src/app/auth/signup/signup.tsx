@@ -188,7 +188,7 @@ export function SignupPage() {
             <button
               onClick={() => {
                 continueAsGuest();
-                navigate({ to: "/chat", search: { chatId: "new" } });
+                navigate({ to: "/chat" });
               }}
               className="w-full py-3 px-4 text-gray-600 font-medium rounded-xl border border-design-border hover:bg-gray-50 hover:border-gray-300 transition-all cursor-pointer"
             >
