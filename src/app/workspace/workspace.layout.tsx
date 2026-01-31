@@ -4,14 +4,15 @@ import type { JSX } from "react";
 import { TitleSection } from "@/components/layout/title-section";
 import Navigation from "@/components/layout/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/services/auth.service";
 
 export function WorkspaceLayout(): JSX.Element | null {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isAuthenticated, isGuest, isLoading, continueAsGuest } = useAuth();
 
-  // Auto-enable guest mode when not authenticated
+  // Auto-enable guest mode only when not authenticated AND no token exists
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isGuest) {
+    if (!isLoading && !isAuthenticated && !isGuest && !authService.hasToken()) {
       continueAsGuest();
     }
   }, [isAuthenticated, isGuest, isLoading, continueAsGuest]);
@@ -24,7 +25,9 @@ export function WorkspaceLayout(): JSX.Element | null {
     );
   }
 
-  if (!isAuthenticated && !isGuest) {
+  // If not authenticated, not guest, and no token - don't render
+  // If token exists, allow render (user will be fetched/already logged in)
+  if (!isAuthenticated && !isGuest && !authService.hasToken()) {
     return null;
   }
 

@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Send each message pair (we can't replay streaming, so just sync the content)
         // Note: This is a simplified migration - full conversation context is preserved
+        // TODO: Create a proper migration endpoint to handle this server-side
         for (const msg of guestMessages) {
           if (msg.role === "user") {
             await chatService.sendMessage(newConv.id, { content: msg.content });
@@ -90,16 +91,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await authService.signIn(credentials);
     setUser(response.user);
     setIsGuest(false);
-    // Migrate guest data after login
-    await migrateGuestData();
+    // TODO: Re-enable when migration is fixed
+    // migrateGuestData().catch(console.error);
   };
 
   const register = async (data: SignUpRequest) => {
     const response = await authService.signUp(data);
     setUser(response.user);
     setIsGuest(false);
-    // Migrate guest data after registration
-    await migrateGuestData();
+    // TODO: Re-enable when migration is fixed
+    // migrateGuestData().catch(console.error);
   };
 
   const logout = () => {
@@ -116,8 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const continueAsGuest = () => {
-    setIsGuest(true);
-    setUser(null);
+    // Only allow guest mode if not authenticated
+    if (!user && !authService.hasToken()) {
+      setIsGuest(true);
+    }
   };
 
   return (
