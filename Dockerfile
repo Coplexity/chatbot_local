@@ -3,6 +3,10 @@
 # ============================================
 FROM node:22-alpine AS builder
 
+# Accept build args for Vite environment variables
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # Set working directory
 WORKDIR /app
 
