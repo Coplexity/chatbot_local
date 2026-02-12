@@ -135,7 +135,7 @@ export default function Navigation({
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         z-50 lg:z-auto
-        p-6 border-r border-design-border
+        pb-6 px-6 border-r border-design-border
         flex flex-col gap-4 bg-bg-aside overflow-hidden
       `}
       >
@@ -148,12 +148,9 @@ export default function Navigation({
           <Icons.XIcon className="w-5 h-5" />
         </button>
 
-        <div className="flex justify-around mb-4 items-center h-12">
-          <div className="w-8 h-12">
-            <Logos.LogoHust className="w-full h-full" />
-          </div>
-          <div className="w-24 h-12">
-            <Logos.Logo className="w-full h-full" />
+        <div className="flex justify-around items-center h-24 pt-2 bg-[#00C999] -mx-6 rounded-br-xl">
+          <div className="w-24 h-20">
+            <Logos.Logo className="w-full h-full text-black" />
           </div>
         </div>
 

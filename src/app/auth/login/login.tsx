@@ -40,12 +40,15 @@ export function LoginPage() {
     <div className="min-h-screen bg-bg-app flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Logos.Logo className="h-16 mx-auto mb-6" />
+          <div className="bg-[#00C999] w-32 h-32 flex items-center justify-center rounded-full mx-auto mb-4">
+          <Logos.Logo className="size-24" />
+
+          </div>
           <h1 className="text-2xl font-semibold text-gray-800">
             Đăng nhập
           </h1>
           <p className="text-gray-500 mt-2">
-            AI4Life Medical Chatbot
+            Medibot
           </p>
         </div>
 
