@@ -2,7 +2,7 @@
 
 // Base API configuration with axios-like fetch wrapper
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL = "/api";
 
 export class ApiError extends Error {
   constructor(
@@ -30,6 +30,10 @@ class ApiClient {
     return localStorage.getItem("accessToken");
   }
 
+  private buildUrl(endpoint: string): URL {
+    return new URL(`${this.baseURL}${endpoint}`, window.location.origin);
+  }
+
   private async request<T>(
     endpoint: string,
     config: RequestConfig = {}
@@ -37,7 +41,7 @@ class ApiClient {
     const { params, headers, ...restConfig } = config;
 
     // Build URL with query params
-    let url = `${this.baseURL}${endpoint}`;
+    let url = this.buildUrl(endpoint).toString();
     if (params) {
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
@@ -116,7 +120,7 @@ class ApiClient {
   // Server-Sent Events for streaming
   createEventSource(endpoint: string, body?: any): EventSource {
     const token = this.getAuthToken();
-    const url = new URL(`${this.baseURL}${endpoint}`);
+      const url = this.buildUrl(endpoint);
     
     if (token) {
       url.searchParams.append("token", token);
@@ -137,7 +141,7 @@ class ApiClient {
    */
   async fetchStream(endpoint: string, body?: any): Promise<Response> {
     const token = this.getAuthToken();
-    const url = `${this.baseURL}${endpoint}`;
+    const url = this.buildUrl(endpoint).toString();
 
     const response = await fetch(url, {
       method: "POST",
@@ -158,4 +162,3 @@ class ApiClient {
 }
 
 export const api = new ApiClient(API_BASE_URL);
-
