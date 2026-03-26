@@ -45,14 +45,14 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         className={`
         fixed lg:relative
         top-0 right-0 bottom-0
-        w-full sm:w-96 lg:w-sm
+        w-full sm:w-[26rem] lg:w-[26rem]
         transform transition-transform duration-300 ease-in-out
         z-50 lg:z-auto
-        border-l border-design-border bg-white h-full flex flex-col
+        border-l border-design-border bg-[#fbfcff] h-full flex flex-col
       `}
       >
         {/* Header */}
-        <div className="p-4 lg:p-6 border-b border-design-border flex items-center justify-between">
+        <div className="p-4 lg:p-6 border-b border-design-border flex items-center justify-between bg-white/80 backdrop-blur-sm">
           <div className="font-bold text-sm lg:text-base">
             <span className="text-cite">Tham chiếu [{reference.number}]</span>
           </div>
@@ -66,14 +66,14 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col gap-3 lg:gap-4">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col gap-4">
           {/* Document name */}
           <h4 className="text-xs lg:text-sm font-medium text-gray-500">
             Nguồn gốc
           </h4>
           {reference.van_ban && (
             <div className="mb-1">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 lg:p-4">
+              <div className="bg-white border border-design-border rounded-2xl p-4">
                 <span className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
                   Văn bản
                 </span>
@@ -85,27 +85,27 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
           )}
 
           {/* Citation location info */}
-          <div className="grid grid-cols-2 gap-2 text-sm">
+           <div className="grid grid-cols-2 gap-2 text-sm">
             {reference.chuong !== undefined && reference.chuong !== null && (
-              <div className="bg-gray-50 rounded-lg p-2 lg:p-3">
+                <div className="bg-white rounded-2xl p-3 border border-design-border">
                 <span className="text-gray-500 text-xs lg:text-sm">Chương</span>
                 <p className="font-medium text-gray-900">{reference.chuong}</p>
               </div>
             )}
             {reference.dieu !== undefined && reference.dieu !== null && (
-              <div className="bg-gray-50 rounded-lg p-2 lg:p-3">
+                <div className="bg-white rounded-2xl p-3 border border-design-border">
                 <span className="text-gray-500 text-xs lg:text-sm">Điều</span>
                 <p className="font-medium text-gray-900">{reference.dieu}</p>
               </div>
             )}
             {reference.khoan !== undefined && reference.khoan !== null && (
-              <div className="bg-gray-50 rounded-lg p-2 lg:p-3">
+                <div className="bg-white rounded-2xl p-3 border border-design-border">
                 <span className="text-gray-500 text-xs lg:text-sm">Khoản</span>
                 <p className="font-medium text-gray-900">{reference.khoan}</p>
               </div>
             )}
             {reference.phu_luc !== undefined && reference.phu_luc !== null && (
-              <div className="bg-gray-50 rounded-lg p-2 lg:p-3">
+                <div className="bg-white rounded-2xl p-3 border border-design-border">
                 <span className="text-gray-500 text-xs lg:text-sm">
                   Phụ lục
                 </span>
@@ -119,7 +119,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
             <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
               Nội dung trích dẫn
             </h4>
-            <div className="bg-gray-50 rounded-lg p-3 lg:p-4 leading-relaxed text-sm lg:text-base text-gray-800">
+            <div className="bg-white rounded-[1.35rem] p-4 leading-relaxed text-sm lg:text-base text-gray-800 border border-design-border">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -136,7 +136,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
                 {reference.resource_type === "figure" ? "Hình ảnh" : "Bảng"}
               </h4>
               {reference.resource_type === "figure" ? (
-                <div className="relative rounded-lg border border-gray-200 min-h-28">
+                 <div className="relative rounded-[1.35rem] border border-design-border min-h-28 bg-white overflow-hidden">
                   {imageLoading && (
                     <div className="absolute inset-0 bg-gray-200 rounded-lg animate-pulse flex items-center justify-center">
                       <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
@@ -152,7 +152,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
                   />
                 </div>
               ) : (
-                <div className="overflow-x-auto bg-white -mx-2 px-2">
+                 <div className="overflow-x-auto bg-white rounded-[1.35rem] border border-design-border p-2">
                   <div className="prose prose-sm max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
@@ -195,7 +195,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
           )}
 
           {/* Source reference */}
-          <div className="p-3 lg:p-4 rounded-lg border border-design-border mt-auto">
+           <div className="p-4 rounded-[1.35rem] border border-design-border mt-auto bg-white">
             <p className="text-xs lg:text-sm">
               <span className="text-gray-500">Nguồn dẫn: </span>
               <span className="font-medium wrap-break-word">{sourceLabel}</span>

@@ -136,27 +136,27 @@ export default function Navigation({
         ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         z-50 lg:z-auto
         pb-6 px-6 border-r border-design-border
-        flex flex-col gap-4 bg-bg-aside overflow-hidden
+        flex flex-col gap-5 bg-[#eff3fb] overflow-hidden
       `}
       >
         {/* Close button for mobile */}
         <button
           onClick={onClose}
-          className="lg:hidden absolute top-4 right-4 p-2 hover:bg-black/10 rounded-lg"
+          className="lg:hidden absolute top-4 right-4 p-2 hover:bg-black/10 rounded-full"
           aria-label="Close menu"
         >
           <Icons.XIcon className="w-5 h-5" />
         </button>
 
-        <div className="flex justify-around items-center h-24 pt-2 bg-[#00C999] -mx-6 rounded-br-xl">
-          <div className="w-24 h-20">
-            <Logos.Logo className="w-full h-full text-black" />
+        <div className="pt-6 pb-4 flex justify-center">
+          <div className="w-52 max-w-full text-[#4c82e8]">
+            <Logos.LogoMedicalChatbot className="w-full h-auto" />
           </div>
         </div>
 
         <button
           onClick={handleNewChat}
-          className="w-full px-4 py-3 bg-btn-bg text-btn-text font-medium rounded-xl hover:bg-btn-hover-bg hover:shadow-md transition-all duration-200 cursor-pointer shrink-0"
+          className="w-full px-5 py-4 bg-btn-bg text-btn-text font-semibold rounded-full hover:bg-btn-hover-bg transition-all duration-200 cursor-pointer shrink-0 shadow-[0_12px_24px_rgba(76,130,232,0.18)]"
         >
           + Cuộc trò chuyện mới
         </button>
@@ -167,28 +167,30 @@ export default function Navigation({
             placeholder="Tìm kiếm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2.5 pl-9 rounded-xl border border-design-border focus:outline-none focus:border-btn-text focus:ring-1 focus:ring-btn-text/20 transition-colors bg-bg-main"
+            className="w-full px-4 py-3 pl-11 rounded-full border border-slate-400/50 focus:outline-none focus:border-[#4c82e8] focus:ring-1 focus:ring-[#4c82e8]/20 transition-colors bg-transparent text-slate-600"
           />
-          <Icons.SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 text-gray-400" />
+          <Icons.SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         </div>
 
-        <div className="font-bold mt-4 shrink-0">Lịch sử trò chuyện</div>
+        <div className="font-extrabold text-[1.05rem] mt-2 shrink-0 text-slate-700">
+          Lịch sử trò chuyện
+        </div>
 
         {isLoading ? (
           <div className="text-center text-gray-400 py-4">Đang tải...</div>
         ) : (
-          <ul className="space-y-2 flex-1 overflow-y-auto min-h-0">
+          <ul className="space-y-2.5 flex-1 overflow-y-auto min-h-0 pr-1">
             {filteredChats.length > 0 ? (
               filteredChats.map((chat) => (
                 <li
                   key={chat.id}
                   onClick={() => handleChatClick(chat.id)}
-                  className={`cursor-pointer transition-all duration-200 px-4 py-2.5 h-10 rounded-xl flex justify-between gap-2 relative ${currentChatId === chat.id
-                      ? "bg-design-border shadow-sm"
-                      : "hover:shadow-sm hover:bg-black/10"
+                  className={`cursor-pointer transition-all duration-200 px-4 py-3 rounded-2xl flex justify-between gap-2 relative text-[1.02rem] ${currentChatId === chat.id
+                      ? "bg-white/85 shadow-[0_8px_20px_rgba(148,163,184,0.16)]"
+                      : "hover:bg-white/50"
                     }`}
                 >
-                  <span className="block truncate">
+                  <span className="block truncate text-slate-600">
                     {highlightText(
                       chat.title || "Cuộc trò chuyện mới",
                       searchQuery
@@ -201,7 +203,7 @@ export default function Navigation({
                       </button>
 
                       {openMenuId === chat.id && (
-                        <div className="absolute right-0 bg-white border border-design-border rounded-lg shadow-md w-32 z-10">
+                        <div className="absolute right-0 bg-white border border-design-border rounded-2xl shadow-md w-32 z-10">
                           <button
                             onClick={(e) => handleShare(e, chat.id)}
                             className="w-full px-4 pt-4 pb-2 text-left hover:bg-gray-50 hover:rounded-t-lg flex items-center gap-2"
@@ -230,22 +232,22 @@ export default function Navigation({
           </ul>
         )}
 
-        <div className="border-t border-design-border pt-4">
+        <div className="pt-2 mt-auto">
           {isGuest && (
             <button
               onClick={() => {
                 navigate({ to: "/login" });
                 onClose?.();
               }}
-              className="w-full px-3 py-2 bg-btn-bg text-btn-text text-sm font-medium rounded-lg hover:bg-btn-hover-bg transition-colors cursor-pointer"
+              className="w-full px-5 py-4 bg-btn-bg text-btn-text text-lg font-semibold rounded-full hover:bg-btn-hover-bg transition-colors cursor-pointer shadow-[0_12px_24px_rgba(76,130,232,0.18)]"
             >
-              Đăng nhập
+              + Đăng nhập
             </button>
           )}
           {isAuthenticated && (
             <button
               onClick={handleLogout}
-              className="w-full px-4 py-2.5 text-left hover:bg-white/60 rounded-xl flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
+              className="w-full px-4 py-3 text-left hover:bg-white/60 rounded-full flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
             >
               <Icons.DoorOpen className="w-4 h-4" />
               <span>Đăng xuất</span>

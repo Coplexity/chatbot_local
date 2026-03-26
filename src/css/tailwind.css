@@ -28,24 +28,24 @@
 }
 
 @theme {
-  --default-font-family: "Inter", sans-serif;
+  --default-font-family: "Manrope", sans-serif;
 
   --color-design-primary: #ffffff;
   --color-design-secondary: #3b82f6;
   --color-dark-blue: #02093f;
   --color-primary-blue: #027bff;
-  --color-design-border: #EBEBEB;
+  --color-design-border: #d9dfeb;
   --color-design-lightblue: #f2f8ff;
 
   /* Medical Chatbot Theme Colors */
-  --color-bg-app: #F9F9F9;
-  --color-bg-main: #FFFFFF;
-  --color-bg-aside: #F9F9F9;
-  --color-bg-answer: #F6FEFF;
-  --color-cite: #50ACB7;
-  --color-btn-bg: #F2F8FF;
-  --color-btn-text: #027BFF;
-  --color-btn-hover-bg: #E5F0FF;
+  --color-bg-app: #f7f8fc;
+  --color-bg-main: #ffffff;
+  --color-bg-aside: #eff3fb;
+  --color-bg-answer: #eef3fb;
+  --color-cite: #4c82e8;
+  --color-btn-bg: #4c82e8;
+  --color-btn-text: #ffffff;
+  --color-btn-hover-bg: #3f73d4;
 }
 
 @theme inline {

@@ -32,9 +32,9 @@ export function WorkspaceLayout(): JSX.Element | null {
   }
 
   return (
-    <div className="flex h-screen bg-bg-app">
+    <div className="flex h-screen bg-bg-app text-slate-700 overflow-hidden">
       {/* Desktop sidebar - always visible on desktop */}
-      <aside className="hidden lg:block lg:w-1/5 bg-bg-aside">
+      <aside className="hidden lg:block lg:w-[328px] lg:shrink-0 bg-bg-aside">
         <Navigation />
       </aside>
 
@@ -46,11 +46,11 @@ export function WorkspaceLayout(): JSX.Element | null {
         />
       </div>
 
-      <div className="flex-1 flex flex-col w-full lg:w-4/5 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col w-full h-screen overflow-hidden">
         <TitleSection onMenuClick={() => setIsMobileMenuOpen(true)} />
 
-        <div className="bg-bg-app flex-1 overflow-hidden min-h-0">
-          <main className="h-full border border-design-border bg-bg-main rounded-t-3xl shadow-sm overflow-hidden">
+        <div className="bg-bg-app flex-1 overflow-hidden min-h-0 px-3 pb-3 lg:px-6 lg:pb-6">
+          <main className="h-full border border-design-border bg-bg-main rounded-[2rem] overflow-hidden">
             <Outlet />
           </main>
         </div>

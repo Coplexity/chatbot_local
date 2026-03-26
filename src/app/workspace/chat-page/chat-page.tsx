@@ -11,6 +11,10 @@ import { MessageRole } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
 import { citationToReference } from "@/utils/citation-parser";
 
+const EMPTY_STATE_HEADLINES = [
+  "Xin chào! Tôi có thể giúp gì cho bạn?",
+];
+
 function isValidChatId(id: unknown): id is string {
   return typeof id === "string" && id.length >= 32;
 }
@@ -29,6 +33,9 @@ export function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
+  const [emptyStateHeadline] = useState(
+    () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -140,10 +147,10 @@ export function ChatPage() {
   }
 
   return (
-    <div className="relative h-full flex flex-col lg:flex-row overflow-hidden">
-      <div className="flex-1 flex flex-col relative py-4 lg:py-6 min-h-0">
-        <div className="flex-1 overflow-y-auto px-3 lg:px-4 pb-24 lg:pb-24 overscroll-contain">
-          <div className="flex flex-col gap-3 lg:gap-4">
+    <div className="relative h-full flex flex-col lg:flex-row overflow-hidden bg-white">
+      <div className="flex-1 flex flex-col relative px-4 pb-4 lg:px-6 lg:pb-6 min-h-0">
+        <div className="flex-1 overflow-y-auto px-2 pt-4 pb-28 lg:px-6 lg:pt-8 lg:pb-36 overscroll-contain rounded-[1.75rem] bg-white">
+          <div className="flex flex-col gap-5 lg:gap-6 min-h-full">
             {messages.map((m) => (
               <MessageBubble
                 key={m.id}
@@ -157,6 +164,19 @@ export function ChatPage() {
             )}
 
             {isStreaming && <StreamingBubble streamingText={streamingText} />}
+
+            {!messages.length && !optimisticMessage && !isStreaming && (
+              <div className="flex flex-1 min-h-[24rem] items-center justify-center px-6 text-center">
+                <div className="max-w-xl space-y-3">
+                  <h3 className="text-2xl lg:text-3xl font-extrabold tracking-[-0.03em] text-slate-700">
+                    {emptyStateHeadline}
+                  </h3>
+                  <p className="text-sm lg:text-base leading-7 text-slate-500">
+                    Nhập nội dung tra cứu vào ô dưới đây.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div ref={messagesEndRef} />
           </div>

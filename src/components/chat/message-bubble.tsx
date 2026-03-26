@@ -38,13 +38,13 @@ export const MessageBubble = memo(function MessageBubble({
         }`}
       >
         {isAssistant && (
-          <Icons.BotChat className="w-6 h-6 lg:w-8 lg:h-8 shrink-0" />
+          <Icons.BotChat className="w-10 h-10 lg:w-12 lg:h-12 shrink-0 rounded-full border border-design-border bg-white p-1.5" />
         )}
         <div
-          className={`px-3 lg:px-4 py-2 lg:py-3 rounded-t-xl lg:rounded-t-2xl text-sm lg:text-base ${
+          className={`px-4 lg:px-5 py-3 lg:py-4 rounded-[1.35rem] text-sm lg:text-base ${
             message.role === MessageRole.USER
-              ? "rounded-bl-xl lg:rounded-bl-2xl bg-white border border-design-border max-w-[85%] lg:max-w-[70%]"
-              : "rounded-br-xl lg:rounded-br-2xl bg-bg-answer w-full border border-bg-answer"
+              ? "bg-white border border-design-border max-w-[85%] lg:max-w-[48%] text-slate-700"
+              : "bg-bg-answer w-full border border-transparent text-slate-700"
           }`}
         >
           {isAssistant ? (
@@ -65,10 +65,10 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       </div>
       <div
-        className={`mt-1 lg:mt-2 text-xs lg:text-sm text-gray-400 ${
+        className={`mt-1 lg:mt-2 text-xs lg:text-sm text-slate-500 ${
           message.role === MessageRole.USER
             ? "text-right"
-            : "text-left ml-9 lg:ml-12"
+            : "text-right pr-1"
         }`}
       >
         {formatTime(message.createdAt)}
@@ -87,7 +87,7 @@ function AssistantContent({
   const { textWithMarkers, citations } = parsedContent;
 
   return (
-    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 whitespace-pre-wrap">
+    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 whitespace-pre-wrap prose-p:text-slate-700 prose-li:text-slate-700">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -115,16 +115,16 @@ function CitationSummary({
   if (citations.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-1.5 lg:gap-2 mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-gray-200">
+    <div className="flex flex-wrap gap-1.5 lg:gap-2 mt-3 pt-3 border-t border-slate-200/80">
       {citations.map((citation, index) => (
         <button
           key={`${citation.start_char}-${index}`}
           onClick={() => onCitationClick(citation, index)}
-          className="inline-flex items-center gap-1 px-1.5 lg:px-2 py-0.5 lg:py-1 text-xs rounded-md bg-cite/10 text-cite hover:bg-cite/20 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-white/70 text-cite hover:bg-white transition-colors cursor-pointer"
           title={formatCitationLabel(citation)}
         >
           <span className="font-medium">[{index + 1}]</span>
-          <span className="text-gray-600 max-w-24 lg:max-w-32 truncate">
+          <span className="text-slate-500 max-w-24 lg:max-w-32 truncate">
             {formatCitationLabel(citation)}
           </span>
         </button>
@@ -175,7 +175,7 @@ function processCitationMarkers(
               e.stopPropagation();
               onCitationClick(citation, citationIndex);
             }}
-            className="inline-flex items-center justify-center text-cite font-semibold hover:bg-cite/20 rounded px-0.5 cursor-pointer transition-colors text-xs lg:text-sm"
+            className="inline-flex items-center justify-center text-cite font-semibold hover:bg-cite/10 rounded-full px-1 cursor-pointer transition-colors text-xs lg:text-sm"
             title={formatCitationLabel(citation)}
           >
             [{markerNum}]

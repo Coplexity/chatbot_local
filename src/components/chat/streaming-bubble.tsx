@@ -12,11 +12,11 @@ export function StreamingBubble({ streamingText }: StreamingBubbleProps) {
   return (
     <div>
       <div className="flex items-start mb-3 lg:mb-4 gap-x-3 lg:gap-x-4">
-        <Icons.BotChat className="w-6 h-6 lg:w-8 lg:h-8 shrink-0" />
-        <div className="px-3 lg:px-4 py-2 lg:py-3 rounded-t-2xl rounded-br-2xl bg-bg-answer w-full border border-bg-answer">
+        <Icons.BotChat className="w-10 h-10 lg:w-12 lg:h-12 shrink-0 rounded-full border border-design-border bg-white p-1.5" />
+        <div className="px-4 lg:px-5 py-3 lg:py-4 rounded-[1.35rem] bg-bg-answer w-full border border-transparent text-slate-700">
           {streamingText ? (
             <>
-              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm lg:text-base">
+              <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm lg:text-base prose-p:text-slate-700">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {streamingText}
                 </ReactMarkdown>
