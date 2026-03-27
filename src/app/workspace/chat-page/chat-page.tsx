@@ -1,15 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { App } from "antd";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatInput, MessageBubble, OptimisticBubble, StreamingBubble, type OptimisticMessage, } from "@/components/chat";
 import { ReferencePanel } from "@/components/reference-panel/reference-panel";
 import { useGuestChat } from "@/hooks/useGuestChat";
-import type { Citation } from "@/types/api-types";
+import type { Citation, ReferenceMetadata } from "@/types/api-types";
 import { MessageRole } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
-import { citationToReference } from "@/utils/citation-parser";
+import { citationToReference, parseTextAndCitations } from "@/utils/citation-parser";
 
 const EMPTY_STATE_HEADLINES = [
   "Xin chào! Tôi có thể giúp gì cho bạn?",
@@ -26,12 +26,14 @@ export function ChatPage() {
   const isNewChat = !isValidChatId(chatId);
   const queryClient = useQueryClient();
   const { message: antMessage } = App.useApp();
-  const { isGuest, getMessages, sendMessageStream, startConversationStream } = useGuestChat();
+  const { isGuest, getMessages, sendMessageStream, startConversationStream, getReferenceMetadata } = useGuestChat();
 
   const [input, setInput] = useState("");
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
+  const [referenceMetadataByChunkId, setReferenceMetadataByChunkId] = useState<Record<number, ReferenceMetadata>>({});
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
   const [emptyStateHeadline] = useState(
     () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
@@ -40,6 +42,11 @@ export function ChatPage() {
 
   useEffect(() => {
     setSelectedReference(null);
+  }, [chatId]);
+
+  useEffect(() => {
+    setStreamingCitations([]);
+    setReferenceMetadataByChunkId({});
   }, [chatId]);
 
   const { data: messagesData, isLoading } = useQuery({
@@ -55,9 +62,82 @@ export function ChatPage() {
 
   const messages = messagesData?.messages || [];
 
+  const pendingChunkIdsRef = useRef(new Set<number>());
+  const resolvedChunkIdsRef = useRef(new Set<number>());
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, optimisticMessage]);
+
+  const fetchReferenceMetadata = useCallback(async (chunkIds: number[]) => {
+    const chunkIdsToFetch = chunkIds.filter((chunkId) => {
+      if (pendingChunkIdsRef.current.has(chunkId) || resolvedChunkIdsRef.current.has(chunkId)) {
+        return false;
+      }
+
+      pendingChunkIdsRef.current.add(chunkId);
+      return true;
+    });
+
+    if (chunkIdsToFetch.length === 0) {
+      return;
+    }
+
+    try {
+      const references = await getReferenceMetadata(chunkIdsToFetch);
+
+      setReferenceMetadataByChunkId((prev) => ({
+        ...prev,
+        ...Object.fromEntries(references.map((reference) => [reference.chunkId, reference])),
+      }));
+
+      chunkIdsToFetch.forEach((chunkId) => {
+        pendingChunkIdsRef.current.delete(chunkId);
+        resolvedChunkIdsRef.current.add(chunkId);
+      });
+    } catch (error) {
+      chunkIdsToFetch.forEach((chunkId) => {
+        pendingChunkIdsRef.current.delete(chunkId);
+      });
+
+      throw error;
+    }
+  }, [getReferenceMetadata]);
+
+  const messageCitationsById = useMemo(() => {
+    return Object.fromEntries(
+      messages
+        .filter((message) => message.role === MessageRole.ASSISTANT)
+        .map((message) => {
+          const parsed = parseTextAndCitations(message.content);
+
+          return [
+            message.id,
+            parsed.citations.map((citation) => ({
+              ...citation,
+              reference: referenceMetadataByChunkId[citation.chunkId] ?? citation.reference,
+            })),
+          ];
+        })
+        .filter(([, citations]) => citations.length > 0)
+    );
+  }, [messages, referenceMetadataByChunkId]);
+
+  useEffect(() => {
+    const chunkIds = [...new Set(
+      messages
+        .filter((message) => message.role === MessageRole.ASSISTANT)
+        .flatMap((message) => parseTextAndCitations(message.content).citations.map((citation) => citation.chunkId))
+    )];
+
+    if (chunkIds.length === 0) {
+      return;
+    }
+
+    void fetchReferenceMetadata(chunkIds).catch((error) => {
+      console.error("Failed to load stored reference metadata:", error);
+    });
+  }, [messages, fetchReferenceMetadata]);
 
   const handleCitationClick = useCallback(
     (citation: Citation, index: number) => {
@@ -65,6 +145,18 @@ export function ChatPage() {
       setSelectedReference(reference);
     }, []
   );
+
+  const handleStreamingText = useCallback((nextRawText: string) => {
+    const parsed = parseTextAndCitations(nextRawText);
+    setStreamingText(parsed.textWithMarkers);
+    setStreamingCitations(parsed.citations.map((citation) => ({
+      ...citation,
+      reference: referenceMetadataByChunkId[citation.chunkId] ?? citation.reference,
+    })));
+    void fetchReferenceMetadata(parsed.citations.map((citation) => citation.chunkId)).catch((error) => {
+      console.error("Failed to load reference metadata:", error);
+    });
+  }, [fetchReferenceMetadata, referenceMetadataByChunkId]);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
@@ -82,16 +174,21 @@ export function ChatPage() {
 
     setIsStreaming(true);
     setStreamingText("");
+    setStreamingCitations([]);
+    pendingChunkIdsRef.current.clear();
+    resolvedChunkIdsRef.current.clear();
 
     try {
       if (isNewChat) {
         let newConversationId: string | null = null;
+        let rawStreamingText = "";
 
         for await (const chunk of startConversationStream(userInput)) {
           if (chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if (chunk.type === "text" && chunk.text) {
-            setStreamingText((prev) => prev + chunk.text);
+            rawStreamingText += chunk.text;
+            handleStreamingText(rawStreamingText);
           }
         }
 
@@ -100,12 +197,14 @@ export function ChatPage() {
           navigate({ to: "/chat", search: { chatId: newConversationId } });
         }
       } else {
+        let rawStreamingText = "";
         for await (const chunk of sendMessageStream(
           chatId as string,
           userInput
         )) {
           if (chunk.text) {
-            setStreamingText((prev) => prev + chunk.text);
+            rawStreamingText += chunk.text;
+            handleStreamingText(rawStreamingText);
           }
         }
 
@@ -136,6 +235,7 @@ export function ChatPage() {
     navigate,
     sendMessageStream,
     startConversationStream,
+    handleStreamingText,
   ]);
 
   if (isLoading && !isNewChat) {
@@ -155,6 +255,7 @@ export function ChatPage() {
               <MessageBubble
                 key={m.id}
                 message={m}
+                hydratedCitations={messageCitationsById[m.id]}
                 onCitationClick={handleCitationClick}
               />
             ))}
@@ -163,7 +264,7 @@ export function ChatPage() {
               <OptimisticBubble message={optimisticMessage} />
             )}
 
-            {isStreaming && <StreamingBubble streamingText={streamingText} />}
+            {isStreaming && <StreamingBubble streamingText={streamingText} citations={streamingCitations} onCitationClick={handleCitationClick} />}
 
             {!messages.length && !optimisticMessage && !isStreaming && (
               <div className="flex flex-1 min-h-[24rem] items-center justify-center px-6 text-center">

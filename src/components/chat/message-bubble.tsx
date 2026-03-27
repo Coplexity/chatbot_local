@@ -10,11 +10,13 @@ import { Disclaimer } from "./disclaimer";
 
 interface MessageBubbleProps {
   message: Message;
+  hydratedCitations?: Citation[];
   onCitationClick: (citation: Citation, index: number) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
   message,
+  hydratedCitations,
   onCitationClick,
 }: MessageBubbleProps) {
   const isAssistant = message.role === MessageRole.ASSISTANT;
@@ -27,8 +29,24 @@ export const MessageBubble = memo(function MessageBubble({
         citations: [],
       };
     }
-    return parseTextAndCitations(message.content);
-  }, [message.content, isAssistant]);
+    const parsed = parseTextAndCitations(message.content);
+
+    if (!hydratedCitations || hydratedCitations.length === 0) {
+      return parsed;
+    }
+
+    const hydratedByChunkId = new Map(
+      hydratedCitations.map((citation) => [citation.chunkId, citation])
+    );
+
+    return {
+      ...parsed,
+      citations: parsed.citations.map((citation) => {
+        const hydrated = hydratedByChunkId.get(citation.chunkId);
+        return hydrated ? { ...citation, reference: hydrated.reference } : citation;
+      }),
+    };
+  }, [message.content, isAssistant, hydratedCitations]);
 
   return (
     <div>
@@ -118,7 +136,7 @@ function CitationSummary({
     <div className="flex flex-wrap gap-1.5 lg:gap-2 mt-3 pt-3 border-t border-slate-200/80">
       {citations.map((citation, index) => (
         <button
-          key={`${citation.start_char}-${index}`}
+          key={`${citation.chunkId}-${index}`}
           onClick={() => onCitationClick(citation, index)}
           className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-white/70 text-cite hover:bg-white transition-colors cursor-pointer"
           title={formatCitationLabel(citation)}

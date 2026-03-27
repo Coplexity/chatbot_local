@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import rehypeRaw from 'rehype-raw';
 import "katex/dist/katex.min.css";
 import Icons from "@/components/icons/icons";
 import { Reference } from "@/types/chat-types";
 import { formatCitationLabel } from "@/utils/citation-parser";
+import { PdfPreview } from "./pdf-preview";
 
 interface ReferencePanelProps {
   reference: Reference;
@@ -15,22 +15,10 @@ interface ReferencePanelProps {
 }
 
 export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
-  const [imageLoading, setImageLoading] = useState(true);
-
-  const processMarkdownContent = (content: string) => {
-    if (!content) return "";
-    let cleaned = content;
-    // Fix LLM formatting issues with \n
-    cleaned = cleaned.replace(/\| \|/g, "|\n|");
-    cleaned = cleaned.trim();
-
-    return cleaned;
-  };
-
   const sourceLabel = formatCitationLabel(reference);
-  const excerptContent =
-    reference.noi_dung_da_su_dung || "Không có nội dung trích dẫn";
-  const hasResource = reference.resource_type && reference.resource_content;
+  const excerptContent = reference.excerpt || "Không có nội dung trích dẫn";
+  const headings = reference.reference?.headings || [];
+  const sourceMetadata = reference.reference;
 
   return (
     <>
@@ -45,7 +33,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         className={`
         fixed lg:relative
         top-0 right-0 bottom-0
-        w-full sm:w-[26rem] lg:w-[26rem]
+        w-full sm:w-104 lg:w-104
         transform transition-transform duration-300 ease-in-out
         z-50 lg:z-auto
         border-l border-design-border bg-[#fbfcff] h-full flex flex-col
@@ -71,51 +59,48 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
           <h4 className="text-xs lg:text-sm font-medium text-gray-500">
             Nguồn gốc
           </h4>
-          {reference.van_ban && (
-            <div className="mb-1">
-              <div className="bg-white border border-design-border rounded-2xl p-4">
-                <span className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
-                  Văn bản
-                </span>
-                <p className="font-medium text-sm lg:text-base wrap-break-word">
-                  {reference.van_ban}
-                </p>
-              </div>
-            </div>
-          )}
+          <div className="bg-white rounded-[1.35rem] p-4 border border-design-border">
 
-          {/* Citation location info */}
-           <div className="grid grid-cols-2 gap-2 text-sm">
-            {reference.chuong !== undefined && reference.chuong !== null && (
-                <div className="bg-white rounded-2xl p-3 border border-design-border">
-                <span className="text-gray-500 text-xs lg:text-sm">Chương</span>
-                <p className="font-medium text-gray-900">{reference.chuong}</p>
-              </div>
+            <span className="text-xs lg:text-sm font-medium text-gray-500 mb-2 hidden">
+              Văn bản
+            </span>
+
+            {sourceMetadata?.guidelineTitle && (<>
+              <p className="text-lg uppercase lg:text-base wrap-break-word font-semibold">
+                {sourceMetadata.guidelineTitle}
+              </p></>
             )}
-            {reference.dieu !== undefined && reference.dieu !== null && (
-                <div className="bg-white rounded-2xl p-3 border border-design-border">
-                <span className="text-gray-500 text-xs lg:text-sm">Điều</span>
-                <p className="font-medium text-gray-900">{reference.dieu}</p>
-              </div>
-            )}
-            {reference.khoan !== undefined && reference.khoan !== null && (
-                <div className="bg-white rounded-2xl p-3 border border-design-border">
-                <span className="text-gray-500 text-xs lg:text-sm">Khoản</span>
-                <p className="font-medium text-gray-900">{reference.khoan}</p>
-              </div>
-            )}
-            {reference.phu_luc !== undefined && reference.phu_luc !== null && (
-                <div className="bg-white rounded-2xl p-3 border border-design-border">
-                <span className="text-gray-500 text-xs lg:text-sm">
-                  Phụ lục
-                </span>
-                <p className="font-medium text-gray-900">{reference.phu_luc}</p>
+            <div className="flex flex-wrap items-center mt-2 gap-x-3 gap-y-1 text-xs lg:text-sm text-slate-500">
+              {/* {sourceMetadata?.guidelineId !== undefined && <span>Guideline #{sourceMetadata.guidelineId}</span>}
+              {sourceMetadata?.versionId !== undefined && <span>Version #{sourceMetadata.versionId}</span>} */}
+              {sourceMetadata?.startPage !== undefined && <span>Trang {sourceMetadata.startPage}</span>}
+            </div>
+
+            {headings.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="space-y-2">
+                  {headings.map((heading, index) => {
+                    const _isDeepest = index === headings.length - 1;
+
+                    return (
+                      <div
+                        key={`${heading.sectionId}-${index}`}
+                        className={`rounded-2xl border p-3 border-design-border bg-slate-50/70`}
+                      >
+                        <p className={`text-sm lg:text-base font-medium text-slate-700`}>
+                          {heading.heading}
+                        </p>
+
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
 
           {/* Excerpt content */}
-          <div className="flex-1">
+          <div className="">
             <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
               Nội dung trích dẫn
             </h4>
@@ -129,90 +114,19 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
             </div>
           </div>
 
-          {/* Resource content (figure/table) */}
-          {hasResource && (
-            <div>
-              <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
-                {reference.resource_type === "figure" ? "Hình ảnh" : "Bảng"}
-              </h4>
-              {reference.resource_type === "figure" ? (
-                 <div className="relative rounded-[1.35rem] border border-design-border min-h-28 bg-white overflow-hidden">
-                  {imageLoading && (
-                    <div className="absolute inset-0 bg-gray-200 rounded-lg animate-pulse flex items-center justify-center">
-                      <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-                    </div>
-                  )}
-                  <img
-                    src={`https://medical-chatbot.fdn.li/static/figure/${reference.resource_content}`}
-                    alt="Reference figure"
-                    className={`w-full transition-opacity duration-200 ${imageLoading ? "opacity-0" : "opacity-100"
-                      }`}
-                    onLoad={() => setImageLoading(false)}
-                    onError={() => setImageLoading(false)}
-                  />
-                </div>
-              ) : (
-                 <div className="overflow-x-auto bg-white rounded-[1.35rem] border border-design-border p-2">
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex, rehypeRaw]}
-                      components={{
-                        table: ({ children }) => (
-                          <table className="min-w-full border-collapse border border-gray-300 text-xs lg:text-sm">
-                            {children}
-                          </table>
-                        ),
-                        thead: ({ children }) => (
-                          <thead className="bg-gray-100">{children}</thead>
-                        ),
-                        tbody: ({ children }) => (
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {children}
-                          </tbody>
-                        ),
-                        tr: ({ children }) => (
-                          <tr className="hover:bg-gray-50">{children}</tr>
-                        ),
-                        th: ({ children }) => (
-                          <th className="border border-gray-300 bg-gray-100 px-2 lg:px-3 py-2 text-center font-semibold text-gray-900 whitespace-normal">
-                            {children}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                          <td className="border border-gray-300 px-2 lg:px-3 py-2 text-gray-700 whitespace-normal align-top">
-                            {children}
-                          </td>
-                        ),
-                      }}
-                    >
-                      {processMarkdownContent(reference.resource_content || "")}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          <div className=""></div>
+  <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-1">
+            Xem trong tài liệu
+            </h4>
 
-          {/* Source reference */}
-           <div className="p-4 rounded-[1.35rem] border border-design-border mt-auto bg-white">
-            <p className="text-xs lg:text-sm">
-              <span className="text-gray-500">Nguồn dẫn: </span>
-              <span className="font-medium wrap-break-word">{sourceLabel}</span>
-            </p>
-
-            {(reference.start_char !== undefined ||
-              reference.end_char !== undefined) && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Vị trí: {reference.start_char} - {reference.end_char}
-                </p>
-              )}
-
-            <button className="bg-btn-bg py-2 px-4 w-full items-center rounded-md text-btn-text font-medium underline mt-4 hover:bg-[#E1EFFF] cursor-pointer hidden text-sm">
-              Xem tài liệu đầy đủ
-            </button>
+          <PdfPreview
+            title={sourceMetadata?.guidelineTitle || sourceLabel}
+            documentId={sourceMetadata?.documentId}
+            pdfPage={sourceMetadata?.pdfPage}
+            fallbackPage={sourceMetadata?.startPage}
+          />
           </div>
-        </div>
+
       </div>
     </>
   );

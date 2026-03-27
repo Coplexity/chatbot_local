@@ -89,23 +89,37 @@ export interface SearchMessageParams {
   limit?: number;
 }
 
-// Citation from AI response (matches backend Citation interface)
+export interface ReferenceHeading {
+  sectionId: number;
+  heading: string;
+  sectionPath: string | null;
+  startPage: number | null;
+  level: number | null;
+}
+
+export interface ReferenceMetadata {
+  chunkId: number;
+  guidelineId?: number;
+  guidelineTitle?: string;
+  versionId?: number;
+  versionLabel?: string;
+  sectionId?: number;
+  headings: ReferenceHeading[];
+  deepestHeading?: string;
+  sectionPath?: string;
+  startPage?: number;
+  documentId?: number;
+  pdfPage?: number;
+}
+
+// Citation parsed from assistant output and optionally hydrated with backend metadata
 export interface Citation {
-  van_ban?: string;
-  chuong?: number;
-  dieu?: number;
-  khoan?: number;
-  phu_luc?: number;
-  noi_dung_da_su_dung?: string;
-  start_char: number;
-  end_char: number;
-  resource_type?: string;
-  resource_content?: string;
+  chunkId: number;
+  excerpt: string;
+  reference?: ReferenceMetadata;
 }
 
 // Streaming chunk from SSE response
 export interface StreamChunk {
   text?: string;
-  citation?: Citation;
 }
-

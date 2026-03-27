@@ -1,8 +1,63 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { chatService } from "@/services/chat.service";
 import { guestStorageService } from "@/services/guest-storage.service";
-import { Conversation, Message, StreamChunk, MessageRole } from "@/types/api-types";
+import { Conversation, Message, ReferenceMetadata, StreamChunk, MessageRole } from "@/types/api-types";
 import { api } from "@/services/api";
+import {
+  getCompleteSseBlocks,
+  parseSseBlock,
+  resolveSseErrorMessage,
+} from "@/services/sse";
+
+type GuestStartConversationChunk =
+  | { type: "conversation"; conversationId: string }
+  | { type: "text"; text: string };
+
+async function* readSseStream<T>(
+  response: Response,
+  mapEvent: (event: { event: string; data: string }) => T | null
+): AsyncGenerator<T> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body reader available");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const { blocks, remainder } = getCompleteSseBlocks(buffer);
+      buffer = remainder;
+
+      for (const block of blocks) {
+        const event = parseSseBlock(block);
+
+        if (event.data === "[DONE]") {
+          return;
+        }
+
+        if (event.event === "error") {
+          throw new Error(resolveSseErrorMessage(event.data));
+        }
+
+        const mapped = mapEvent(event);
+        if (mapped !== null) {
+          yield mapped;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 export function useGuestChat() {
   const { isGuest, isAuthenticated } = useAuth();
@@ -80,77 +135,41 @@ export function useGuestChat() {
       context,
     });
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body reader available");
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = "";
     let fullResponse = "";
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    for await (const chunk of readSseStream<StreamChunk>(response, ({ data }) => {
+      try {
+        const parsed = JSON.parse(data) as StreamChunk;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          if (trimmedLine === "data: [DONE]") {
-            // Save assistant response to local storage
-            if (fullResponse) {
-              guestStorageService.addMessage(
-                conversationId,
-                MessageRole.ASSISTANT,
-                fullResponse
-              );
-            }
-            return;
-          }
-
-          if (trimmedLine.startsWith("data: ")) {
-            try {
-              const jsonStr = trimmedLine.substring(6);
-              const data = JSON.parse(jsonStr) as StreamChunk;
-
-              if (data.text) {
-                fullResponse += data.text;
-              }
-
-              if ((data.text && data.text.length > 0) || data.citation) {
-                yield { text: data.text, citation: data.citation };
-              }
-            } catch {
-              // Skip invalid JSON lines
-            }
-          }
+        if (parsed.text) {
+          fullResponse += parsed.text;
         }
+
+        if (parsed.text && parsed.text.length > 0) {
+          return { text: parsed.text };
+        }
+      } catch {
+        // Skip invalid JSON payloads
       }
 
-      // Save any remaining response
-      if (fullResponse) {
-        guestStorageService.addMessage(
-          conversationId,
-          MessageRole.ASSISTANT,
-          fullResponse
-        );
-      }
-    } finally {
-      reader.releaseLock();
+      return null;
+    })) {
+      yield chunk;
+    }
+
+    if (fullResponse) {
+      guestStorageService.addMessage(
+        conversationId,
+        MessageRole.ASSISTANT,
+        fullResponse
+      );
     }
   }
 
   // Guest start conversation streaming
   async function* startConversationStreamGuest(
     content: string
-  ): AsyncGenerator<
-    { type: "conversation"; conversationId: string } | { type: "text"; text: string }
-  > {
+  ): AsyncGenerator<GuestStartConversationChunk> {
     // Create local conversation first
     const conversation = guestStorageService.createConversation();
 
@@ -163,71 +182,38 @@ export function useGuestChat() {
     // Call API for AI response
     const response = await api.fetchStream("/chat/guest/stream", { content });
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body reader available");
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = "";
     let fullResponse = "";
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    for await (const chunk of readSseStream<GuestStartConversationChunk>(response, ({ data }) => {
+      try {
+        const parsed = JSON.parse(data);
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          if (trimmedLine === "data: [DONE]") {
-            if (fullResponse) {
-              guestStorageService.addMessage(
-                conversation.id,
-                MessageRole.ASSISTANT,
-                fullResponse
-              );
-              // Update title based on first message
-              const title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
-              guestStorageService.updateConversationTitle(conversation.id, title);
-            }
-            return;
-          }
-
-          if (trimmedLine.startsWith("data: ")) {
-            try {
-              const jsonStr = trimmedLine.substring(6);
-              const data = JSON.parse(jsonStr);
-
-              if (data.type === "text" && data.text && data.text.length > 0) {
-                fullResponse += data.text;
-                yield { type: "text", text: data.text };
-              } else if (data.text) {
-                fullResponse += data.text;
-                yield { type: "text", text: data.text };
-              }
-            } catch {
-              // Skip invalid JSON lines
-            }
-          }
+        if (parsed.type === "text" && parsed.text && parsed.text.length > 0) {
+          fullResponse += parsed.text;
+          return { type: "text", text: parsed.text };
         }
+
+        if (parsed.text) {
+          fullResponse += parsed.text;
+          return { type: "text", text: parsed.text };
+        }
+      } catch {
+        // Skip invalid JSON payloads
       }
 
-      if (fullResponse) {
-        guestStorageService.addMessage(
-          conversation.id,
-          MessageRole.ASSISTANT,
-          fullResponse
-        );
-        const title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
-        guestStorageService.updateConversationTitle(conversation.id, title);
-      }
-    } finally {
-      reader.releaseLock();
+      return null;
+    })) {
+      yield chunk;
+    }
+
+    if (fullResponse) {
+      guestStorageService.addMessage(
+        conversation.id,
+        MessageRole.ASSISTANT,
+        fullResponse
+      );
+      const title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
+      guestStorageService.updateConversationTitle(conversation.id, title);
     }
   }
 
@@ -245,6 +231,10 @@ export function useGuestChat() {
     return chatService.startConversationStream(content);
   };
 
+  const getReferenceMetadata = async (chunkIds: number[]): Promise<ReferenceMetadata[]> => {
+    return chatService.getReferenceMetadata(chunkIds);
+  };
+
   return {
     isGuest,
     isAuthenticated,
@@ -254,5 +244,6 @@ export function useGuestChat() {
     deleteConversation,
     sendMessageStream,
     startConversationStream,
+    getReferenceMetadata,
   };
 }

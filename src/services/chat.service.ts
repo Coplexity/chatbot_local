@@ -4,11 +4,67 @@ import type {
   CreateConversationRequest,
   Message,
   PaginatedResponse,
+  ReferenceMetadata,
   SearchMessageParams,
   SendMessageRequest,
   SendMessageResponse,
   StreamChunk,
 } from "@/types/api-types";
+import {
+  getCompleteSseBlocks,
+  parseSseBlock,
+  resolveSseErrorMessage,
+} from "./sse";
+
+type StartConversationChunk =
+  | { type: "conversation"; conversationId: string }
+  | { type: "text"; text: string };
+
+async function* readSseStream<T>(
+  response: Response,
+  mapEvent: (event: { event: string; data: string }) => T | null
+): AsyncGenerator<T> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body reader available");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const { blocks, remainder } = getCompleteSseBlocks(buffer);
+      buffer = remainder;
+
+      for (const block of blocks) {
+        const event = parseSseBlock(block);
+
+        if (event.data === "[DONE]") {
+          return;
+        }
+
+        if (event.event === "error") {
+          throw new Error(resolveSseErrorMessage(event.data));
+        }
+
+        const mapped = mapEvent(event);
+        if (mapped !== null) {
+          yield mapped;
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 export const chatService = {
   /**
@@ -84,46 +140,20 @@ export const chatService = {
       { content }
     );
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body reader available");
-    }
+    for await (const chunk of readSseStream<StreamChunk>(response, ({ data }) => {
+      try {
+        const parsed = JSON.parse(data) as StreamChunk;
 
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-
-        // Keep the last incomplete line in buffer
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          if (trimmedLine === "data: [DONE]") return;
-
-          if (trimmedLine.startsWith("data: ")) {
-            try {
-              const jsonStr = trimmedLine.substring(6);
-              const data = JSON.parse(jsonStr) as StreamChunk;
-
-              if ((data.text && data.text.length > 0) || data.citation) {
-                yield { text: data.text, citation: data.citation};
-              }
-            } catch {
-              // Skip invalid JSON lines
-            }
-          }
+        if (parsed.text && parsed.text.length > 0) {
+          return { text: parsed.text };
         }
+      } catch {
+        // Skip invalid JSON payloads
       }
-    } finally {
-      reader.releaseLock();
+
+      return null;
+    })) {
+      yield chunk;
     }
   },
 
@@ -147,54 +177,30 @@ export const chatService = {
    */
   async *startConversationStream(
     content: string
-  ): AsyncGenerator<{ type: "conversation"; conversationId: string } | { type: "text"; text: string }> {
+  ): AsyncGenerator<StartConversationChunk> {
     const response = await api.fetchStream(
       "/chat/conversations/start/stream",
       { content }
     );
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body reader available");
-    }
+    for await (const chunk of readSseStream<StartConversationChunk>(response, ({ data }) => {
+      try {
+        const parsed = JSON.parse(data);
 
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-
-        // Keep the last incomplete line in buffer
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-          if (trimmedLine === "data: [DONE]") return;
-
-          if (trimmedLine.startsWith("data: ")) {
-            try {
-              const jsonStr = trimmedLine.substring(6);
-              const data = JSON.parse(jsonStr);
-
-              if (data.type === "conversation") {
-                yield { type: "conversation", conversationId: data.conversationId };
-              } else if (data.type === "text" && data.text && data.text.length > 0) {
-                yield { type: "text", text: data.text };
-              }
-            } catch {
-              // Skip invalid JSON lines
-            }
-          }
+        if (parsed.type === "conversation") {
+          return { type: "conversation", conversationId: parsed.conversationId };
         }
+
+        if (parsed.type === "text" && parsed.text && parsed.text.length > 0) {
+          return { type: "text", text: parsed.text };
+        }
+      } catch {
+        // Skip invalid JSON payloads
       }
-    } finally {
-      reader.releaseLock();
+
+      return null;
+    })) {
+      yield chunk;
     }
   },
 
@@ -208,5 +214,16 @@ export const chatService = {
       params: params as any,
     });
   },
-};
 
+  async getReferenceMetadata(chunkIds: number[]): Promise<ReferenceMetadata[]> {
+    if (chunkIds.length === 0) {
+      return [];
+    }
+
+    return api.get<ReferenceMetadata[]>("/chat/references", {
+      params: {
+        chunkIds: chunkIds.join(","),
+      },
+    });
+  },
+};

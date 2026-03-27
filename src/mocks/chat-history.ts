@@ -5,15 +5,18 @@ import { Reference } from "@/types/chat-types";
 const createReference = (
   id: string,
   number: number,
-  dieu: number,
+  chunkId: number,
   noi_dung: string
 ): Reference => ({
   id,
   number,
-  dieu,
-  start_char: 0,
-  end_char: noi_dung.length,
-  noi_dung_da_su_dung: noi_dung,
+  chunkId,
+  excerpt: noi_dung,
+  reference: {
+    chunkId,
+    guidelineTitle: `Tài liệu ${chunkId}`,
+    headings: [],
+  },
 });
 
 export const chatHistoryData: ChatHistory[] = [
