@@ -1,11 +1,9 @@
-ARG BACKEND_URL
-ARG VITE_DOCUMENT_FILE_URL_TEMPLATE
-
 # ============================================
 # Stage 1: Build the application
 # ============================================
 FROM node:22-alpine AS builder
 
+ARG VITE_DOCUMENT_FILE_URL_TEMPLATE
 ENV VITE_DOCUMENT_FILE_URL_TEMPLATE=${VITE_DOCUMENT_FILE_URL_TEMPLATE}
 
 # Set working directory
@@ -31,6 +29,7 @@ RUN pnpm build
 # ============================================
 FROM nginx:alpine AS production
 
+ARG BACKEND_URL
 ENV BACKEND_URL=${BACKEND_URL}
 
 # Copy custom nginx template configuration
