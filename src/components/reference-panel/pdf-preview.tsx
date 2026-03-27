@@ -30,7 +30,8 @@ export function buildPdfUrl(urlTemplate: string | undefined, documentId?: number
     return undefined;
   }
 
-  return appendPageAnchor(fileUrl, page);
+  const urlWithPage = appendPageAnchor(fileUrl, page);
+  return `${urlWithPage}${page ? "&" : "#"}view=FitH`;
 }
 
 export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPreviewProps) {
@@ -68,12 +69,13 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
         ) : (
           <embed
             title={title}
+            key={finalUrl}
             src={finalUrl}
             type="application/pdf"
             onError={() => setHasPreviewError(true)}
             onErrorCapture={() => setHasPreviewError(true)}
             data-testid="pdf-preview-embed"
-            className="min-h-100 w-full rounded-2xl border border-design-border bg-white lg:h-136"
+            className="w-full rounded-2xl border border-design-border bg-white lg:h-136"
           />
         )}
     </div>

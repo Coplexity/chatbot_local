@@ -8,11 +8,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig(({ mode }) => {
   const envDir = "./env";
   const env = loadEnv(mode, envDir);
-  const backendUrl = env.VITE_BACKEND_URL;
 
-  if (!backendUrl) {
-    throw new Error("Missing VITE_BACKEND_URL in frontend env configuration");
-  }
 
   return {
     plugins: [
@@ -26,7 +22,7 @@ export default defineConfig(({ mode }) => {
       port: Number(env.VITE_APP_PORT) || 5173,
       proxy: {
         "/api": {
-          target: backendUrl,
+          target: env.BACKEND_URL,
           changeOrigin: true,
         },
       },

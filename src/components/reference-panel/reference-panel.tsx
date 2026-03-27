@@ -114,10 +114,10 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
             </div>
           </div>
 
-          <div className=""></div>
-  <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-1">
+          <div className="">
+          <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
             Xem trong tài liệu
-            </h4>
+          </h4>
 
           <PdfPreview
             title={sourceMetadata?.guidelineTitle || sourceLabel}
@@ -125,7 +125,8 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
             pdfPage={sourceMetadata?.pdfPage}
             fallbackPage={sourceMetadata?.startPage}
           />
-          </div>
+        </div>
+        </div>
 
       </div>
     </>
