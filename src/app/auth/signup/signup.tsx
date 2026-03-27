@@ -177,7 +177,7 @@ export function SignupPage() {
               Đã có tài khoản?{" "}
               <button
                 onClick={() => navigate({ to: "/login" })}
-                className="text-btn-text font-medium hover:underline cursor-pointer"
+                className="text-btn-link font-medium hover:underline cursor-pointer"
               >
                 Đăng nhập ngay
               </button>

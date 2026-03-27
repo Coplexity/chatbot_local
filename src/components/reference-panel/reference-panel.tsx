@@ -33,10 +33,10 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         className={`
         fixed lg:relative
         top-0 right-0 bottom-0
-        w-full sm:w-104 lg:w-104
+        w-full sm:w-104 lg:w-120
         transform transition-transform duration-300 ease-in-out
         z-50 lg:z-auto
-        border-l border-design-border bg-[#fbfcff] h-full flex flex-col
+        border-l border-design-border bg-[#fbfcff] h-full min-h-0 flex flex-col
       `}
       >
         {/* Header */}
@@ -54,7 +54,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 flex flex-col gap-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 lg:p-6 flex flex-col gap-4">
           {/* Document name */}
           <h4 className="text-xs lg:text-sm font-medium text-gray-500">
             Nguồn gốc

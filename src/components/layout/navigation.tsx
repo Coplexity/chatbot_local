@@ -156,7 +156,7 @@ export default function Navigation({
 
         <button
           onClick={handleNewChat}
-          className="w-full px-5 py-4 bg-btn-bg text-btn-text font-semibold rounded-full hover:bg-btn-hover-bg transition-all duration-200 cursor-pointer shrink-0 shadow-[0_12px_24px_rgba(76,130,232,0.18)]"
+          className="w-full text-lg px-5 py-3 bg-btn-bg text-btn-text font-semibold rounded-full hover:bg-btn-hover-bg transition-all duration-200 cursor-pointer shrink-0 shadow-[0_12px_24px_rgba(76,130,232,0.18)]"
         >
           + Cuộc trò chuyện mới
         </button>
@@ -239,15 +239,15 @@ export default function Navigation({
                 navigate({ to: "/login" });
                 onClose?.();
               }}
-              className="w-full px-5 py-4 bg-btn-bg text-btn-text text-lg font-semibold rounded-full hover:bg-btn-hover-bg transition-colors cursor-pointer shadow-[0_12px_24px_rgba(76,130,232,0.18)]"
+              className="w-full px-4 py-2 bg-btn-bg text-btn-text text-lg font-semibold rounded-full hover:bg-btn-hover-bg transition-colors cursor-pointer shadow-[0_12px_24px_rgba(76,130,232,0.18)]"
             >
-              + Đăng nhập
+              Đăng nhập
             </button>
           )}
           {isAuthenticated && (
             <button
               onClick={handleLogout}
-              className="w-full px-4 py-3 text-left hover:bg-white/60 rounded-full flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
+              className="w-full px-4 py-2 text-left hover:bg-white/60 rounded-full flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
             >
               <Icons.DoorOpen className="w-4 h-4" />
               <span>Đăng xuất</span>
