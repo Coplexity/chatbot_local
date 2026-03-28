@@ -4,4 +4,5 @@ export { Disclaimer } from "./disclaimer";
 export { MessageBubble } from "./message-bubble";
 export { OptimisticBubble, type OptimisticMessage } from "./optimistic-bubble";
 export { StreamingBubble } from "./streaming-bubble";
+export { ThinkingPanel } from "./thinking-panel";
 export { TypingIndicator } from "./typing-indicator";

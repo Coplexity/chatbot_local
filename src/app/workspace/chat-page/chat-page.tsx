@@ -16,7 +16,7 @@ const EMPTY_STATE_HEADLINES = [
 ];
 
 function isValidChatId(id: unknown): id is string {
-  return typeof id === "string" && id.length >= 32;
+  return typeof id === "string" && (id.length >= 32 || id.startsWith("guest-"));
 }
 
 export function ChatPage() {
@@ -32,9 +32,11 @@ export function ChatPage() {
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [streamingTrace, setStreamingTrace] = useState<string[]>([]);
   const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
   const [referenceMetadataByChunkId, setReferenceMetadataByChunkId] = useState<Record<number, ReferenceMetadata>>({});
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
+  const [streamInstanceId, setStreamInstanceId] = useState(0);
   const [emptyStateHeadline] = useState(
     () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
   );
@@ -158,6 +160,22 @@ export function ChatPage() {
     });
   }, [fetchReferenceMetadata, referenceMetadataByChunkId]);
 
+  const appendStreamingTrace = useCallback((nextTrace: string) => {
+    const normalizedTrace = nextTrace.trim();
+
+    if (!normalizedTrace) {
+      return;
+    }
+
+    setStreamingTrace((prev) => {
+      if (prev.at(-1) === normalizedTrace) {
+        return prev;
+      }
+
+      return [...prev, normalizedTrace];
+    });
+  }, []);
+
   const handleSend = useCallback(async () => {
     if (!input.trim() || isStreaming) return;
 
@@ -174,7 +192,9 @@ export function ChatPage() {
 
     setIsStreaming(true);
     setStreamingText("");
+    setStreamingTrace([]);
     setStreamingCitations([]);
+    setStreamInstanceId((prev) => prev + 1);
     pendingChunkIdsRef.current.clear();
     resolvedChunkIdsRef.current.clear();
 
@@ -184,9 +204,11 @@ export function ChatPage() {
         let rawStreamingText = "";
 
         for await (const chunk of startConversationStream(userInput)) {
-          if (chunk.type === "conversation") {
+          if ("type" in chunk && chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
-          } else if (chunk.type === "text" && chunk.text) {
+          } else if ("type" in chunk && chunk.type === "trace") {
+            appendStreamingTrace(chunk.trace);
+          } else if ((("type" in chunk && chunk.type === "text") || (!('type' in chunk) && "text" in chunk)) && chunk.text) {
             rawStreamingText += chunk.text;
             handleStreamingText(rawStreamingText);
           }
@@ -202,7 +224,9 @@ export function ChatPage() {
           chatId as string,
           userInput
         )) {
-          if (chunk.text) {
+          if ("type" in chunk && chunk.type === "trace") {
+            appendStreamingTrace(chunk.trace);
+          } else if ((("type" in chunk && chunk.type === "text") || (!('type' in chunk) && "text" in chunk)) && chunk.text) {
             rawStreamingText += chunk.text;
             handleStreamingText(rawStreamingText);
           }
@@ -219,9 +243,11 @@ export function ChatPage() {
         error?.message || "Gửi tin nhắn thất bại. Vui lòng thử lại."
       );
       setInput(userInput);
+      setStreamingTrace([]);
     } finally {
       setIsStreaming(false);
       setStreamingText("");
+      setStreamingTrace([]);
       setOptimisticMessage(null);
     }
   }, [
@@ -235,6 +261,7 @@ export function ChatPage() {
     navigate,
     sendMessageStream,
     startConversationStream,
+    appendStreamingTrace,
     handleStreamingText,
   ]);
 
@@ -264,7 +291,15 @@ export function ChatPage() {
               <OptimisticBubble message={optimisticMessage} />
             )}
 
-            {isStreaming && <StreamingBubble streamingText={streamingText} citations={streamingCitations} onCitationClick={handleCitationClick} />}
+            {isStreaming && (
+              <StreamingBubble
+                key={`stream-${streamInstanceId}`}
+                streamingText={streamingText}
+                streamingTrace={streamingTrace}
+                citations={streamingCitations}
+                onCitationClick={handleCitationClick}
+              />
+            )}
 
             {!messages.length && !optimisticMessage && !isStreaming && (
               <div className="flex flex-1 min-h-[24rem] items-center justify-center px-6 text-center">

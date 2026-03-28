@@ -7,6 +7,7 @@ import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Disclaimer } from "./disclaimer";
+import { ThinkingPanel } from "./thinking-panel";
 
 interface MessageBubbleProps {
   message: Message;
@@ -65,6 +66,7 @@ export const MessageBubble = memo(function MessageBubble({
               : "bg-bg-answer w-full border border-transparent text-slate-700"
           }`}
         >
+          {isAssistant && <ThinkingPanel steps={message.metadata?.thinking} />}
           {isAssistant ? (
             <AssistantContent
               parsedContent={parsedContent}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,7 @@ const startConversationStreamMock = vi.fn();
 const getReferenceMetadataMock = vi.fn();
 const getMessagesMock = vi.fn();
 const messageErrorMock = vi.fn();
+let searchChatId = "12345678901234567890123456789012";
 
 vi.mock("antd", () => ({
   App: {
@@ -24,7 +25,7 @@ vi.mock("antd", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
-  useSearch: () => ({ chatId: "12345678901234567890123456789012" }),
+  useSearch: () => ({ chatId: searchChatId }),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -71,7 +72,25 @@ vi.mock("@/components/chat", () => ({
   ),
   MessageBubble: (props: unknown) => messageBubbleMock(props),
   OptimisticBubble: () => <div>Optimistic</div>,
-  StreamingBubble: ({ streamingText }: { streamingText: string }) => <div>{streamingText}</div>,
+  StreamingBubble: ({ streamingText, streamingTrace }: { streamingText: string; streamingTrace?: string[] }) => {
+    const visibleTrace = [...new Set(streamingTrace ?? [])];
+
+    return (
+      <div>
+        {visibleTrace.length > 0 && (
+          <details>
+            <summary>{`Thinking (${visibleTrace.length} step${visibleTrace.length === 1 ? "" : "s"})`}</summary>
+            <div>
+              {visibleTrace.map((line) => (
+                <div key={line}>{line}</div>
+              ))}
+            </div>
+          </details>
+        )}
+        <div>{streamingText}</div>
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/reference-panel/reference-panel", () => ({
@@ -80,6 +99,7 @@ vi.mock("@/components/reference-panel/reference-panel", () => ({
 
 describe("ChatPage", () => {
   beforeEach(() => {
+    searchChatId = "12345678901234567890123456789012";
     getMessagesMock.mockReset();
     getMessagesMock.mockReturnValue([]);
     messageBubbleMock.mockClear();
@@ -127,10 +147,32 @@ describe("ChatPage", () => {
   });
 
   it("shows a friendly empty-state text on a new chat before any messages exist", () => {
+    searchChatId = undefined as unknown as string;
+
     render(<ChatPage />);
 
     expect(screen.getByText(/xin chào! tôi có thể giúp gì cho bạn/i)).toBeInTheDocument();
     expect(screen.getByText(/nhập nội dung tra cứu vào ô dưới đây/i)).toBeInTheDocument();
+  });
+
+  it("treats guest conversation ids as valid existing chats", () => {
+    searchChatId = "guest-1711665000000-abc1234";
+    getMessagesMock.mockReturnValue([
+      {
+        id: "m1",
+        conversationId: searchChatId,
+        role: "assistant",
+        content: "Guest answer",
+        tokenCount: 10,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    render(<ChatPage />);
+
+    expect(screen.queryByText(/xin chào! tôi có thể giúp gì cho bạn/i)).not.toBeInTheDocument();
+    expect(messageBubbleMock).toHaveBeenCalled();
   });
 
   it("fetches metadata for stored assistant citations", async () => {
@@ -227,7 +269,8 @@ describe("ChatPage", () => {
 
   it("shows an error toast and clears partial streaming text when the stream fails", async () => {
     async function* stream() {
-      yield { text: "Partial answer" };
+      yield { type: "trace", trace: "Routing: analyzing intent" };
+      yield { type: "text", text: "Partial answer" };
       throw new Error("AI4Life API error: Unprocessable Entity");
     }
 
@@ -250,5 +293,119 @@ describe("ChatPage", () => {
     });
 
     expect(screen.queryByText("Partial answer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Routing: analyzing intent")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Thinking/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a collapsed Thinking panel and keeps duplicate trace lines deduped", async () => {
+    let finishStream: (() => void) | undefined;
+
+    async function* stream() {
+      yield { type: "trace", trace: "Routing: analyzing intent" };
+      yield { type: "trace", trace: "Routing: analyzing intent" };
+      yield { type: "text", text: "Final answer" };
+
+      await new Promise<void>((resolve) => {
+        finishStream = resolve;
+      });
+    }
+
+    sendMessageStreamMock.mockReturnValue(stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Thinking (1 step)")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Final answer")).toBeInTheDocument();
+    expect(screen.getByText("Routing: analyzing intent")).not.toBeVisible();
+
+    await act(async () => {
+      finishStream?.();
+    });
+  });
+
+  it("continues appending trace updates while the Thinking panel is open", async () => {
+    let pushChunk: ((value: { type: string; text?: string; trace?: string }) => void) | undefined;
+    let finishStream: (() => void) | undefined;
+
+    async function* stream() {
+      const queue: Array<{ type: string; text?: string; trace?: string }> = [];
+      let done = false;
+      let resume: (() => void) | null = null;
+
+      pushChunk = (value) => {
+        queue.push(value);
+        resume?.();
+        resume = null;
+      };
+
+      finishStream = () => {
+        done = true;
+        resume?.();
+        resume = null;
+      };
+
+      while (!done || queue.length > 0) {
+        if (queue.length === 0) {
+          await new Promise<void>((resolve) => {
+            resume = resolve;
+          });
+          continue;
+        }
+
+        const next = queue.shift();
+        if (next) {
+          yield next;
+        }
+      }
+    }
+
+    sendMessageStreamMock.mockReturnValue(stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    await act(async () => {
+      pushChunk?.({ type: "trace", trace: "Routing: analyzing intent" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Thinking (1 step)")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Routing: analyzing intent")).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("Thinking (1 step)"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Routing: analyzing intent")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      pushChunk?.({ type: "trace", trace: "Retrieval: searching references" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Retrieval: searching references")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      finishStream?.();
+    });
   });
 });

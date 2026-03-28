@@ -3,21 +3,30 @@ import type { Citation } from "@/types/api-types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Disclaimer } from "./disclaimer";
+import { ThinkingPanel } from "./thinking-panel";
 import { TypingIndicator } from "./typing-indicator";
 import { formatCitationLabel } from "@/utils/citation-parser";
 
 interface StreamingBubbleProps {
   streamingText: string;
+  streamingTrace?: string[];
   citations: Citation[];
   onCitationClick: (citation: Citation, index: number) => void;
 }
 
-export function StreamingBubble({ streamingText, citations, onCitationClick }: StreamingBubbleProps) {
+export function StreamingBubble({
+  streamingText,
+  streamingTrace = [],
+  citations,
+  onCitationClick,
+}: StreamingBubbleProps) {
   return (
     <div>
       <div className="flex items-start mb-3 lg:mb-4 gap-x-3 lg:gap-x-4">
         <Icons.BotChat className="w-10 h-10 lg:w-12 lg:h-12 shrink-0 rounded-full border border-design-border bg-white p-1.5" />
         <div className="px-4 lg:px-5 py-3 lg:py-4 rounded-[1.35rem] bg-bg-answer w-full border border-transparent text-slate-700">
+          <ThinkingPanel steps={streamingTrace} />
+
           {streamingText ? (
             <>
               <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm lg:text-base prose-p:text-slate-700">
