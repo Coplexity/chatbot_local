@@ -16,9 +16,32 @@ import {
   resolveSseErrorMessage,
 } from "./sse";
 
+function getStreamChunk(data: string): StreamChunk | null {
+  try {
+    const parsed = JSON.parse(data) as { type?: string; text?: unknown; trace?: unknown };
+
+    if (parsed.type === "trace" && typeof parsed.trace === "string" && parsed.trace.length > 0) {
+      return { type: "trace", trace: parsed.trace };
+    }
+
+    if (parsed.type === "text" && typeof parsed.text === "string" && parsed.text.length > 0) {
+      return { type: "text", text: parsed.text };
+    }
+
+    if (typeof parsed.text === "string" && parsed.text.length > 0) {
+      return { type: "text", text: parsed.text };
+    }
+  } catch {
+    // Skip invalid JSON payloads
+  }
+
+  return null;
+}
+
 type StartConversationChunk =
   | { type: "conversation"; conversationId: string }
-  | { type: "text"; text: string };
+  | { type: "text"; text: string }
+  | { type: "trace"; trace: string };
 
 async function* readSseStream<T>(
   response: Response,
@@ -140,18 +163,18 @@ export const chatService = {
       { content }
     );
 
-    for await (const chunk of readSseStream<StreamChunk>(response, ({ data }) => {
-      try {
-        const parsed = JSON.parse(data) as StreamChunk;
+    for await (const chunk of readSseStream<StreamChunk>(response, (event) => {
+      if (event.event === "trace") {
+        const trace = event.data.trim();
 
-        if (parsed.text && parsed.text.length > 0) {
-          return { text: parsed.text };
+        if (trace.length > 0) {
+          return { type: "trace", trace };
         }
-      } catch {
-        // Skip invalid JSON payloads
+
+        return null;
       }
 
-      return null;
+      return getStreamChunk(event.data);
     })) {
       yield chunk;
     }
@@ -183,15 +206,38 @@ export const chatService = {
       { content }
     );
 
-    for await (const chunk of readSseStream<StartConversationChunk>(response, ({ data }) => {
-      try {
-        const parsed = JSON.parse(data);
+    for await (const chunk of readSseStream<StartConversationChunk>(response, (event) => {
+      if (event.event === "trace") {
+        const trace = event.data.trim();
 
-        if (parsed.type === "conversation") {
+        if (trace.length > 0) {
+          return { type: "trace", trace };
+        }
+
+        return null;
+      }
+
+      try {
+        const parsed = JSON.parse(event.data) as {
+          type?: string;
+          conversationId?: string;
+          text?: string;
+          trace?: string;
+        };
+
+        if (parsed.type === "conversation" && typeof parsed.conversationId === "string") {
           return { type: "conversation", conversationId: parsed.conversationId };
         }
 
+        if (parsed.type === "trace" && parsed.trace && parsed.trace.length > 0) {
+          return { type: "trace", trace: parsed.trace };
+        }
+
         if (parsed.type === "text" && parsed.text && parsed.text.length > 0) {
+          return { type: "text", text: parsed.text };
+        }
+
+        if (typeof parsed.text === "string" && parsed.text.length > 0) {
           return { type: "text", text: parsed.text };
         }
       } catch {

@@ -1,4 +1,4 @@
-import type { Conversation, Message, Citation } from "@/types/api-types";
+import type { Conversation, Message, Citation, MessageMetadata } from "@/types/api-types";
 import { MessageRole } from "@/types/api-types";
 
 const GUEST_CONVERSATIONS_KEY = "guest_conversations";
@@ -111,7 +111,8 @@ export const guestStorageService = {
     conversationId: string,
     role: MessageRole,
     content: string,
-    citations?: Citation[]
+    citations?: Citation[],
+    metadata?: MessageMetadata
   ): GuestMessage {
     const now = new Date().toISOString();
     const message: GuestMessage = {
@@ -123,6 +124,7 @@ export const guestStorageService = {
       createdAt: now,
       updatedAt: now,
       citations,
+      metadata,
     };
 
     const allMessages = getMessages();

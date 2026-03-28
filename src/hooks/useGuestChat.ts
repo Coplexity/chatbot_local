@@ -11,7 +11,30 @@ import {
 
 type GuestStartConversationChunk =
   | { type: "conversation"; conversationId: string }
-  | { type: "text"; text: string };
+  | { type: "text"; text: string }
+  | { type: "trace"; trace: string };
+
+function getStreamChunk(data: string): StreamChunk | null {
+  try {
+    const parsed = JSON.parse(data) as { type?: string; text?: unknown; trace?: unknown };
+
+    if (parsed.type === "trace" && typeof parsed.trace === "string" && parsed.trace.length > 0) {
+      return { type: "trace", trace: parsed.trace };
+    }
+
+    if (parsed.type === "text" && typeof parsed.text === "string" && parsed.text.length > 0) {
+      return { type: "text", text: parsed.text };
+    }
+
+    if (typeof parsed.text === "string" && parsed.text.length > 0) {
+      return { type: "text", text: parsed.text };
+    }
+  } catch {
+    // Skip invalid JSON payloads
+  }
+
+  return null;
+}
 
 async function* readSseStream<T>(
   response: Response,
@@ -136,24 +159,39 @@ export function useGuestChat() {
     });
 
     let fullResponse = "";
+    const thinkingSteps: string[] = [];
 
-    for await (const chunk of readSseStream<StreamChunk>(response, ({ data }) => {
-      try {
-        const parsed = JSON.parse(data) as StreamChunk;
+    for await (const chunk of readSseStream<StreamChunk>(response, (event) => {
+      if (event.event === "trace") {
+        const trace = event.data.trim();
 
-        if (parsed.text) {
-          fullResponse += parsed.text;
+        if (trace.length > 0) {
+          return { type: "trace", trace };
         }
 
-        if (parsed.text && parsed.text.length > 0) {
-          return { text: parsed.text };
-        }
-      } catch {
-        // Skip invalid JSON payloads
+        return null;
+      }
+
+      const streamChunk = getStreamChunk(event.data);
+
+      if (streamChunk?.type === "text") {
+        fullResponse += streamChunk.text;
+      }
+
+      if (streamChunk) {
+        return streamChunk;
       }
 
       return null;
     })) {
+      if (chunk.type === "trace") {
+        const trace = chunk.trace.trim();
+
+        if (trace && thinkingSteps.at(-1) !== trace) {
+          thinkingSteps.push(trace);
+        }
+      }
+
       yield chunk;
     }
 
@@ -161,7 +199,9 @@ export function useGuestChat() {
       guestStorageService.addMessage(
         conversationId,
         MessageRole.ASSISTANT,
-        fullResponse
+        fullResponse,
+        undefined,
+        thinkingSteps.length > 0 ? { thinking: thinkingSteps } : undefined
       );
     }
   }
@@ -183,10 +223,29 @@ export function useGuestChat() {
     const response = await api.fetchStream("/chat/guest/stream", { content });
 
     let fullResponse = "";
+    const thinkingSteps: string[] = [];
 
-    for await (const chunk of readSseStream<GuestStartConversationChunk>(response, ({ data }) => {
+    for await (const chunk of readSseStream<GuestStartConversationChunk>(response, (event) => {
+      if (event.event === "trace") {
+        const trace = event.data.trim();
+
+        if (trace.length > 0) {
+          return { type: "trace", trace };
+        }
+
+        return null;
+      }
+
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(event.data) as {
+          type?: string;
+          text?: string;
+          trace?: string;
+        };
+
+        if (parsed.type === "trace" && parsed.trace && parsed.trace.length > 0) {
+          return { type: "trace", trace: parsed.trace };
+        }
 
         if (parsed.type === "text" && parsed.text && parsed.text.length > 0) {
           fullResponse += parsed.text;
@@ -203,6 +262,14 @@ export function useGuestChat() {
 
       return null;
     })) {
+      if (chunk.type === "trace") {
+        const trace = chunk.trace.trim();
+
+        if (trace && thinkingSteps.at(-1) !== trace) {
+          thinkingSteps.push(trace);
+        }
+      }
+
       yield chunk;
     }
 
@@ -210,7 +277,9 @@ export function useGuestChat() {
       guestStorageService.addMessage(
         conversation.id,
         MessageRole.ASSISTANT,
-        fullResponse
+        fullResponse,
+        undefined,
+        thinkingSteps.length > 0 ? { thinking: thinkingSteps } : undefined
       );
       const title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
       guestStorageService.updateConversationTitle(conversation.id, title);

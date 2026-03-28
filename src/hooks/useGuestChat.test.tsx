@@ -89,4 +89,51 @@ describe("useGuestChat streaming", () => {
       "Partial answer"
     );
   });
+
+  it("emits trace chunks separately from answer chunks in guest mode", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createStreamingResponse(
+        "event: trace\ndata: Truy xuat: dang tim tai lieu\n\n",
+        'data: {"text":"Noi dung tra loi"}\n\n',
+        "data: [DONE]\n\n"
+      )
+    );
+
+    const { result } = renderHook(() => useGuestChat());
+    const stream = result.current.startConversationStream("Hello");
+
+    await expect(readAll(stream)).resolves.toEqual([
+      { type: "conversation", conversationId: "guest-conversation-1" },
+      { type: "trace", trace: "Truy xuat: dang tim tai lieu" },
+      { type: "text", text: "Noi dung tra loi" },
+    ]);
+  });
+
+  it("parses JSON trace chunks forwarded as default SSE messages in guest mode", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createStreamingResponse(
+        'data: {"type":"trace","trace":"Xac nhan: Dang kiem tra cau hoi"}\n\n',
+        'data: {"type":"text","text":"Noi dung tra loi"}\n\n',
+        "data: [DONE]\n\n"
+      )
+    );
+
+    const { result } = renderHook(() => useGuestChat());
+    const stream = result.current.startConversationStream("Hello");
+
+    await expect(readAll(stream)).resolves.toEqual([
+      { type: "conversation", conversationId: "guest-conversation-1" },
+      { type: "trace", trace: "Xac nhan: Dang kiem tra cau hoi" },
+      { type: "text", text: "Noi dung tra loi" },
+    ]);
+
+    expect(addMessageMock).toHaveBeenNthCalledWith(
+      2,
+      "guest-conversation-1",
+      MessageRole.ASSISTANT,
+      "Noi dung tra loi",
+      undefined,
+      { thinking: ["Xac nhan: Dang kiem tra cau hoi"] }
+    );
+  });
 });

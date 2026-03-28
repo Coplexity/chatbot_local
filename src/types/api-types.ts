@@ -32,13 +32,18 @@ export enum MessageRole {
   SYSTEM = "system",
 }
 
+export interface MessageMetadata {
+  thinking?: string[];
+  [key: string]: unknown;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
   role: MessageRole;
   content: string;
   tokenCount: number;
-  metadata?: Record<string, any>;
+  metadata?: MessageMetadata;
   createdAt: string;
   updatedAt: string;
 }
@@ -119,7 +124,7 @@ export interface Citation {
   reference?: ReferenceMetadata;
 }
 
-// Streaming chunk from SSE response
-export interface StreamChunk {
-  text?: string;
-}
+// Streaming chunks from SSE response
+export type StreamChunk =
+  | { type: "text"; text: string }
+  | { type: "trace"; trace: string };
