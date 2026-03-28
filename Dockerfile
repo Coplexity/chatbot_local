@@ -29,8 +29,8 @@ RUN pnpm build
 # ============================================
 FROM nginx:alpine AS production
 
-ARG BACKEND_URL
-ENV BACKEND_URL=${BACKEND_URL}
+ARG VITE_BACKEND_URL
+ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
 
 # Copy custom nginx template configuration
 COPY nginx.conf /etc/nginx/templates/default.conf.template

@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
       port: Number(env.VITE_APP_PORT) || 5173,
       proxy: {
         "/api": {
-          target: env.BACKEND_URL,
+          target: env.VITE_BACKEND_URL,
           changeOrigin: true,
         },
       },
