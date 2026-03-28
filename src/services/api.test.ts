@@ -74,4 +74,49 @@ describe("api client base path", () => {
       "http://localhost:3000/api/chat/conversations/abc/messages/stream?content=hello"
     );
   });
+
+  it("calls the unauthorized handler once for authenticated 401 responses", async () => {
+    localStorage.setItem("accessToken", "expired-token");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({ message: "Unauthorized" }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api, setUnauthorizedHandler, ApiError } = await import("./api");
+    const unauthorizedHandler = vi.fn();
+
+    setUnauthorizedHandler(unauthorizedHandler);
+
+    await expect(api.get("/auth/me")).rejects.toBeInstanceOf(ApiError);
+    await expect(api.get("/auth/me")).rejects.toBeInstanceOf(ApiError);
+
+    expect(unauthorizedHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls the unauthorized handler for authenticated stream 401 responses", async () => {
+    localStorage.setItem("accessToken", "expired-token");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: async () => ({ message: "Unauthorized" }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api, setUnauthorizedHandler, ApiError } = await import("./api");
+    const unauthorizedHandler = vi.fn();
+
+    setUnauthorizedHandler(unauthorizedHandler);
+
+    await expect(api.fetchStream("/chat/stream", { content: "hello" })).rejects.toBeInstanceOf(ApiError);
+
+    expect(unauthorizedHandler).toHaveBeenCalledTimes(1);
+  });
 });

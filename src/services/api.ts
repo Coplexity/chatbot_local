@@ -4,6 +4,25 @@
 
 const API_BASE_URL = "/api";
 
+type UnauthorizedHandler = (error: ApiError) => void | Promise<void>;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+let unauthorizedHandled = false;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+  unauthorizedHandled = false;
+}
+
+async function notifyUnauthorized(error: ApiError, hasToken: boolean): Promise<void> {
+  if (!hasToken || !unauthorizedHandler || unauthorizedHandled) {
+    return;
+  }
+
+  unauthorizedHandled = true;
+  await unauthorizedHandler(error);
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -79,8 +98,16 @@ class ApiClient {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new ApiError(response.status, response.statusText, data);
+      const error = new ApiError(response.status, response.statusText, data);
+
+      if (response.status === 401) {
+        await notifyUnauthorized(error, !!token);
+      }
+
+      throw error;
     }
+
+    unauthorizedHandled = false;
 
     return data as T;
   }
@@ -154,8 +181,16 @@ class ApiClient {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new ApiError(response.status, response.statusText, data);
+      const error = new ApiError(response.status, response.statusText, data);
+
+      if (response.status === 401) {
+        await notifyUnauthorized(error, !!token);
+      }
+
+      throw error;
     }
+
+    unauthorizedHandled = false;
 
     return response;
   }

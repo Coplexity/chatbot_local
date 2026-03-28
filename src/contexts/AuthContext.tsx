@@ -5,9 +5,11 @@ import {
   useEffect,
   ReactNode,
 } from "react";
+import { App } from "antd";
 import { authService } from "@/services/auth.service";
 import { guestStorageService } from "@/services/guest-storage.service";
 import { chatService } from "@/services/chat.service";
+import { setUnauthorizedHandler } from "@/services/api";
 import type { User, SignInRequest, SignUpRequest } from "@/types/api-types";
 
 interface AuthContextType {
@@ -15,6 +17,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isGuest: boolean;
   isLoading: boolean;
+  sessionExpired: boolean;
   login: (credentials: SignInRequest) => Promise<void>;
   register: (data: SignUpRequest) => Promise<void>;
   logout: () => void;
@@ -25,9 +28,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { message } = App.useApp();
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const isAuthenticated = !!user;
 
@@ -71,6 +76,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch user on mount if token exists
   useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      authService.logout();
+      setUser(null);
+      setIsGuest(false);
+      setSessionExpired(true);
+      message.error({
+        content: "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại",
+        duration: 0,
+      });
+    });
+
     const initAuth = async () => {
       if (authService.hasToken()) {
         try {
@@ -85,12 +101,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuth();
-  }, []);
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, [message]);
 
   const login = async (credentials: SignInRequest) => {
     const response = await authService.signIn(credentials);
     setUser(response.user);
     setIsGuest(false);
+    setSessionExpired(false);
     // TODO: Re-enable when migration is fixed
     // migrateGuestData().catch(console.error);
   };
@@ -99,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await authService.signUp(data);
     setUser(response.user);
     setIsGuest(false);
+    setSessionExpired(false);
     // TODO: Re-enable when migration is fixed
     // migrateGuestData().catch(console.error);
   };
@@ -107,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.logout();
     setUser(null);
     setIsGuest(false);
+    setSessionExpired(false);
   };
 
   const refreshUser = async () => {
@@ -120,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Only allow guest mode if not authenticated
     if (!user && !authService.hasToken()) {
       setIsGuest(true);
+      setSessionExpired(false);
     }
   };
 
@@ -130,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         isGuest,
         isLoading,
+        sessionExpired,
         login,
         register,
         logout,
