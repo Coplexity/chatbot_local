@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import Icons from "@/components/icons/icons";
+import { useGuestChat } from "@/hooks/useGuestChat";
+import type { ReferenceMetadata } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
 import { formatCitationLabel } from "@/utils/citation-parser";
 import { PdfPreview } from "./pdf-preview";
@@ -15,10 +17,42 @@ interface ReferencePanelProps {
 }
 
 export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
+  const { getReferenceMetadata } = useGuestChat();
+  const [fetchedMetadata, setFetchedMetadata] = useState<ReferenceMetadata | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    setFetchedMetadata(null);
+
+    void getReferenceMetadata([reference.chunkId])
+      .then((references) => {
+        if (!isActive) {
+          return;
+        }
+
+        setFetchedMetadata(references[0] ?? null);
+      })
+      .catch((error) => {
+        if (!isActive) {
+          return;
+        }
+
+        console.error("Failed to load reference metadata:", error);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [reference.chunkId]);
+
+  const sourceMetadata = useMemo(
+    () => fetchedMetadata ?? reference.reference,
+    [fetchedMetadata, reference.reference]
+  );
   const sourceLabel = formatCitationLabel(reference);
   const excerptContent = reference.excerpt || "Không có nội dung trích dẫn";
-  const headings = reference.reference?.headings || [];
-  const sourceMetadata = reference.reference;
+  const headings = sourceMetadata?.headings || [];
 
   return (
     <>

@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { App } from "antd";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatInput, MessageBubble, OptimisticBubble, StreamingBubble, type OptimisticMessage, } from "@/components/chat";
 import { ReferencePanel } from "@/components/reference-panel/reference-panel";
 import { useGuestChat } from "@/hooks/useGuestChat";
-import type { Citation, ReferenceMetadata } from "@/types/api-types";
+import type { Citation } from "@/types/api-types";
 import { MessageRole } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
 import { citationToReference, parseTextAndCitations } from "@/utils/citation-parser";
@@ -26,7 +26,7 @@ export function ChatPage() {
   const isNewChat = !isValidChatId(chatId);
   const queryClient = useQueryClient();
   const { message: antMessage } = App.useApp();
-  const { isGuest, getMessages, sendMessageStream, startConversationStream, getReferenceMetadata } = useGuestChat();
+  const { isGuest, getMessages, sendMessageStream, startConversationStream } = useGuestChat();
 
   const [input, setInput] = useState("");
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
@@ -34,7 +34,6 @@ export function ChatPage() {
   const [streamingText, setStreamingText] = useState("");
   const [streamingTrace, setStreamingTrace] = useState<string[]>([]);
   const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
-  const [referenceMetadataByChunkId, setReferenceMetadataByChunkId] = useState<Record<number, ReferenceMetadata>>({});
   const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
   const [streamInstanceId, setStreamInstanceId] = useState(0);
   const [emptyStateHeadline] = useState(
@@ -48,7 +47,6 @@ export function ChatPage() {
 
   useEffect(() => {
     setStreamingCitations([]);
-    setReferenceMetadataByChunkId({});
   }, [chatId]);
 
   const { data: messagesData, isLoading } = useQuery({
@@ -64,82 +62,19 @@ export function ChatPage() {
 
   const messages = messagesData?.messages || [];
 
-  const pendingChunkIdsRef = useRef(new Set<number>());
-  const resolvedChunkIdsRef = useRef(new Set<number>());
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, optimisticMessage]);
+  const messageCitationsById = Object.fromEntries(
+    messages
+      .filter((message) => message.role === MessageRole.ASSISTANT)
+      .map((message) => {
+        const parsed = parseTextAndCitations(message.content);
 
-  const fetchReferenceMetadata = useCallback(async (chunkIds: number[]) => {
-    const chunkIdsToFetch = chunkIds.filter((chunkId) => {
-      if (pendingChunkIdsRef.current.has(chunkId) || resolvedChunkIdsRef.current.has(chunkId)) {
-        return false;
-      }
-
-      pendingChunkIdsRef.current.add(chunkId);
-      return true;
-    });
-
-    if (chunkIdsToFetch.length === 0) {
-      return;
-    }
-
-    try {
-      const references = await getReferenceMetadata(chunkIdsToFetch);
-
-      setReferenceMetadataByChunkId((prev) => ({
-        ...prev,
-        ...Object.fromEntries(references.map((reference) => [reference.chunkId, reference])),
-      }));
-
-      chunkIdsToFetch.forEach((chunkId) => {
-        pendingChunkIdsRef.current.delete(chunkId);
-        resolvedChunkIdsRef.current.add(chunkId);
-      });
-    } catch (error) {
-      chunkIdsToFetch.forEach((chunkId) => {
-        pendingChunkIdsRef.current.delete(chunkId);
-      });
-
-      throw error;
-    }
-  }, [getReferenceMetadata]);
-
-  const messageCitationsById = useMemo(() => {
-    return Object.fromEntries(
-      messages
-        .filter((message) => message.role === MessageRole.ASSISTANT)
-        .map((message) => {
-          const parsed = parseTextAndCitations(message.content);
-
-          return [
-            message.id,
-            parsed.citations.map((citation) => ({
-              ...citation,
-              reference: referenceMetadataByChunkId[citation.chunkId] ?? citation.reference,
-            })),
-          ];
-        })
-        .filter(([, citations]) => citations.length > 0)
-    );
-  }, [messages, referenceMetadataByChunkId]);
-
-  useEffect(() => {
-    const chunkIds = [...new Set(
-      messages
-        .filter((message) => message.role === MessageRole.ASSISTANT)
-        .flatMap((message) => parseTextAndCitations(message.content).citations.map((citation) => citation.chunkId))
-    )];
-
-    if (chunkIds.length === 0) {
-      return;
-    }
-
-    void fetchReferenceMetadata(chunkIds).catch((error) => {
-      console.error("Failed to load stored reference metadata:", error);
-    });
-  }, [messages, fetchReferenceMetadata]);
+        return [message.id, parsed.citations];
+      })
+      .filter(([, citations]) => citations.length > 0)
+  );
 
   const handleCitationClick = useCallback(
     (citation: Citation, index: number) => {
@@ -151,14 +86,8 @@ export function ChatPage() {
   const handleStreamingText = useCallback((nextRawText: string) => {
     const parsed = parseTextAndCitations(nextRawText);
     setStreamingText(parsed.textWithMarkers);
-    setStreamingCitations(parsed.citations.map((citation) => ({
-      ...citation,
-      reference: referenceMetadataByChunkId[citation.chunkId] ?? citation.reference,
-    })));
-    void fetchReferenceMetadata(parsed.citations.map((citation) => citation.chunkId)).catch((error) => {
-      console.error("Failed to load reference metadata:", error);
-    });
-  }, [fetchReferenceMetadata, referenceMetadataByChunkId]);
+    setStreamingCitations(parsed.citations);
+  }, []);
 
   const appendStreamingTrace = useCallback((nextTrace: string) => {
     const normalizedTrace = nextTrace.trim();
@@ -195,8 +124,6 @@ export function ChatPage() {
     setStreamingTrace([]);
     setStreamingCitations([]);
     setStreamInstanceId((prev) => prev + 1);
-    pendingChunkIdsRef.current.clear();
-    resolvedChunkIdsRef.current.clear();
 
     try {
       if (isNewChat) {

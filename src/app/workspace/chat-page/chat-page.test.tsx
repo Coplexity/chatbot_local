@@ -116,21 +116,13 @@ describe("ChatPage", () => {
     });
   });
 
-  it("hydrates source tags during streaming as soon as a tag closes", async () => {
+  it("keeps streaming citations local to the chat page without fetching metadata", async () => {
     async function* stream() {
       yield { text: '```json\n{"chunk_id": "12", "used_text": "A' };
       yield { text: ' text"}\n```' };
     }
 
     sendMessageStreamMock.mockReturnValue(stream());
-    getReferenceMetadataMock.mockResolvedValue([
-      {
-        chunkId: 12,
-        guidelineTitle: "Guideline",
-        headings: [],
-      },
-    ]);
-
     render(<ChatPage />);
 
     await act(async () => {
@@ -142,7 +134,7 @@ describe("ChatPage", () => {
     });
 
     await waitFor(() => {
-      expect(getReferenceMetadataMock).toHaveBeenCalledWith([12]);
+      expect(getReferenceMetadataMock).not.toHaveBeenCalled();
     });
   });
 
@@ -175,7 +167,7 @@ describe("ChatPage", () => {
     expect(messageBubbleMock).toHaveBeenCalled();
   });
 
-  it("fetches metadata for stored assistant citations", async () => {
+  it("passes parsed citations to message bubbles without page-level metadata fetch", async () => {
     getMessagesMock.mockReturnValue([
       {
         id: "m1",
@@ -188,32 +180,7 @@ describe("ChatPage", () => {
       },
     ]);
 
-    getReferenceMetadataMock.mockResolvedValue([
-      {
-        chunkId: 12,
-        guidelineTitle: "Heart failure guideline",
-        guidelineId: 8,
-        versionId: 3,
-        startPage: 22,
-        documentId: 55,
-        pdfPage: 22,
-        headings: [
-          {
-            sectionId: 1,
-            heading: "Điều trị nội khoa",
-            sectionPath: "1.2",
-            startPage: 22,
-            level: 2,
-          },
-        ],
-      },
-    ]);
-
     render(<ChatPage />);
-
-    await waitFor(() => {
-      expect(getReferenceMetadataMock).toHaveBeenCalledWith([12]);
-    });
 
     await waitFor(() => {
       expect(messageBubbleMock).toHaveBeenCalledWith(
@@ -221,18 +188,16 @@ describe("ChatPage", () => {
           hydratedCitations: [
             expect.objectContaining({
               chunkId: 12,
-              reference: expect.objectContaining({
-                guidelineTitle: "Heart failure guideline",
-                documentId: 55,
-              }),
             }),
           ],
         })
       );
     });
+
+    expect(getReferenceMetadataMock).not.toHaveBeenCalled();
   });
 
-  it("does not refetch the same stored metadata repeatedly across rerenders", async () => {
+  it("does not trigger reference metadata fetches across rerenders", async () => {
     getMessagesMock.mockReturnValue([
       {
         id: "m1",
@@ -245,25 +210,16 @@ describe("ChatPage", () => {
       },
     ]);
 
-    getReferenceMetadataMock.mockResolvedValue([
-      {
-        chunkId: 12,
-        guidelineTitle: "Heart failure guideline",
-        headings: [],
-      },
-    ]);
-
     const { rerender } = render(<ChatPage />);
 
     await waitFor(() => {
-      expect(getReferenceMetadataMock).toHaveBeenCalledTimes(1);
-      expect(getReferenceMetadataMock).toHaveBeenCalledWith([12]);
+      expect(getReferenceMetadataMock).not.toHaveBeenCalled();
     });
 
     rerender(<ChatPage />);
 
     await waitFor(() => {
-      expect(getReferenceMetadataMock).toHaveBeenCalledTimes(1);
+      expect(getReferenceMetadataMock).not.toHaveBeenCalled();
     });
   });
 
