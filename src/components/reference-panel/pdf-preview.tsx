@@ -41,7 +41,7 @@ export function buildPdfOpenUrl(urlTemplate: string | undefined, documentId?: nu
 export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPreviewProps) {
   const [hasPreviewError, setHasPreviewError] = useState(false);
   const [pageCount, setPageCount] = useState<number>();
-  const [pageWidth, setPageWidth] = useState<number>();
+  const [pageWidth, setPageWidth] = useState<number>(400);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const documentFileUrlTemplate = import.meta.env.VITE_DOCUMENT_FILE_URL_TEMPLATE as string | undefined;
@@ -66,8 +66,9 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
         return;
       }
 
-      const measuredWidth = viewport.clientWidth || entry.contentRect.width;
-      setPageWidth(Math.max(Math.floor(measuredWidth) - 24, 0));
+      const measuredWidth = entry.contentRect.width;
+      console.log("Measured viewport width:", measuredWidth);
+      setPageWidth(Math.max(Math.floor(measuredWidth), 0));
     });
 
     resizeObserver.observe(viewport);
