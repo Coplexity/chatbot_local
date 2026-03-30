@@ -8,7 +8,7 @@ interface PdfPreviewProps {
   fallbackPage?: number;
 }
 
-export const pdfWorkerSrc = "/pdf.worker.min.mjs";
+export const pdfWorkerSrc = "/pdf.worker.min.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
@@ -41,6 +41,7 @@ export function buildPdfOpenUrl(urlTemplate: string | undefined, documentId?: nu
 export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPreviewProps) {
   const [hasPreviewError, setHasPreviewError] = useState(false);
   const [pageCount, setPageCount] = useState<number>();
+  const [pageWidth, setPageWidth] = useState<number>();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const documentFileUrlTemplate = import.meta.env.VITE_DOCUMENT_FILE_URL_TEMPLATE as string | undefined;
@@ -50,6 +51,31 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
     () => buildDocumentFileUrl(documentFileUrlTemplate, documentId),
     [documentFileUrlTemplate, documentId, resolvedPage],
   );
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+
+      if (!entry) {
+        return;
+      }
+
+      const measuredWidth = viewport.clientWidth || entry.contentRect.width;
+      setPageWidth(Math.max(Math.floor(measuredWidth) - 24, 0));
+    });
+
+    resizeObserver.observe(viewport);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (!resolvedPage || !pageCount || resolvedPage > pageCount) {
@@ -128,7 +154,7 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
                         pageNumber={pageNumber}
                         renderAnnotationLayer={false}
                         renderTextLayer={false}
-                        width={400}
+                        width={pageWidth}
                         className="max-w-full shadow-sm"
                         data-testid="pdf-preview-page"
                       />

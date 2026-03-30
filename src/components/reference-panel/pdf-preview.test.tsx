@@ -142,7 +142,7 @@ describe("PdfPreview", () => {
   });
 
   it("uses a local worker asset url instead of the npm scheme", () => {
-    expect(pdfWorkerSrc).toBe("/pdf.worker.min.mjs");
+    expect(pdfWorkerSrc).toBe("/pdf.worker.min.js");
   });
 
   it("lets the page fit the preview width while keeping the viewport scrollable", async () => {
