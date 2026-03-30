@@ -9,7 +9,7 @@ import { useGuestChat } from "@/hooks/useGuestChat";
 import type { ReferenceMetadata } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
 import { formatCitationLabel } from "@/utils/citation-parser";
-import { PdfPreview } from "./pdf-preview";
+import { buildPdfOpenUrl, PdfPreview } from "./pdf-preview";
 
 interface ReferencePanelProps {
   reference: Reference;
@@ -53,6 +53,11 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
   const sourceLabel = formatCitationLabel(reference);
   const excerptContent = reference.excerpt || "Không có nội dung trích dẫn";
   const headings = sourceMetadata?.headings || [];
+  const openPdfUrl = buildPdfOpenUrl(
+    import.meta.env.VITE_DOCUMENT_FILE_URL_TEMPLATE as string | undefined,
+    sourceMetadata?.documentId,
+    sourceMetadata?.pdfPage ?? sourceMetadata?.startPage,
+  );
 
   return (
     <>
@@ -149,9 +154,22 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
           </div>
 
           <div className="">
-          <h4 className="text-xs lg:text-sm font-medium text-gray-500 mb-2">
-            Xem trong tài liệu
-          </h4>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h4 className="text-xs lg:text-sm font-medium text-gray-500">
+              Xem trong tài liệu
+            </h4>
+
+            {openPdfUrl ? (
+              <a
+                href={openPdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs lg:text-sm font-medium text-cite hover:underline"
+              >
+                Open
+              </a>
+            ) : null}
+          </div>
 
           <PdfPreview
             title={sourceMetadata?.guidelineTitle || sourceLabel}

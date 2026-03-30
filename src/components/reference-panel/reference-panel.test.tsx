@@ -1,11 +1,57 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 
 import type { Reference } from "@/types/chat-types";
 
 import { ReferencePanel } from "./reference-panel";
 
 const getReferenceMetadataMock = vi.fn();
+
+vi.mock("react-pdf", () => ({
+  pdfjs: {
+    GlobalWorkerOptions: {
+      workerSrc: "",
+    },
+  },
+  Document: ({ children, onLoadSuccess }: {
+    children?: React.ReactNode;
+    onLoadSuccess?: ({ numPages }: { numPages: number }) => void;
+  }) => {
+    useEffect(() => {
+      onLoadSuccess?.({ numPages: 3 });
+    }, [onLoadSuccess]);
+
+    return <div data-testid="pdf-preview-document">{children}</div>;
+  },
+  Page: ({ pageNumber }: { pageNumber?: number }) => (
+    <div data-testid="pdf-preview-page" data-page-number={pageNumber} />
+  ),
+}));
+
+class MockResizeObserver {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+
+  observe(target: Element) {
+    this.callback(
+      [
+        {
+          target,
+          contentRect: {
+            width: 320,
+          } as DOMRectReadOnly,
+        } as ResizeObserverEntry,
+      ],
+      this as unknown as ResizeObserver,
+    );
+  }
+
+  unobserve() {}
+
+  disconnect() {}
+}
+
+vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 vi.mock("@/hooks/useGuestChat", () => ({
   useGuestChat: () => ({
@@ -65,17 +111,20 @@ describe("ReferencePanel", () => {
     vi.unstubAllEnvs();
   });
 
-  it("shows preview section inside the reference panel", () => {
+  it("shows preview section with an open link beside the section title", async () => {
     vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://ai-documents-management.devt.vn/api/v1/documents/{documentId}/file");
 
     render(<ReferencePanel reference={referenceWithPdf} onClose={vi.fn()} />);
 
     expect(screen.getByText(/xem trong tài liệu/i)).toBeInTheDocument();
     expect(screen.getByText(/trang 12/i)).toBeInTheDocument();
-    expect(screen.getByTestId("pdf-preview-embed")).toHaveAttribute(
-      "src",
-      "https://ai-documents-management.devt.vn/api/v1/documents/55/file#page=12&view=FitH"
+    expect(screen.getByRole("link", { name: /open/i })).toHaveAttribute(
+      "href",
+      "https://ai-documents-management.devt.vn/api/v1/documents/55/file#page=12"
     );
+    await waitFor(() => {
+      expect(screen.getAllByTestId("pdf-preview-page")).toHaveLength(3);
+    });
   });
 
   it("fetches latest metadata for the selected reference chunk", async () => {

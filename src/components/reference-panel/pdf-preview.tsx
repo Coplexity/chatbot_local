@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
 
 interface PdfPreviewProps {
   title: string;
@@ -6,6 +7,10 @@ interface PdfPreviewProps {
   pdfPage?: number;
   fallbackPage?: number;
 }
+
+export const pdfWorkerSrc = "/pdf.worker.min.mjs";
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 function appendPageAnchor(url: string, page?: number): string {
   return page ? `${url}#page=${page}` : url;
@@ -23,26 +28,42 @@ function buildDocumentFileUrl(template: string | undefined, documentId?: number)
   return template.replaceAll("{documentId}", String(documentId));
 }
 
-export function buildPdfUrl(urlTemplate: string | undefined, documentId?: number, page?: number): string | undefined {
+export function buildPdfOpenUrl(urlTemplate: string | undefined, documentId?: number, page?: number): string | undefined {
   const fileUrl = buildDocumentFileUrl(urlTemplate, documentId);
 
   if (!fileUrl) {
     return undefined;
   }
 
-  const urlWithPage = appendPageAnchor(fileUrl, page);
-  return `${urlWithPage}${page ? "&" : "#"}view=FitH`;
+  return appendPageAnchor(fileUrl, page);
 }
 
 export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPreviewProps) {
   const [hasPreviewError, setHasPreviewError] = useState(false);
+  const [pageCount, setPageCount] = useState<number>();
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const documentFileUrlTemplate = import.meta.env.VITE_DOCUMENT_FILE_URL_TEMPLATE as string | undefined;
   const resolvedPage = getResolvedPage(pdfPage, fallbackPage);
 
-  const finalUrl = useMemo(
-    () => buildPdfUrl(documentFileUrlTemplate, documentId, resolvedPage),
+  const documentFileUrl = useMemo(
+    () => buildDocumentFileUrl(documentFileUrlTemplate, documentId),
     [documentFileUrlTemplate, documentId, resolvedPage],
   );
+
+  useEffect(() => {
+    if (!resolvedPage || !pageCount || resolvedPage > pageCount) {
+      return;
+    }
+
+    const targetPage = pageRefs.current[resolvedPage];
+
+    if (!targetPage) {
+      return;
+    }
+
+    targetPage.scrollIntoView({ block: "start" });
+  }, [pageCount, resolvedPage]);
 
   if (!documentId) {
     return (
@@ -61,22 +82,62 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
   }
 
   return (
-    <div className="rounded-[1.35rem] border border-design-border bg-white overflow-hidden">
+      <div className="rounded-[1.35rem] border border-design-border bg-white overflow-hidden p-2 lg:p-3">
       {hasPreviewError ? (
           <div className="flex min-h-[22rem] items-center justify-center rounded-2xl border border-dashed border-design-border bg-slate-50 px-4 text-center text-sm text-slate-500 lg:min-h-[34rem]">
             Không thể tải PDF trong khung xem trước. Hãy thử mở ở tab mới.
           </div>
         ) : (
-          <embed
-            title={title}
-            key={finalUrl}
-            src={finalUrl}
-            type="application/pdf"
-            onError={() => setHasPreviewError(true)}
-            onErrorCapture={() => setHasPreviewError(true)}
-            data-testid="pdf-preview-embed"
-            className="w-full rounded-2xl border border-design-border bg-white lg:h-136"
-          />
+          <div
+            data-testid="pdf-preview-viewport"
+            ref={viewportRef}
+            className="h-[22rem] overflow-y-auto overflow-x-hidden rounded-2xl border border-design-border bg-slate-50 lg:h-[34rem]"
+          >
+            <Document
+              key={documentFileUrl}
+              file={documentFileUrl}
+              className="w-full"
+              loading={(
+                <div className="flex min-h-[22rem] items-center justify-center px-4 text-sm text-slate-500 lg:min-h-[34rem]">
+                  Đang tải PDF...
+                </div>
+              )}
+              onLoadError={() => {
+                setPageCount(undefined);
+                setHasPreviewError(true);
+              }}
+              onLoadSuccess={({ numPages }) => {
+                setHasPreviewError(false);
+                setPageCount(numPages);
+              }}
+              error={null}
+            >
+              <div data-testid="pdf-preview-pages" className="flex w-full flex-col items-center gap-3 p-3">
+                {Array.from({ length: pageCount ?? 0 }, (_, index) => {
+                  const pageNumber = index + 1;
+
+                  return (
+                    <div
+                      key={pageNumber}
+                      data-page-wrapper-number={pageNumber}
+                      ref={(node) => {
+                        pageRefs.current[pageNumber] = node;
+                      }}
+                    >
+                      <Page
+                        pageNumber={pageNumber}
+                        renderAnnotationLayer={false}
+                        renderTextLayer={false}
+                        width={400}
+                        className="max-w-full shadow-sm"
+                        data-testid="pdf-preview-page"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </Document>
+          </div>
         )}
     </div>
   );
