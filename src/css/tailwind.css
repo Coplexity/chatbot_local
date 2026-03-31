@@ -29,7 +29,7 @@
 }
 
 @theme {
-  --default-font-family: "Manrope", sans-serif;
+  --default-font-family: "Inter", sans-serif;
 
   --color-design-primary: #ffffff;
   --color-design-secondary: #3b82f6;
