@@ -1,6 +1,49 @@
+import { useEffect, useState } from "react";
+import { App, Select } from "antd";
+import { useAuth } from "@/contexts/AuthContext";
+import { authService } from "@/services/auth.service";
+import { UserRole } from "@/types/api-types";
 import Icons from "../icons/icons";
 
+const ROLE_OPTIONS = [
+  { label: "Role: None", value: UserRole.NONE },
+  { label: "Nhân viên y tế", value: UserRole.NHAN_VIEN_Y_TE },
+  { label: "Bác sĩ trạm y tế", value: UserRole.BAC_SI_TRAM_Y_TE },
+  { label: "Bác sĩ BV chuyên sâu", value: UserRole.BAC_SI_BENH_VIEN_CHUYEN_SAU },
+];
+
 export function TitleSection({ onMenuClick }: { onMenuClick?: () => void }) {
+  const { message } = App.useApp();
+  const { user, isAuthenticated, refreshUser } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<UserRole>(user?.role ?? UserRole.USER);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+
+  useEffect(() => {
+    setSelectedRole(user?.role ?? UserRole.USER);
+  }, [user?.role]);
+
+  const handleRoleChange = async (nextRole: UserRole) => {
+    if (!isAuthenticated || nextRole === selectedRole) {
+      return;
+    }
+
+    const previousRole = selectedRole;
+    setSelectedRole(nextRole);
+    setIsUpdatingRole(true);
+
+    try {
+      await authService.updateUser({ role: nextRole });
+      await refreshUser();
+      message.success("Cập nhật role thành công");
+    } catch (error) {
+      console.error("Failed to update user role:", error);
+      setSelectedRole(previousRole);
+      message.error("Không thể cập nhật role");
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
   return (
     <div className="px-4 pt-4 pb-3 lg:px-6 lg:pt-6 lg:pb-4 w-full bg-bg-app flex items-center justify-between">
       {/* Mobile menu button + Title */}
@@ -31,7 +74,19 @@ export function TitleSection({ onMenuClick }: { onMenuClick?: () => void }) {
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-2 lg:gap-3">
+      <div className="flex items-center gap-2 lg:gap-3">
+        {isAuthenticated ? (
+          <Select
+            aria-label="Select role"
+            className="min-w-48"
+            value={selectedRole}
+            options={ROLE_OPTIONS}
+            onChange={handleRoleChange}
+            loading={isUpdatingRole}
+            disabled={isUpdatingRole}
+            size="middle"
+          />
+        ) : null}
         <button className="p-2 rounded-full text-slate-500 hover:bg-white transition-colors cursor-pointer">
           <Icons.UploadIcon className="w-4 h-4 lg:w-5 lg:h-5" />
         </button>

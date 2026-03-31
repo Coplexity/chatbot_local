@@ -45,7 +45,7 @@ export const authService = {
   /**
    * Update user profile
    */
-  async updateUser(data: Partial<Pick<User, "username" | "name" | "email">>): Promise<User> {
+  async updateUser(data: Partial<Pick<User, "username" | "name" | "email" | "role">>): Promise<User> {
     return api.patch<User>("/auth/me", data);
   },
 
