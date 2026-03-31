@@ -124,7 +124,7 @@ function AssistantContent({
   const { textWithMarkers, citations } = parsedContent;
 
   return (
-    <div className="prose max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-p:text-slate-700 prose-li:text-slate-700">
+    <div className="prose max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:mt-4 prose-headings:mb-2 prose-p:text-slate-700 prose-li:text-slate-700">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
