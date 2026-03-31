@@ -15,6 +15,9 @@ const EMPTY_STATE_HEADLINES = [
   "Xin chào! Tôi có thể giúp gì cho bạn?",
 ];
 
+const AUTO_SCROLL_THRESHOLD_PX = 48;
+const STREAM_LOCK_THRESHOLD_PX = 1;
+
 function isValidChatId(id: unknown): id is string {
   return typeof id === "string" && (id.length >= 32 || id.startsWith("guest-"));
 }
@@ -30,6 +33,7 @@ export function ChatPage() {
 
   const [input, setInput] = useState("");
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
+  const [referenceScrollRequestKey, setReferenceScrollRequestKey] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [streamingTrace, setStreamingTrace] = useState<string[]>([]);
@@ -39,9 +43,30 @@ export function ChatPage() {
   const [emptyStateHeadline] = useState(
     () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
   );
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+
+  const updateShouldAutoScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+
+    if (!container) {
+      shouldAutoScrollRef.current = true;
+      return;
+    }
+
+    const distanceFromBottom =
+      container.scrollHeight - container.clientHeight - container.scrollTop;
+
+    if (isStreaming) {
+      shouldAutoScrollRef.current = distanceFromBottom <= STREAM_LOCK_THRESHOLD_PX;
+      return;
+    }
+
+    shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+  }, [isStreaming]);
 
   useEffect(() => {
+    shouldAutoScrollRef.current = true;
     setSelectedReference(null);
   }, [chatId]);
 
@@ -63,7 +88,43 @@ export function ChatPage() {
   const messages = messagesData?.messages || [];
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    updateShouldAutoScroll();
+    container.addEventListener("scroll", updateShouldAutoScroll);
+
+    return () => {
+      container.removeEventListener("scroll", updateShouldAutoScroll);
+    };
+  }, [updateShouldAutoScroll]);
+
+  useEffect(() => {
+    if (isStreaming) {
+      return;
+    }
+
+    updateShouldAutoScroll();
+  }, [isStreaming, updateShouldAutoScroll]);
+
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) {
+      return;
+    }
+
+    const container = scrollContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, streamingText, optimisticMessage]);
   const messageCitationsById = Object.fromEntries(
     messages
@@ -80,6 +141,7 @@ export function ChatPage() {
     (citation: Citation, index: number) => {
       const reference = citationToReference(citation, index);
       setSelectedReference(reference);
+      setReferenceScrollRequestKey((prev) => prev + 1);
     }, []
   );
 
@@ -203,7 +265,10 @@ export function ChatPage() {
   return (
     <div className="relative h-full flex flex-col lg:flex-row overflow-hidden bg-white">
       <div className="flex-1 flex flex-col relative px-4 pb-4 lg:px-6 lg:pb-6 min-h-0">
-        <div className="flex-1 overflow-y-auto px-2 pt-4 pb-28 lg:px-6 lg:pt-8 lg:pb-36 overscroll-contain rounded-[1.75rem] bg-white">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-2 pt-4 pb-28 lg:px-6 lg:pt-8 lg:pb-36 overscroll-contain rounded-[1.75rem] bg-white"
+        >
           <div className="flex flex-col gap-5 lg:gap-6 min-h-full">
             {messages.map((m) => (
               <MessageBubble
@@ -241,7 +306,7 @@ export function ChatPage() {
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+            <div />
           </div>
         </div>
 
@@ -256,6 +321,7 @@ export function ChatPage() {
       {selectedReference && (
         <ReferencePanel
           reference={selectedReference}
+          scrollRequestKey={referenceScrollRequestKey}
           onClose={() => setSelectedReference(null)}
         />
       )}

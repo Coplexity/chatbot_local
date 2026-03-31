@@ -5,13 +5,84 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatPage } from "./chat-page";
 
 const messageBubbleMock = vi.fn((_: unknown) => <div>Message</div>);
+const referencePanelMock = vi.fn((_: unknown) => <div>Reference panel</div>);
 
 const sendMessageStreamMock = vi.fn();
 const startConversationStreamMock = vi.fn();
 const getReferenceMetadataMock = vi.fn();
 const getMessagesMock = vi.fn();
 const messageErrorMock = vi.fn();
+const scrollIntoViewMock = vi.fn();
+const scrollToMock = vi.fn();
 let searchChatId = "12345678901234567890123456789012";
+
+function setScrollMetrics(
+  element: HTMLElement,
+  metrics: { scrollTop: number; scrollHeight: number; clientHeight: number }
+) {
+  Object.defineProperty(element, "scrollTop", {
+    configurable: true,
+    value: metrics.scrollTop,
+    writable: true,
+  });
+  Object.defineProperty(element, "scrollHeight", {
+    configurable: true,
+    value: metrics.scrollHeight,
+  });
+  Object.defineProperty(element, "clientHeight", {
+    configurable: true,
+    value: metrics.clientHeight,
+  });
+}
+
+function createControlledStream() {
+  let pushChunk:
+    | ((value: { type: string; text?: string; trace?: string }) => void)
+    | undefined;
+  let finishStream: (() => void) | undefined;
+
+  async function* stream() {
+    const queue: Array<{ type: string; text?: string; trace?: string }> = [];
+    let done = false;
+    let resume: (() => void) | null = null;
+
+    pushChunk = (value) => {
+      queue.push(value);
+      resume?.();
+      resume = null;
+    };
+
+    finishStream = () => {
+      done = true;
+      resume?.();
+      resume = null;
+    };
+
+    while (!done || queue.length > 0) {
+      if (queue.length === 0) {
+        await new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        continue;
+      }
+
+      const next = queue.shift();
+      if (next) {
+        yield next;
+      }
+    }
+  }
+
+  return {
+    stream,
+    pushChunk: (value: { type: string; text?: string; trace?: string }) => {
+      pushChunk?.(value);
+    },
+    finishStream: () => {
+      finishStream?.();
+    },
+  };
+}
 
 vi.mock("antd", () => ({
   App: {
@@ -94,7 +165,7 @@ vi.mock("@/components/chat", () => ({
 }));
 
 vi.mock("@/components/reference-panel/reference-panel", () => ({
-  ReferencePanel: () => <div>Reference panel</div>,
+  ReferencePanel: (props: unknown) => referencePanelMock(props),
 }));
 
 describe("ChatPage", () => {
@@ -107,12 +178,108 @@ describe("ChatPage", () => {
     sendMessageStreamMock.mockReset();
     startConversationStreamMock.mockReset();
     getReferenceMetadataMock.mockReset();
+    scrollIntoViewMock.mockReset();
+    scrollToMock.mockReset();
+    referencePanelMock.mockReset();
   });
 
   beforeAll(() => {
     Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
-      value: vi.fn(),
+      value: function scrollIntoView() {
+        scrollIntoViewMock();
+      },
       writable: true,
+    });
+
+    Object.defineProperty(window.HTMLElement.prototype, "scrollTo", {
+      value: function scrollTo() {
+        scrollToMock();
+      },
+      writable: true,
+    });
+  });
+
+  it("keeps auto-scroll active while the user remains near the bottom", async () => {
+    const controlled = createControlledStream();
+    sendMessageStreamMock.mockReturnValue(controlled.stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    const scrollContainer = document.querySelector(".overflow-y-auto") as HTMLElement;
+
+    setScrollMetrics(scrollContainer, {
+      scrollTop: 600,
+      scrollHeight: 1000,
+      clientHeight: 400,
+    });
+
+    scrollIntoViewMock.mockClear();
+    scrollToMock.mockClear();
+
+    await act(async () => {
+      controlled.pushChunk({ type: "text", text: "Chunk near bottom" });
+    });
+
+    await waitFor(() => {
+      expect(scrollToMock).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      controlled.finishStream();
+    });
+  });
+
+  it("stops auto-scrolling as soon as the user scrolls upward during streaming", async () => {
+    const controlled = createControlledStream();
+    sendMessageStreamMock.mockReturnValue(controlled.stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    const scrollContainer = document.querySelector(".overflow-y-auto") as HTMLElement;
+
+    setScrollMetrics(scrollContainer, {
+      scrollTop: 570,
+      scrollHeight: 1000,
+      clientHeight: 400,
+    });
+
+    fireEvent.scroll(scrollContainer);
+    scrollIntoViewMock.mockClear();
+    scrollToMock.mockClear();
+
+    await act(async () => {
+      controlled.pushChunk({
+        type: "text",
+        text: "Chunk while reading older messages",
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Chunk while reading older messages")
+      ).toBeInTheDocument();
+    });
+
+    expect(scrollToMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      controlled.finishStream();
     });
   });
 
@@ -195,6 +362,63 @@ describe("ChatPage", () => {
     });
 
     expect(getReferenceMetadataMock).not.toHaveBeenCalled();
+  });
+
+  it("bumps the reference scroll request key on every citation click", async () => {
+    let onCitationClick: ((citation: { chunkId: number; used_text?: string }, index: number) => void) | undefined;
+
+    messageBubbleMock.mockImplementation((props: unknown) => {
+      const { onCitationClick: nextOnCitationClick } = props as {
+        onCitationClick: (citation: { chunkId: number; used_text?: string }, index: number) => void;
+      };
+
+      onCitationClick = nextOnCitationClick;
+      return <button type="button">Message</button>;
+    });
+
+    getMessagesMock.mockReturnValue([
+      {
+        id: "m1",
+        conversationId: "c1",
+        role: "assistant",
+        content: '```json\n{"chunk_id": "12", "used_text": "A text"}\n```',
+        tokenCount: 10,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    render(<ChatPage />);
+
+    await waitFor(() => {
+      expect(onCitationClick).toBeTypeOf("function");
+    });
+
+    await act(async () => {
+      onCitationClick?.({ chunkId: 12, used_text: "A text" }, 0);
+    });
+
+    await waitFor(() => {
+      expect(referencePanelMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          scrollRequestKey: 1,
+          reference: expect.objectContaining({ chunkId: 12 }),
+        })
+      );
+    });
+
+    await act(async () => {
+      onCitationClick?.({ chunkId: 12, used_text: "A text" }, 0);
+    });
+
+    await waitFor(() => {
+      expect(referencePanelMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          scrollRequestKey: 2,
+          reference: expect.objectContaining({ chunkId: 12 }),
+        })
+      );
+    });
   });
 
   it("does not trigger reference metadata fetches across rerenders", async () => {
