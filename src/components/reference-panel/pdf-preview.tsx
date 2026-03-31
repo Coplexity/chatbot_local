@@ -12,7 +12,13 @@ interface PdfPreviewProps {
 export const pdfWorkerSrc = "/pdf.worker.min.js";
 
 const PDF_VIEWER_HORIZONTAL_PADDING = 24;
+const PDF_CACHE_NAME = "pdf-preview-v1";
 const pdfFileCache = new Map<string, { url: string }>();
+
+interface PdfSource {
+  objectUrl: string;
+  documentFile: { url: string };
+}
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
@@ -26,6 +32,39 @@ export function getCachedPdfFile(url: string): { url: string } {
   const nextFile = { url };
   pdfFileCache.set(url, nextFile);
   return nextFile;
+}
+
+export async function loadPdfSource(url: string): Promise<PdfSource> {
+  let response: Response | undefined;
+
+  try {
+    const cache = await caches.open(PDF_CACHE_NAME);
+    response = await cache.match(url);
+
+    if (!response) {
+      response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to load PDF: ${response.status}`);
+      }
+
+      await cache.put(url, response.clone());
+    }
+  } catch {
+    response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to load PDF: ${response.status}`);
+    }
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+
+  return {
+    objectUrl,
+    documentFile: { url: objectUrl },
+  };
 }
 
 function appendPageAnchor(url: string, page?: number): string {
@@ -56,9 +95,12 @@ export function buildPdfOpenUrl(urlTemplate: string | undefined, documentId?: nu
 
 export function PdfPreview({ title, documentId, pdfPage, fallbackPage, scrollRequestKey = 0 }: PdfPreviewProps) {
   const [hasPreviewError, setHasPreviewError] = useState(false);
+  const [documentSource, setDocumentSource] = useState<PdfSource>();
   const [pageCount, setPageCount] = useState<number>();
   const [pageWidth, setPageWidth] = useState<number>(400);
   const [renderedTargetPageKey, setRenderedTargetPageKey] = useState<string>();
+  const currentObjectUrlRef = useRef<string>();
+  const loadedDocumentUrlRef = useRef<string>();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const renderedPagesRef = useRef<Set<number>>(new Set());
@@ -71,8 +113,8 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage, scrollReq
     [documentFileUrlTemplate, documentId],
   );
   const documentFile = useMemo(
-    () => (documentFileUrl ? getCachedPdfFile(documentFileUrl) : undefined),
-    [documentFileUrl],
+    () => documentSource?.documentFile,
+    [documentSource],
   );
 
   useEffect(() => {
@@ -117,6 +159,64 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage, scrollReq
   useEffect(() => {
     renderedPagesRef.current = new Set();
   }, [documentFileUrl]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    if (!documentFileUrl) {
+      setDocumentSource(undefined);
+      loadedDocumentUrlRef.current = undefined;
+      return;
+    }
+
+    if (loadedDocumentUrlRef.current === documentFileUrl && documentSource) {
+      return;
+    }
+
+    if (loadedDocumentUrlRef.current !== documentFileUrl) {
+      setDocumentSource(undefined);
+      setPageCount(undefined);
+      renderedPagesRef.current = new Set();
+      setRenderedTargetPageKey(undefined);
+    }
+
+    void loadPdfSource(documentFileUrl)
+      .then((source) => {
+        if (!isActive) {
+          URL.revokeObjectURL(source.objectUrl);
+          return;
+        }
+
+        if (currentObjectUrlRef.current && currentObjectUrlRef.current !== source.objectUrl) {
+          URL.revokeObjectURL(currentObjectUrlRef.current);
+        }
+
+        currentObjectUrlRef.current = source.objectUrl;
+        loadedDocumentUrlRef.current = documentFileUrl;
+        setDocumentSource(source);
+        setHasPreviewError(false);
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setDocumentSource(undefined);
+        setHasPreviewError(true);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [documentFileUrl, documentSource]);
+
+  useEffect(() => {
+    return () => {
+      if (currentObjectUrlRef.current) {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!resolvedPage || !targetPageKey) {
@@ -175,6 +275,10 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage, scrollReq
       {hasPreviewError ? (
           <div className="flex min-h-[22rem] items-center justify-center rounded-2xl border border-dashed border-design-border bg-slate-50 px-4 text-center text-sm text-slate-500 lg:min-h-[34rem]">
             Không thể tải PDF trong khung xem trước. Hãy thử mở ở tab mới.
+          </div>
+        ) : !documentFile ? (
+          <div className="flex min-h-[22rem] items-center justify-center rounded-2xl border border-design-border bg-slate-50 px-4 text-center text-sm text-slate-500 lg:min-h-[34rem]">
+            Đang tải PDF...
           </div>
         ) : (
           <div

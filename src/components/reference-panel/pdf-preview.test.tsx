@@ -1,8 +1,8 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { useEffect } from "react";
 
-import { getCachedPdfFile, pdfWorkerSrc, PdfPreview } from "./pdf-preview";
+import { getCachedPdfFile, loadPdfSource, pdfWorkerSrc, PdfPreview } from "./pdf-preview";
 
 const resizeObserverMock = vi.hoisted(() => ({
   width: 320,
@@ -21,6 +21,24 @@ const reactPdfMock = vi.hoisted(() => ({
   delayRenderSuccess: false,
   renderSuccessOnlyOnMount: false,
 }));
+
+const cacheStorageMock = vi.hoisted(() => {
+  const entries = new Map<string, Response>();
+
+  return {
+    entries,
+    open: vi.fn(async () => ({
+      match: vi.fn(async (request: string) => entries.get(request)),
+      put: vi.fn(async (request: string, response: Response) => {
+        entries.set(request, response);
+      }),
+    })),
+    reset() {
+      entries.clear();
+      this.open.mockClear();
+    },
+  };
+});
 
 vi.mock("react-pdf", () => ({
   pdfjs: {
@@ -120,6 +138,9 @@ vi.mock("react-pdf", () => ({
 
 describe("PdfPreview", () => {
   const scrollIntoViewMock = vi.fn();
+  const fetchMock = vi.fn();
+  const createObjectURLMock = vi.fn((blob: Blob) => `blob:${blob.size}`);
+  const revokeObjectURLMock = vi.fn();
 
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -134,7 +155,17 @@ describe("PdfPreview", () => {
     reactPdfMock.delayedPageRender = false;
     reactPdfMock.delayRenderSuccess = false;
     reactPdfMock.renderSuccessOnlyOnMount = false;
+    cacheStorageMock.reset();
+    fetchMock.mockReset();
+    createObjectURLMock.mockClear();
+    revokeObjectURLMock.mockClear();
     scrollIntoViewMock.mockReset();
+  });
+
+  beforeEach(() => {
+    fetchMock.mockResolvedValue(
+      new Response(new Blob(["default pdf bytes"], { type: "application/pdf" }))
+    );
   });
 
   class MockResizeObserver {
@@ -164,6 +195,13 @@ describe("PdfPreview", () => {
   }
 
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("caches", { open: cacheStorageMock.open });
+  vi.stubGlobal("URL", {
+    ...URL,
+    createObjectURL: createObjectURLMock,
+    revokeObjectURL: revokeObjectURLMock,
+  });
 
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
@@ -189,12 +227,40 @@ describe("PdfPreview", () => {
       />
     );
 
-    expect(screen.getByTestId("pdf-preview-document")).toBeInTheDocument();
+    expect(await screen.findByTestId("pdf-preview-document")).toBeInTheDocument();
     expect(await screen.findAllByTestId("pdf-preview-page")).toHaveLength(3);
     expect(screen.getAllByTestId("pdf-preview-page")[1]).toHaveAttribute("data-page-number", "2");
-    expect(reactPdfMock.lastFile).toEqual({
-      url: "https://ai-documents-management.devt.vn/api/v1/documents/55/file",
-    });
+    expect(reactPdfMock.lastFile).toEqual({ url: "blob:17" });
+  });
+
+  it("loads a cached pdf source without fetching again", async () => {
+    const cachedBlob = new Blob(["cached pdf"], { type: "application/pdf" });
+    cacheStorageMock.entries.set(
+      "https://docs.example.com/api/v1/documents/55/file",
+      new Response(cachedBlob)
+    );
+
+    const source = await loadPdfSource("https://docs.example.com/api/v1/documents/55/file");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(cacheStorageMock.open).toHaveBeenCalledWith("pdf-preview-v1");
+    expect(source.objectUrl).toBe("blob:13");
+    expect(source.documentFile).toEqual({ url: source.objectUrl });
+  });
+
+  it("fetches and stores the pdf in CacheStorage on cache miss", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(new Blob(["network pdf"], { type: "application/pdf" }))
+    );
+
+    const source = await loadPdfSource("https://docs.example.com/api/v1/documents/77/file");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://docs.example.com/api/v1/documents/77/file"
+    );
+    expect(cacheStorageMock.entries.has("https://docs.example.com/api/v1/documents/77/file")).toBe(true);
+    expect(source.objectUrl).toBe("blob:13");
+    expect(source.documentFile).toEqual({ url: source.objectUrl });
   });
 
   it("uses a local worker asset url instead of the npm scheme", () => {
@@ -214,7 +280,9 @@ describe("PdfPreview", () => {
 
     await screen.findAllByTestId("pdf-preview-page");
 
-    expect(reactPdfMock.lastWidth).toBe(296);
+    await waitFor(() => {
+      expect(reactPdfMock.lastWidth).toBe(296);
+    });
     expect(screen.getByTestId("pdf-preview-viewport")).toHaveClass("overflow-y-auto", "h-[22rem]", "lg:h-[34rem]");
   });
 
@@ -365,7 +433,7 @@ describe("PdfPreview", () => {
 
     await waitFor(() => {
       expect(reactPdfMock.documentLoads).toEqual([
-        "https://docs.example.com/api/v1/documents/55/file",
+        "blob:13",
       ]);
     });
   });
@@ -396,8 +464,56 @@ describe("PdfPreview", () => {
 
     await waitFor(() => {
       expect(reactPdfMock.documentLoads).toEqual([
-        "https://docs.example.com/api/v1/documents/55/file",
+        "blob:13",
       ]);
+    });
+  });
+
+  it("reuses the resolved pdf source when only page and scroll request change in the same document", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    fetchMock.mockResolvedValue(
+      new Response(new Blob(["same document pdf"], { type: "application/pdf" }))
+    );
+
+    const { rerender } = render(
+      <PdfPreview title="Guideline" documentId={55} pdfPage={2} scrollRequestKey={1} />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <PdfPreview title="Guideline" documentId={55} pdfPage={4} scrollRequestKey={2} />
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+      expect(reactPdfMock.documentLoads).toEqual(["blob:13"]);
+    });
+  });
+
+  it("revokes the previous blob url when switching to a different document", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    fetchMock
+      .mockResolvedValueOnce(new Response(new Blob(["doc55 pdf"], { type: "application/pdf" })))
+      .mockResolvedValueOnce(new Response(new Blob(["doc77 pdf"], { type: "application/pdf" })));
+
+    const { rerender } = render(
+      <PdfPreview title="Guideline" documentId={55} pdfPage={2} scrollRequestKey={1} />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    rerender(
+      <PdfPreview title="Guideline" documentId={77} pdfPage={4} scrollRequestKey={2} />
+    );
+
+    await waitFor(() => {
+      expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:13");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -446,9 +562,7 @@ describe("PdfPreview", () => {
       />
     );
 
-    expect(reactPdfMock.lastFile).toEqual({
-      url: "https://docs.example.com/api/v1/documents/99/file",
-    });
+    expect(screen.getByText("Đang tải PDF...")).toBeInTheDocument();
   });
 
   it("reuses the same cached file descriptor for the same url", () => {
@@ -472,9 +586,8 @@ describe("PdfPreview", () => {
       />
     );
 
-    expect(reactPdfMock.lastFile).toEqual({
-      url: "https://docs.example.com/api/v1/documents/77/file",
-    });
+    expect(await screen.findByTestId("pdf-preview-document")).toBeInTheDocument();
+    expect(reactPdfMock.lastFile).toEqual({ url: "blob:17" });
     expect(await screen.findAllByTestId("pdf-preview-page")).toHaveLength(3);
     expect(screen.getAllByTestId("pdf-preview-page")[0]).toHaveAttribute("data-page-number", "1");
   });
