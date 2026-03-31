@@ -99,8 +99,8 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage, scrollReq
   const [pageCount, setPageCount] = useState<number>();
   const [pageWidth, setPageWidth] = useState<number>(400);
   const [renderedTargetPageKey, setRenderedTargetPageKey] = useState<string>();
-  const currentObjectUrlRef = useRef<string>();
-  const loadedDocumentUrlRef = useRef<string>();
+  const currentObjectUrlRef = useRef<string | undefined>(undefined);
+  const loadedDocumentUrlRef = useRef<string | undefined>(undefined);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const renderedPagesRef = useRef<Set<number>>(new Set());
