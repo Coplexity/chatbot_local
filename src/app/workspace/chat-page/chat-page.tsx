@@ -3,23 +3,93 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { App } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ChatInput, MessageBubble, OptimisticBubble, StreamingBubble, type OptimisticMessage, } from "@/components/chat";
+import { ChatInput, MessageBubble } from "@/components/chat";
 import { ReferencePanel } from "@/components/reference-panel/reference-panel";
 import { useGuestChat } from "@/hooks/useGuestChat";
-import type { Citation } from "@/types/api-types";
+import type { Citation, Message } from "@/types/api-types";
 import { MessageRole } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
 import { citationToReference, parseTextAndCitations } from "@/utils/citation-parser";
 
-const EMPTY_STATE_HEADLINES = [
-  "Xin chào! Tôi có thể giúp gì cho bạn?",
-];
+const EMPTY_STATE_HEADLINES = ["Xin chào! Tôi có thể giúp gì cho bạn?"];
 
 const AUTO_SCROLL_THRESHOLD_PX = 48;
 const STREAM_LOCK_THRESHOLD_PX = 1;
 
+type MessagesQueryData = {
+  conversation: unknown;
+  messages: Message[];
+};
+
+type RenderedMessage = Message & {
+  isStreaming?: boolean;
+  localCitations?: Citation[];
+};
+
 function isValidChatId(id: unknown): id is string {
   return typeof id === "string" && (id.length >= 32 || id.startsWith("guest-"));
+}
+
+function createLocalMessage(
+  chatId: string | undefined,
+  partial: Partial<RenderedMessage> & Pick<Message, "role" | "content">
+): RenderedMessage {
+  const timestamp = new Date().toISOString();
+
+  return {
+    id: partial.id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    conversationId: partial.conversationId ?? chatId ?? "pending-conversation",
+    role: partial.role,
+    content: partial.content,
+    tokenCount: partial.tokenCount ?? 0,
+    metadata: partial.metadata,
+    createdAt: partial.createdAt ?? timestamp,
+    updatedAt: partial.updatedAt ?? timestamp,
+    isStreaming: partial.isStreaming,
+    localCitations: partial.localCitations,
+  };
+}
+
+function stripLocalFields(message: RenderedMessage): Message {
+  return {
+    id: message.id,
+    conversationId: message.conversationId,
+    role: message.role,
+    content: message.content,
+    tokenCount: message.tokenCount,
+    metadata: message.metadata,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+  };
+}
+
+function finalizeMessages(
+  messages: RenderedMessage[],
+  assistantPlaceholderId: string,
+  rawStreamingText: string,
+  conversationId?: string
+): RenderedMessage[] {
+  const parsed = parseTextAndCitations(rawStreamingText);
+
+  return messages.map((message) => {
+    const nextConversationId = conversationId ?? message.conversationId;
+
+    if (message.id !== assistantPlaceholderId) {
+      return {
+        ...message,
+        conversationId: nextConversationId,
+      };
+    }
+
+    return {
+      ...message,
+      conversationId: nextConversationId,
+      content: parsed.textWithMarkers,
+      localCitations: parsed.citations,
+      updatedAt: new Date().toISOString(),
+      isStreaming: false,
+    };
+  });
 }
 
 export function ChatPage() {
@@ -35,16 +105,17 @@ export function ChatPage() {
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [referenceScrollRequestKey, setReferenceScrollRequestKey] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
-  const [streamingTrace, setStreamingTrace] = useState<string[]>([]);
-  const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
-  const [optimisticMessage, setOptimisticMessage] = useState<OptimisticMessage | null>(null);
-  const [streamInstanceId, setStreamInstanceId] = useState(0);
+  const [pendingMessages, setPendingMessages] = useState<RenderedMessage[]>([]);
   const [emptyStateHeadline] = useState(
     () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
   );
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+  const pendingMessagesRef = useRef<RenderedMessage[]>([]);
+
+  useEffect(() => {
+    pendingMessagesRef.current = pendingMessages;
+  }, [pendingMessages]);
 
   const updateShouldAutoScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -68,10 +139,7 @@ export function ChatPage() {
   useEffect(() => {
     shouldAutoScrollRef.current = true;
     setSelectedReference(null);
-  }, [chatId]);
-
-  useEffect(() => {
-    setStreamingCitations([]);
+    setPendingMessages([]);
   }, [chatId]);
 
   const { data: messagesData, isLoading } = useQuery({
@@ -80,12 +148,16 @@ export function ChatPage() {
       if (isNewChat) {
         return { conversation: null, messages: [] };
       }
+
       return getMessages(chatId as string);
     },
     enabled: !isNewChat,
   });
 
-  const messages = messagesData?.messages || [];
+  const messages: RenderedMessage[] = messagesData?.messages ?? [];
+  const visibleMessages: RenderedMessage[] = isNewChat
+    ? pendingMessages
+    : [...messages, ...pendingMessages];
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -125,67 +197,111 @@ export function ChatPage() {
       top: container.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, streamingText, optimisticMessage]);
+  }, [visibleMessages]);
+
   const messageCitationsById = Object.fromEntries(
-    messages
+    visibleMessages
       .filter((message) => message.role === MessageRole.ASSISTANT)
       .map((message) => {
-        const parsed = parseTextAndCitations(message.content);
+        const citations = message.localCitations ?? parseTextAndCitations(message.content).citations;
 
-        return [message.id, parsed.citations];
+        return [message.id, citations];
       })
       .filter(([, citations]) => citations.length > 0)
   );
 
-  const handleCitationClick = useCallback(
-    (citation: Citation, index: number) => {
-      const reference = citationToReference(citation, index);
-      setSelectedReference(reference);
-      setReferenceScrollRequestKey((prev) => prev + 1);
-    }, []
+  const handleCitationClick = useCallback((citation: Citation, index: number) => {
+    const reference = citationToReference(citation, index);
+    setSelectedReference(reference);
+    setReferenceScrollRequestKey((prev) => prev + 1);
+  }, []);
+
+  const updatePendingMessage = useCallback(
+    (messageId: string, updater: (message: RenderedMessage) => RenderedMessage) => {
+      setPendingMessages((prev) => {
+        const next = prev.map((message) =>
+          message.id === messageId ? updater(message) : message
+        );
+        pendingMessagesRef.current = next;
+        return next;
+      });
+    },
+    []
   );
 
-  const handleStreamingText = useCallback((nextRawText: string) => {
-    const parsed = parseTextAndCitations(nextRawText);
-    setStreamingText(parsed.textWithMarkers);
-    setStreamingCitations(parsed.citations);
-  }, []);
+  const handleStreamingText = useCallback(
+    (messageId: string, nextRawText: string) => {
+      const parsed = parseTextAndCitations(nextRawText);
 
-  const appendStreamingTrace = useCallback((nextTrace: string) => {
-    const normalizedTrace = nextTrace.trim();
+      updatePendingMessage(messageId, (message) => ({
+        ...message,
+        content: parsed.textWithMarkers,
+        localCitations: parsed.citations,
+        updatedAt: new Date().toISOString(),
+      }));
+    },
+    [updatePendingMessage]
+  );
 
-    if (!normalizedTrace) {
-      return;
-    }
+  const appendStreamingTrace = useCallback(
+    (messageId: string, nextTrace: string) => {
+      const normalizedTrace = nextTrace.trim();
 
-    setStreamingTrace((prev) => {
-      if (prev.at(-1) === normalizedTrace) {
-        return prev;
+      if (!normalizedTrace) {
+        return;
       }
 
-      return [...prev, normalizedTrace];
-    });
-  }, []);
+      updatePendingMessage(messageId, (message) => {
+        const thinking = Array.isArray(message.metadata?.thinking)
+          ? message.metadata.thinking
+          : [];
+
+        if (thinking.at(-1) === normalizedTrace) {
+          return message;
+        }
+
+        return {
+          ...message,
+          metadata: {
+            ...message.metadata,
+            thinking: [...thinking, normalizedTrace],
+          },
+        };
+      });
+    },
+    [updatePendingMessage]
+  );
 
   const handleSend = useCallback(async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isStreaming) {
+      return;
+    }
 
     const userInput = input;
     setInput("");
 
-    const tempMessage: OptimisticMessage = {
+    const userMessage = createLocalMessage(chatId, {
       id: `temp-${Date.now()}`,
       role: MessageRole.USER,
       content: userInput,
-      createdAt: new Date().toISOString(),
-    };
-    setOptimisticMessage(tempMessage);
+    });
+    const assistantPlaceholderId = `assistant-${Date.now()}`;
+    const assistantMessage = createLocalMessage(chatId, {
+      id: assistantPlaceholderId,
+      role: MessageRole.ASSISTANT,
+      content: "",
+      isStreaming: true,
+      metadata: { thinking: [] },
+      localCitations: [],
+    });
+    const newPendingMessages = [userMessage, assistantMessage];
 
+    setPendingMessages((prev) => {
+      const next = [...prev, ...newPendingMessages];
+      pendingMessagesRef.current = next;
+      return next;
+    });
     setIsStreaming(true);
-    setStreamingText("");
-    setStreamingTrace([]);
-    setStreamingCitations([]);
-    setStreamInstanceId((prev) => prev + 1);
 
     try {
       if (isNewChat) {
@@ -196,62 +312,92 @@ export function ChatPage() {
           if ("type" in chunk && chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if ("type" in chunk && chunk.type === "trace") {
-            appendStreamingTrace(chunk.trace);
-          } else if ((("type" in chunk && chunk.type === "text") || (!('type' in chunk) && "text" in chunk)) && chunk.text) {
+            appendStreamingTrace(assistantPlaceholderId, chunk.trace);
+          } else if (
+            ((("type" in chunk && chunk.type === "text") || (!("type" in chunk) && "text" in chunk)) &&
+              chunk.text)
+          ) {
             rawStreamingText += chunk.text;
-            handleStreamingText(rawStreamingText);
+            handleStreamingText(assistantPlaceholderId, rawStreamingText);
           }
         }
 
         if (newConversationId) {
+          const promotedMessages = finalizeMessages(
+            pendingMessagesRef.current,
+            assistantPlaceholderId,
+            rawStreamingText,
+            newConversationId
+          );
+
+          queryClient.setQueryData(["messages", newConversationId, isGuest], {
+            conversation: null,
+            messages: promotedMessages.map(stripLocalFields),
+          });
+          pendingMessagesRef.current = [];
+          setPendingMessages([]);
           await queryClient.invalidateQueries({ queryKey: ["conversations"] });
           navigate({ to: "/chat", search: { chatId: newConversationId } });
         }
       } else {
         let rawStreamingText = "";
-        for await (const chunk of sendMessageStream(
-          chatId as string,
-          userInput
-        )) {
+
+        for await (const chunk of sendMessageStream(chatId as string, userInput)) {
           if ("type" in chunk && chunk.type === "trace") {
-            appendStreamingTrace(chunk.trace);
-          } else if ((("type" in chunk && chunk.type === "text") || (!('type' in chunk) && "text" in chunk)) && chunk.text) {
+            appendStreamingTrace(assistantPlaceholderId, chunk.trace);
+          } else if (
+            ((("type" in chunk && chunk.type === "text") || (!("type" in chunk) && "text" in chunk)) &&
+              chunk.text)
+          ) {
             rawStreamingText += chunk.text;
-            handleStreamingText(rawStreamingText);
+            handleStreamingText(assistantPlaceholderId, rawStreamingText);
           }
         }
 
-        await queryClient.invalidateQueries({
-          queryKey: ["messages", chatId, isGuest],
-        });
+        const finalizedMessages = finalizeMessages(
+          pendingMessagesRef.current,
+          assistantPlaceholderId,
+          rawStreamingText
+        );
+
+        queryClient.setQueryData(
+          ["messages", chatId, isGuest],
+          (current: MessagesQueryData | undefined) => ({
+            conversation: current?.conversation ?? null,
+            messages: [...(current?.messages ?? []), ...finalizedMessages.map(stripLocalFields)],
+          })
+        );
+        pendingMessagesRef.current = [];
+        setPendingMessages([]);
         await queryClient.invalidateQueries({ queryKey: ["conversations"] });
       }
     } catch (error: any) {
       console.error("Failed to send message:", error);
-      antMessage.error(
-        error?.message || "Gửi tin nhắn thất bại. Vui lòng thử lại."
-      );
+      antMessage.error(error?.message || "Gửi tin nhắn thất bại. Vui lòng thử lại.");
       setInput(userInput);
-      setStreamingTrace([]);
+      setPendingMessages((prev) => {
+        const next = prev.filter(
+          (message) => message.id !== userMessage.id && message.id !== assistantPlaceholderId
+        );
+        pendingMessagesRef.current = next;
+        return next;
+      });
     } finally {
       setIsStreaming(false);
-      setStreamingText("");
-      setStreamingTrace([]);
-      setOptimisticMessage(null);
     }
   }, [
     input,
-    chatId,
-    isNewChat,
     isStreaming,
+    chatId,
     isGuest,
-    queryClient,
+    isNewChat,
     antMessage,
     navigate,
-    sendMessageStream,
-    startConversationStream,
+    queryClient,
     appendStreamingTrace,
     handleStreamingText,
+    sendMessageStream,
+    startConversationStream,
   ]);
 
   if (isLoading && !isNewChat) {
@@ -270,30 +416,24 @@ export function ChatPage() {
           className="flex-1 overflow-y-auto px-2 pt-4 pb-28 lg:px-6 lg:pt-8 lg:pb-36 overscroll-contain rounded-[1.75rem] bg-white"
         >
           <div className="flex flex-col gap-5 lg:gap-6 min-h-full">
-            {messages.map((m) => (
+            {visibleMessages.map((message) => (
               <MessageBubble
-                key={m.id}
-                message={m}
-                hydratedCitations={messageCitationsById[m.id]}
+                key={message.id}
+                message={stripLocalFields(message)}
+                hydratedCitations={messageCitationsById[message.id]}
+                streamingState={
+                  message.role === MessageRole.ASSISTANT && message.isStreaming
+                    ? {
+                        isStreaming: true,
+                        citations: message.localCitations ?? [],
+                      }
+                    : undefined
+                }
                 onCitationClick={handleCitationClick}
               />
             ))}
 
-            {optimisticMessage && (
-              <OptimisticBubble message={optimisticMessage} />
-            )}
-
-            {isStreaming && (
-              <StreamingBubble
-                key={`stream-${streamInstanceId}`}
-                streamingText={streamingText}
-                streamingTrace={streamingTrace}
-                citations={streamingCitations}
-                onCitationClick={handleCitationClick}
-              />
-            )}
-
-            {!messages.length && !optimisticMessage && !isStreaming && (
+            {!visibleMessages.length && !isStreaming && (
               <div className="flex flex-1 min-h-[24rem] items-center justify-center px-6 text-center">
                 <div className="max-w-xl space-y-3">
                   <h3 className="text-2xl lg:text-3xl font-extrabold tracking-[-0.03em] text-slate-700">

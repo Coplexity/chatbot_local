@@ -8,19 +8,28 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Disclaimer } from "./disclaimer";
 import { ThinkingPanel } from "./thinking-panel";
+import { TypingIndicator } from "./typing-indicator";
+
+interface StreamingState {
+  isStreaming: boolean;
+  citations: Citation[];
+}
 
 interface MessageBubbleProps {
   message: Message;
   hydratedCitations?: Citation[];
+  streamingState?: StreamingState;
   onCitationClick: (citation: Citation, index: number) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
   message,
   hydratedCitations,
+  streamingState,
   onCitationClick,
 }: MessageBubbleProps) {
   const isAssistant = message.role === MessageRole.ASSISTANT;
+  const isStreamingAssistant = isAssistant && streamingState?.isStreaming === true;
 
   const parsedContent = useMemo(() => {
     if (!isAssistant) {
@@ -31,23 +40,25 @@ export const MessageBubble = memo(function MessageBubble({
       };
     }
     const parsed = parseTextAndCitations(message.content);
+    const resolvedCitations = streamingState?.citations ?? hydratedCitations;
 
-    if (!hydratedCitations || hydratedCitations.length === 0) {
+    if (!resolvedCitations || resolvedCitations.length === 0) {
       return parsed;
     }
 
     const hydratedByChunkId = new Map(
-      hydratedCitations.map((citation) => [citation.chunkId, citation])
+      resolvedCitations.map((citation) => [citation.chunkId, citation])
     );
+    const parsedCitations = parsed.citations.map((citation) => {
+      const hydrated = hydratedByChunkId.get(citation.chunkId);
+      return hydrated ? { ...citation, reference: hydrated.reference } : citation;
+    });
 
     return {
       ...parsed,
-      citations: parsed.citations.map((citation) => {
-        const hydrated = hydratedByChunkId.get(citation.chunkId);
-        return hydrated ? { ...citation, reference: hydrated.reference } : citation;
-      }),
+      citations: parsedCitations.length > 0 ? parsedCitations : resolvedCitations,
     };
-  }, [message.content, isAssistant, hydratedCitations]);
+  }, [message.content, isAssistant, hydratedCitations, streamingState]);
 
   return (
     <div>
@@ -68,10 +79,16 @@ export const MessageBubble = memo(function MessageBubble({
         >
           {isAssistant && <ThinkingPanel steps={message.metadata?.thinking} />}
           {isAssistant ? (
-            <AssistantContent
-              parsedContent={parsedContent}
-              onCitationClick={onCitationClick}
-            />
+            isStreamingAssistant && !parsedContent.textWithMarkers.trim() ? (
+              <div aria-label="Assistant is typing">
+                <TypingIndicator />
+              </div>
+            ) : (
+              <AssistantContent
+                parsedContent={parsedContent}
+                onCitationClick={onCitationClick}
+              />
+            )
           ) : (
             <span className="whitespace-pre-wrap">{message.content}</span>
           )}
@@ -107,7 +124,7 @@ function AssistantContent({
   const { textWithMarkers, citations } = parsedContent;
 
   return (
-    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 whitespace-pre-wrap prose-p:text-slate-700 prose-li:text-slate-700">
+    <div className="prose max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-headings:my-2 prose-p:text-slate-700 prose-li:text-slate-700">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -159,10 +176,6 @@ function processCitationMarkers(
   onCitationClick: (citation: Citation, index: number) => void
 ): React.ReactNode {
   if (!children) return children;
-
-  if (typeof children === "string") {
-    children = children.trim();
-  }
 
   if (Array.isArray(children)) {
     return children.map((child, idx) => (

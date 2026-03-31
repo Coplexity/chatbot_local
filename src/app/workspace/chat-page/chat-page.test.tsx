@@ -14,6 +14,8 @@ const getMessagesMock = vi.fn();
 const messageErrorMock = vi.fn();
 const scrollIntoViewMock = vi.fn();
 const scrollToMock = vi.fn();
+const invalidateQueriesMock = vi.fn();
+const setQueryDataMock = vi.fn();
 let searchChatId = "12345678901234567890123456789012";
 
 function setScrollMetrics(
@@ -107,7 +109,8 @@ vi.mock("@tanstack/react-query", () => ({
     isLoading: false,
   }),
   useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
+    invalidateQueries: invalidateQueriesMock,
+    setQueryData: setQueryDataMock,
   }),
 }));
 
@@ -127,9 +130,10 @@ vi.mock("@/utils/citation-parser", async (importOriginal) => {
   return {
     ...actual,
     citationToReference: vi.fn((citation, index) => ({
-      ...citation,
       id: `citation-${index}`,
       number: index + 1,
+      chunkId: citation.chunkId,
+      excerpt: citation.excerpt ?? citation.used_text ?? "",
     })),
   };
 });
@@ -141,10 +145,16 @@ vi.mock("@/components/chat", () => ({
       <button type="button" data-testid="chat-input" onClick={onSend}>Send</button>
     </div>
   ),
-  MessageBubble: (props: unknown) => messageBubbleMock(props),
-  OptimisticBubble: () => <div>Optimistic</div>,
-  StreamingBubble: ({ streamingText, streamingTrace }: { streamingText: string; streamingTrace?: string[] }) => {
-    const visibleTrace = [...new Set(streamingTrace ?? [])];
+  MessageBubble: (props: unknown) => {
+    messageBubbleMock(props);
+    const {
+      message,
+      streamingState,
+    } = props as {
+      message: { content: string; metadata?: { thinking?: string[] } };
+      streamingState?: { isStreaming?: boolean };
+    };
+    const visibleTrace = [...new Set(message.metadata?.thinking ?? [])];
 
     return (
       <div>
@@ -158,7 +168,7 @@ vi.mock("@/components/chat", () => ({
             </div>
           </details>
         )}
-        <div>{streamingText}</div>
+        <div>{streamingState?.isStreaming && !message.content ? "Typing" : message.content}</div>
       </div>
     );
   },
@@ -180,6 +190,8 @@ describe("ChatPage", () => {
     getReferenceMetadataMock.mockReset();
     scrollIntoViewMock.mockReset();
     scrollToMock.mockReset();
+    invalidateQueriesMock.mockReset();
+    setQueryDataMock.mockReset();
     referencePanelMock.mockReset();
   });
 
@@ -340,7 +352,7 @@ describe("ChatPage", () => {
         id: "m1",
         conversationId: "c1",
         role: "assistant",
-        content: '```json\n{"chunk_id": "12", "used_text": "A text"}\n```',
+        content: 'Answer {"chunk_id": "12", "used_text": "A text"}',
         tokenCount: 10,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -415,7 +427,62 @@ describe("ChatPage", () => {
       expect(referencePanelMock).toHaveBeenLastCalledWith(
         expect.objectContaining({
           scrollRequestKey: 2,
-          reference: expect.objectContaining({ chunkId: 12 }),
+          reference: expect.objectContaining({ chunkId: 12, excerpt: "A text" }),
+        })
+      );
+    });
+  });
+
+  it("passes the latest citation excerpt to the reference panel even when chunkId stays the same", async () => {
+    let onCitationClick: ((citation: { chunkId: number; used_text?: string }, index: number) => void) | undefined;
+
+    messageBubbleMock.mockImplementation((props: unknown) => {
+      const { onCitationClick: nextOnCitationClick } = props as {
+        onCitationClick: (citation: { chunkId: number; used_text?: string }, index: number) => void;
+      };
+
+      onCitationClick = nextOnCitationClick;
+      return <button type="button">Message</button>;
+    });
+
+    getMessagesMock.mockReturnValue([
+      {
+        id: "m1",
+        conversationId: "c1",
+        role: "assistant",
+        content: 'Answer {"chunk_id": "12", "used_text": "A text"}',
+        tokenCount: 10,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ]);
+
+    render(<ChatPage />);
+
+    await waitFor(() => {
+      expect(onCitationClick).toBeTypeOf("function");
+    });
+
+    await act(async () => {
+      onCitationClick?.({ chunkId: 12, used_text: "A text" }, 0);
+    });
+
+    await waitFor(() => {
+      expect(referencePanelMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          reference: expect.objectContaining({ chunkId: 12, excerpt: "A text" }),
+        })
+      );
+    });
+
+    await act(async () => {
+      onCitationClick?.({ chunkId: 12, used_text: "B text" }, 0);
+    });
+
+    await waitFor(() => {
+      expect(referencePanelMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          reference: expect.objectContaining({ chunkId: 12, excerpt: "B text" }),
         })
       );
     });
@@ -586,6 +653,96 @@ describe("ChatPage", () => {
 
     await act(async () => {
       finishStream?.();
+    });
+  });
+
+  it("updates a single assistant message in place during streaming and completion", async () => {
+    const controlled = createControlledStream();
+    sendMessageStreamMock.mockReturnValue(controlled.stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    await act(async () => {
+      controlled.pushChunk({ type: "text", text: "Partial" });
+    });
+
+    await waitFor(() => {
+      expect(messageBubbleMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.objectContaining({ content: "Partial" }),
+          streamingState: expect.objectContaining({ isStreaming: true }),
+        })
+      );
+    });
+
+    await act(async () => {
+      controlled.pushChunk({ type: "text", text: " answer" });
+      controlled.finishStream();
+    });
+
+    await waitFor(() => {
+      expect(setQueryDataMock).toHaveBeenCalledWith(
+        ["messages", searchChatId, true],
+        expect.any(Function)
+      );
+    });
+
+    const finalUpdater = setQueryDataMock.mock.calls.at(-1)?.[1] as (
+      current: { conversation: null; messages: Array<{ content: string }> }
+    ) => { conversation: null; messages: Array<{ content: string }> };
+
+    expect(
+      finalUpdater({ conversation: null, messages: [] }).messages.map((message) => message.content)
+    ).toEqual(["Question", "Partial answer"]);
+
+    expect(messageBubbleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({ content: "Partial" }),
+        streamingState: expect.objectContaining({ isStreaming: true }),
+      })
+    );
+
+    expect(messageBubbleMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.objectContaining({ content: "Partial answer" }),
+        streamingState: expect.objectContaining({ isStreaming: true }),
+      })
+    );
+  });
+
+  it("does not invalidate the messages query after a successful stream", async () => {
+    const controlled = createControlledStream();
+    sendMessageStreamMock.mockReturnValue(controlled.stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    await act(async () => {
+      controlled.pushChunk({ type: "text", text: "Done" });
+      controlled.finishStream();
+    });
+
+    await waitFor(() => {
+      expect(invalidateQueriesMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: ["messages", searchChatId, true],
+        })
+      );
     });
   });
 });

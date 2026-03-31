@@ -20,7 +20,7 @@ describe("parseTextAndCitations", () => {
     });
   });
 
-  it("reuses marker numbers for repeated inline chunk ids and keeps the first excerpt", () => {
+  it("keeps repeated inline chunk ids as distinct citations when excerpts differ", () => {
     expect(
       parseTextAndCitations(
         [
@@ -29,12 +29,16 @@ describe("parseTextAndCitations", () => {
         ].join(" ")
       )
     ).toEqual({
-      textWithMarkers: "Alpha[1] and Beta[1]",
+      textWithMarkers: "Alpha[1] and Beta[2]",
       cleanedText: "Alpha and Beta",
       citations: [
         {
           chunkId: 123,
           excerpt: "Text A",
+        },
+        {
+          chunkId: 123,
+          excerpt: "Text B",
         },
       ],
     });

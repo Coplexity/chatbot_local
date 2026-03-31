@@ -216,6 +216,30 @@ describe("ReferencePanel", () => {
     });
   });
 
+  it("updates the excerpt when the citation text changes for the same chunk", async () => {
+    const nextReference: Reference = {
+      ...referenceWithPdf,
+      excerpt: "Noi dung trich dan moi",
+      reference: {
+        ...referenceWithPdf.reference!,
+        chunkId: 123,
+      },
+    };
+
+    const { rerender } = render(
+      <ReferencePanel reference={referenceWithPdf} scrollRequestKey={1} onClose={vi.fn()} />
+    );
+
+    expect(screen.getByText("Noi dung trich dan")).toBeInTheDocument();
+
+    rerender(
+      <ReferencePanel reference={nextReference} scrollRequestKey={2} onClose={vi.fn()} />
+    );
+
+    expect(screen.getByText("Noi dung trich dan moi")).toBeInTheDocument();
+    expect(getReferenceMetadataMock).toHaveBeenCalledTimes(1);
+  });
+
   it("passes the scroll request key through to PdfPreview", async () => {
     vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
 

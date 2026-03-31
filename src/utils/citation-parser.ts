@@ -18,7 +18,7 @@ export interface ParsedTextWithCitations {
  */
 export function parseTextAndCitations(text: string): ParsedTextWithCitations {
   const citations: Citation[] = [];
-  const markerByChunkId = new Map<number, number>();
+  const markerByCitation = new Map<string, number>();
   let textWithMarkers = "";
   let cleanedText = "";
   let index = 0;
@@ -47,7 +47,7 @@ export function parseTextAndCitations(text: string): ParsedTextWithCitations {
     const citationMatch = getInlineCitationMatch(text, index);
 
     if (citationMatch) {
-      const markerIndex = getMarkerIndex(citationMatch.citation, citations, markerByChunkId);
+      const markerIndex = getMarkerIndex(citationMatch.citation, citations, markerByCitation);
       cleanedText = stripTrailingCitationSpacing(cleanedText);
       textWithMarkers = attachMarker(textWithMarkers, markerIndex);
       index = citationMatch.end;
@@ -117,7 +117,7 @@ function getInlineCitationMatch(
   }
 
   return {
-    end: end + 1,
+    end,
     citation,
   };
 }
@@ -173,13 +173,14 @@ function findJsonObjectEnd(text: string, start: number): number | null {
 function getMarkerIndex(
   citation: Citation,
   citations: Citation[],
-  markerByChunkId: Map<number, number>
+  markerByCitation: Map<string, number>
 ): number {
-  let markerIndex = markerByChunkId.get(citation.chunkId);
+  const markerKey = `${citation.chunkId}:${citation.excerpt}`;
+  let markerIndex = markerByCitation.get(markerKey);
 
   if (!markerIndex) {
     markerIndex = citations.length + 1;
-    markerByChunkId.set(citation.chunkId, markerIndex);
+    markerByCitation.set(markerKey, markerIndex);
     citations.push(citation);
   }
 
