@@ -718,6 +718,45 @@ describe("ChatPage", () => {
     );
   });
 
+  it("keeps raw citation payload in the finalized assistant message after streaming completes", async () => {
+    const controlled = createControlledStream();
+    sendMessageStreamMock.mockReturnValue(controlled.stream());
+
+    render(<ChatPage />);
+
+    await act(async () => {
+      screen.getByTestId("fill-input").click();
+    });
+
+    await act(async () => {
+      screen.getByTestId("chat-input").click();
+    });
+
+    await act(async () => {
+      controlled.pushChunk({ type: "text", text: 'Answer {"chunk_id": "12", ' });
+      controlled.pushChunk({ type: "text", text: '"used_text": "A text"}' });
+      controlled.finishStream();
+    });
+
+    await waitFor(() => {
+      expect(setQueryDataMock).toHaveBeenCalledWith(
+        ["messages", searchChatId, true],
+        expect.any(Function)
+      );
+    });
+
+    const finalUpdater = setQueryDataMock.mock.calls.at(-1)?.[1] as (
+      current: { conversation: null; messages: Array<{ content: string }> }
+    ) => { conversation: null; messages: Array<{ content: string }> };
+
+    expect(finalUpdater({ conversation: null, messages: [] }).messages).toEqual([
+      expect.objectContaining({ content: "Question" }),
+      expect.objectContaining({
+        content: 'Answer {"chunk_id": "12", "used_text": "A text"}',
+      }),
+    ]);
+  });
+
   it("does not invalidate the messages query after a successful stream", async () => {
     const controlled = createControlledStream();
     sendMessageStreamMock.mockReturnValue(controlled.stream());

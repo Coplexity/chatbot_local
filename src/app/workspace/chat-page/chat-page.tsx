@@ -69,8 +69,6 @@ function finalizeMessages(
   rawStreamingText: string,
   conversationId?: string
 ): RenderedMessage[] {
-  const parsed = parseTextAndCitations(rawStreamingText);
-
   return messages.map((message) => {
     const nextConversationId = conversationId ?? message.conversationId;
 
@@ -84,8 +82,7 @@ function finalizeMessages(
     return {
       ...message,
       conversationId: nextConversationId,
-      content: parsed.textWithMarkers,
-      localCitations: parsed.citations,
+      content: rawStreamingText,
       updatedAt: new Date().toISOString(),
       isStreaming: false,
     };
