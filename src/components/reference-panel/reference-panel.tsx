@@ -13,17 +13,34 @@ import { buildPdfOpenUrl, PdfPreview } from "./pdf-preview";
 
 interface ReferencePanelProps {
   reference: Reference;
+  scrollRequestKey: number;
   onClose: () => void;
 }
 
-export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
+export function ReferencePanel({ reference, scrollRequestKey, onClose }: ReferencePanelProps) {
   const { getReferenceMetadata } = useGuestChat();
   const [fetchedMetadata, setFetchedMetadata] = useState<ReferenceMetadata | null>(null);
+  const previousResolvedMetadataRef = React.useRef<ReferenceMetadata | null>(null);
+
+  const sourceMetadata = useMemo(
+    () => fetchedMetadata ?? reference.reference,
+    [fetchedMetadata, reference.reference]
+  );
 
   useEffect(() => {
     let isActive = true;
 
-    setFetchedMetadata(null);
+    const previousMetadata = previousResolvedMetadataRef.current;
+    const nextReferenceMetadata = reference.reference;
+    const shouldKeepPreviousPdfMetadata =
+      previousMetadata?.documentId !== undefined
+      && nextReferenceMetadata?.documentId === undefined;
+
+    if (shouldKeepPreviousPdfMetadata) {
+      setFetchedMetadata(previousMetadata);
+    } else {
+      setFetchedMetadata(null);
+    }
 
     void getReferenceMetadata([reference.chunkId])
       .then((references) => {
@@ -46,10 +63,12 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
     };
   }, [reference.chunkId]);
 
-  const sourceMetadata = useMemo(
-    () => fetchedMetadata ?? reference.reference,
-    [fetchedMetadata, reference.reference]
-  );
+  useEffect(() => {
+    if (sourceMetadata?.documentId !== undefined) {
+      previousResolvedMetadataRef.current = sourceMetadata;
+    }
+  }, [sourceMetadata]);
+
   const sourceLabel = formatCitationLabel(reference);
   const excerptContent = reference.excerpt || "Không có nội dung trích dẫn";
   const headings = sourceMetadata?.headings || [];
@@ -176,6 +195,7 @@ export function ReferencePanel({ reference, onClose }: ReferencePanelProps) {
             documentId={sourceMetadata?.documentId}
             pdfPage={sourceMetadata?.pdfPage}
             fallbackPage={sourceMetadata?.startPage}
+            scrollRequestKey={scrollRequestKey}
           />
         </div>
         </div>

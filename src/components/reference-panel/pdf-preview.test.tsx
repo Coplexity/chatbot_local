@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 
-import { pdfWorkerSrc, PdfPreview } from "./pdf-preview";
+import { getCachedPdfFile, pdfWorkerSrc, PdfPreview } from "./pdf-preview";
 
 const resizeObserverMock = vi.hoisted(() => ({
   width: 320,
@@ -11,11 +11,15 @@ const resizeObserverMock = vi.hoisted(() => ({
 const reactPdfMock = vi.hoisted(() => ({
   documentShouldFail: false,
   totalPages: 3,
-  lastFile: undefined as string | undefined,
+  lastFile: undefined as string | { url: string } | undefined,
   lastPage: undefined as number | undefined,
   lastWidth: undefined as number | undefined,
   renderedPages: [] as number[],
   scrollCalls: [] as number[],
+  documentLoads: [] as Array<string | undefined>,
+  delayedPageRender: false,
+  delayRenderSuccess: false,
+  renderSuccessOnlyOnMount: false,
 }));
 
 vi.mock("react-pdf", () => ({
@@ -25,7 +29,7 @@ vi.mock("react-pdf", () => ({
     },
   },
   Document: ({ file, onLoadError, onLoadSuccess, children }: {
-    file?: string;
+    file?: string | { url: string };
     onLoadError?: () => void;
     onLoadSuccess?: ({ numPages }: { numPages: number }) => void;
     children?: React.ReactNode;
@@ -33,13 +37,16 @@ vi.mock("react-pdf", () => ({
     reactPdfMock.lastFile = file;
 
     useEffect(() => {
+      const nextUrl = typeof file === "string" ? file : file?.url;
+      reactPdfMock.documentLoads.push(nextUrl);
+
       if (reactPdfMock.documentShouldFail) {
         onLoadError?.();
         return;
       }
 
       onLoadSuccess?.({ numPages: reactPdfMock.totalPages });
-    }, [onLoadError, onLoadSuccess]);
+    }, [file, onLoadError, onLoadSuccess]);
 
     if (reactPdfMock.documentShouldFail) {
       return <div data-testid="pdf-preview-error-trigger" />;
@@ -47,11 +54,56 @@ vi.mock("react-pdf", () => ({
 
     return <div data-testid="pdf-preview-document">{children}</div>;
   },
-  Page: ({ pageNumber, width }: { pageNumber?: number; width?: number }) => {
+  Page: ({ pageNumber, width, onRenderSuccess }: { pageNumber?: number; width?: number; onRenderSuccess?: () => void }) => {
     reactPdfMock.lastPage = pageNumber;
     reactPdfMock.lastWidth = width;
-    if (pageNumber !== undefined) {
-      reactPdfMock.renderedPages.push(pageNumber);
+    const [isVisible, setIsVisible] = React.useState(!reactPdfMock.delayedPageRender);
+
+    useEffect(() => {
+      if (!reactPdfMock.delayedPageRender) {
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        setIsVisible(true);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }, []);
+
+    useEffect(() => {
+      if (isVisible && pageNumber !== undefined) {
+        reactPdfMock.renderedPages.push(pageNumber);
+      }
+    }, [isVisible, pageNumber]);
+
+    useEffect(() => {
+      if (!isVisible) {
+        return;
+      }
+
+      if (reactPdfMock.renderSuccessOnlyOnMount) {
+        onRenderSuccess?.();
+        return;
+      }
+
+      if (reactPdfMock.delayRenderSuccess) {
+        const timeoutId = window.setTimeout(() => {
+          onRenderSuccess?.();
+        }, 0);
+
+        return () => {
+          window.clearTimeout(timeoutId);
+        };
+      }
+
+      onRenderSuccess?.();
+    }, reactPdfMock.renderSuccessOnlyOnMount ? [isVisible] : [isVisible, onRenderSuccess]);
+
+    if (!isVisible) {
+      return null;
     }
 
     return (
@@ -78,6 +130,10 @@ describe("PdfPreview", () => {
     reactPdfMock.lastWidth = undefined;
     reactPdfMock.renderedPages = [];
     reactPdfMock.scrollCalls = [];
+    reactPdfMock.documentLoads = [];
+    reactPdfMock.delayedPageRender = false;
+    reactPdfMock.delayRenderSuccess = false;
+    reactPdfMock.renderSuccessOnlyOnMount = false;
     scrollIntoViewMock.mockReset();
   });
 
@@ -136,9 +192,9 @@ describe("PdfPreview", () => {
     expect(screen.getByTestId("pdf-preview-document")).toBeInTheDocument();
     expect(await screen.findAllByTestId("pdf-preview-page")).toHaveLength(3);
     expect(screen.getAllByTestId("pdf-preview-page")[1]).toHaveAttribute("data-page-number", "2");
-    expect(reactPdfMock.lastFile).toBe(
-      "https://ai-documents-management.devt.vn/api/v1/documents/55/file"
-    );
+    expect(reactPdfMock.lastFile).toEqual({
+      url: "https://ai-documents-management.devt.vn/api/v1/documents/55/file",
+    });
   });
 
   it("uses a local worker asset url instead of the npm scheme", () => {
@@ -198,6 +254,187 @@ describe("PdfPreview", () => {
     });
   });
 
+  it("scrolls again when the scroll request key changes for the same page", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    reactPdfMock.totalPages = 5;
+
+    const { rerender } = render(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={1}
+      />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    await waitFor(() => {
+      expect(reactPdfMock.scrollCalls).toEqual([4]);
+    });
+
+    rerender(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={2}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactPdfMock.scrollCalls).toEqual([4, 4]);
+    });
+  });
+
+  it("scrolls to the target page after delayed page rendering on the first open", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    reactPdfMock.totalPages = 5;
+    reactPdfMock.delayedPageRender = true;
+
+    render(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={1}
+      />
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    await waitFor(() => {
+      expect(reactPdfMock.scrollCalls).toContain(4);
+    });
+  });
+
+  it("waits for the target page render success before scrolling on first open", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    reactPdfMock.totalPages = 5;
+    reactPdfMock.delayRenderSuccess = true;
+
+    render(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={1}
+      />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    expect(reactPdfMock.scrollCalls).toEqual([]);
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    await waitFor(() => {
+      expect(reactPdfMock.scrollCalls).toContain(4);
+    });
+  });
+
+  it("does not reload the document when only page and scroll request change within the same pdf", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    reactPdfMock.totalPages = 5;
+
+    const { rerender } = render(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={2}
+        scrollRequestKey={1}
+      />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    rerender(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={2}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactPdfMock.documentLoads).toEqual([
+        "https://docs.example.com/api/v1/documents/55/file",
+      ]);
+    });
+  });
+
+  it("does not reload the document when switching to a different citation in the same pdf", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    reactPdfMock.totalPages = 5;
+
+    const { rerender } = render(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={2}
+        scrollRequestKey={1}
+      />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    rerender(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={2}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactPdfMock.documentLoads).toEqual([
+        "https://docs.example.com/api/v1/documents/55/file",
+      ]);
+    });
+  });
+
+  it("scrolls to a new page in the same document even when pages were already rendered", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+    reactPdfMock.totalPages = 5;
+    reactPdfMock.renderSuccessOnlyOnMount = true;
+
+    const { rerender } = render(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={2}
+        scrollRequestKey={1}
+      />
+    );
+
+    await screen.findAllByTestId("pdf-preview-page");
+
+    await waitFor(() => {
+      expect(reactPdfMock.scrollCalls).toEqual([2]);
+    });
+
+    rerender(
+      <PdfPreview
+        title="Guideline"
+        documentId={55}
+        pdfPage={4}
+        scrollRequestKey={2}
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactPdfMock.scrollCalls).toEqual([2, 4]);
+    });
+  });
+
   it("substitutes documentId into the configured file url template", () => {
     vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
 
@@ -209,9 +446,20 @@ describe("PdfPreview", () => {
       />
     );
 
-    expect(reactPdfMock.lastFile).toBe(
-      "https://docs.example.com/api/v1/documents/99/file"
-    );
+    expect(reactPdfMock.lastFile).toEqual({
+      url: "https://docs.example.com/api/v1/documents/99/file",
+    });
+  });
+
+  it("reuses the same cached file descriptor for the same url", () => {
+    const first = getCachedPdfFile("https://docs.example.com/api/v1/documents/55/file");
+    const second = getCachedPdfFile("https://docs.example.com/api/v1/documents/55/file");
+    const third = getCachedPdfFile("https://docs.example.com/api/v1/documents/99/file");
+
+    expect(first).toBe(second);
+    expect(first).toEqual({ url: "https://docs.example.com/api/v1/documents/55/file" });
+    expect(third).toEqual({ url: "https://docs.example.com/api/v1/documents/99/file" });
+    expect(third).not.toBe(first);
   });
 
   it("renders the first page when both pdfPage and fallbackPage are missing", async () => {
@@ -224,9 +472,9 @@ describe("PdfPreview", () => {
       />
     );
 
-    expect(reactPdfMock.lastFile).toBe(
-      "https://docs.example.com/api/v1/documents/77/file"
-    );
+    expect(reactPdfMock.lastFile).toEqual({
+      url: "https://docs.example.com/api/v1/documents/77/file",
+    });
     expect(await screen.findAllByTestId("pdf-preview-page")).toHaveLength(3);
     expect(screen.getAllByTestId("pdf-preview-page")[0]).toHaveAttribute("data-page-number", "1");
   });

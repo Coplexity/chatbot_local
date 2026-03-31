@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 interface PdfPreviewProps {
@@ -6,11 +6,27 @@ interface PdfPreviewProps {
   documentId?: number;
   pdfPage?: number;
   fallbackPage?: number;
+  scrollRequestKey?: number;
 }
 
 export const pdfWorkerSrc = "/pdf.worker.min.js";
 
+const PDF_VIEWER_HORIZONTAL_PADDING = 24;
+const pdfFileCache = new Map<string, { url: string }>();
+
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+
+export function getCachedPdfFile(url: string): { url: string } {
+  const cached = pdfFileCache.get(url);
+
+  if (cached) {
+    return cached;
+  }
+
+  const nextFile = { url };
+  pdfFileCache.set(url, nextFile);
+  return nextFile;
+}
 
 function appendPageAnchor(url: string, page?: number): string {
   return page ? `${url}#page=${page}` : url;
@@ -38,18 +54,25 @@ export function buildPdfOpenUrl(urlTemplate: string | undefined, documentId?: nu
   return appendPageAnchor(fileUrl, page);
 }
 
-export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPreviewProps) {
+export function PdfPreview({ title, documentId, pdfPage, fallbackPage, scrollRequestKey = 0 }: PdfPreviewProps) {
   const [hasPreviewError, setHasPreviewError] = useState(false);
   const [pageCount, setPageCount] = useState<number>();
   const [pageWidth, setPageWidth] = useState<number>(400);
+  const [renderedTargetPageKey, setRenderedTargetPageKey] = useState<string>();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const renderedPagesRef = useRef<Set<number>>(new Set());
   const documentFileUrlTemplate = import.meta.env.VITE_DOCUMENT_FILE_URL_TEMPLATE as string | undefined;
   const resolvedPage = getResolvedPage(pdfPage, fallbackPage);
+  const targetPageKey = resolvedPage ? `${resolvedPage}:${scrollRequestKey}` : undefined;
 
   const documentFileUrl = useMemo(
     () => buildDocumentFileUrl(documentFileUrlTemplate, documentId),
-    [documentFileUrlTemplate, documentId, resolvedPage],
+    [documentFileUrlTemplate, documentId],
+  );
+  const documentFile = useMemo(
+    () => (documentFileUrl ? getCachedPdfFile(documentFileUrl) : undefined),
+    [documentFileUrl],
   );
 
   useEffect(() => {
@@ -67,8 +90,7 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
       }
 
       const measuredWidth = entry.contentRect.width;
-      console.log("Measured viewport width:", measuredWidth);
-      setPageWidth(Math.max(Math.floor(measuredWidth), 0));
+      setPageWidth(Math.max(Math.floor(measuredWidth) - PDF_VIEWER_HORIZONTAL_PADDING, 0));
     });
 
     resizeObserver.observe(viewport);
@@ -78,8 +100,38 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
     };
   }, []);
 
+  const handleLoadError = useCallback(() => {
+    setPageCount(undefined);
+    setHasPreviewError(true);
+  }, []);
+
+  const handleLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
+    setHasPreviewError(false);
+    setPageCount(numPages);
+  }, []);
+
   useEffect(() => {
-    if (!resolvedPage || !pageCount || resolvedPage > pageCount) {
+    setRenderedTargetPageKey(undefined);
+  }, [targetPageKey, documentFileUrl]);
+
+  useEffect(() => {
+    renderedPagesRef.current = new Set();
+  }, [documentFileUrl]);
+
+  useEffect(() => {
+    if (!resolvedPage || !targetPageKey) {
+      return;
+    }
+
+    if (!renderedPagesRef.current.has(resolvedPage)) {
+      return;
+    }
+
+    setRenderedTargetPageKey(targetPageKey);
+  }, [resolvedPage, targetPageKey]);
+
+  useEffect(() => {
+    if (!resolvedPage || !pageCount || resolvedPage > pageCount || !targetPageKey || renderedTargetPageKey !== targetPageKey) {
       return;
     }
 
@@ -90,7 +142,17 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
     }
 
     targetPage.scrollIntoView({ block: "start" });
-  }, [pageCount, resolvedPage]);
+  }, [pageCount, renderedTargetPageKey, resolvedPage, scrollRequestKey, targetPageKey]);
+
+  const handleTargetPageRenderSuccess = useCallback((pageNumber: number) => {
+    renderedPagesRef.current.add(pageNumber);
+
+    if (!resolvedPage || pageNumber !== resolvedPage) {
+      return;
+    }
+
+    setRenderedTargetPageKey(`${pageNumber}:${scrollRequestKey}`);
+  }, [resolvedPage, scrollRequestKey]);
 
   if (!documentId) {
     return (
@@ -122,21 +184,15 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
           >
             <Document
               key={documentFileUrl}
-              file={documentFileUrl}
+              file={documentFile}
               className="w-full"
               loading={(
                 <div className="flex min-h-[22rem] items-center justify-center px-4 text-sm text-slate-500 lg:min-h-[34rem]">
                   Đang tải PDF...
                 </div>
               )}
-              onLoadError={() => {
-                setPageCount(undefined);
-                setHasPreviewError(true);
-              }}
-              onLoadSuccess={({ numPages }) => {
-                setHasPreviewError(false);
-                setPageCount(numPages);
-              }}
+              onLoadError={handleLoadError}
+              onLoadSuccess={handleLoadSuccess}
               error={null}
             >
               <div data-testid="pdf-preview-pages" className="flex w-full flex-col items-center gap-3 p-3">
@@ -156,6 +212,9 @@ export function PdfPreview({ title, documentId, pdfPage, fallbackPage }: PdfPrev
                         renderAnnotationLayer={false}
                         renderTextLayer={false}
                         width={pageWidth}
+                        onRenderSuccess={() => {
+                          handleTargetPageRenderSuccess(pageNumber);
+                        }}
                         className="max-w-full shadow-sm"
                         data-testid="pdf-preview-page"
                       />

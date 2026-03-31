@@ -7,6 +7,22 @@ import type { Reference } from "@/types/chat-types";
 import { ReferencePanel } from "./reference-panel";
 
 const getReferenceMetadataMock = vi.fn();
+const pdfPreviewMock = vi.fn((_: unknown) => (
+  <div data-testid="pdf-preview">
+    <div data-testid="pdf-preview-page" data-page-number={1} />
+    <div data-testid="pdf-preview-page" data-page-number={2} />
+    <div data-testid="pdf-preview-page" data-page-number={3} />
+  </div>
+));
+
+vi.mock("./pdf-preview", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./pdf-preview")>();
+
+  return {
+    ...actual,
+    PdfPreview: (props: unknown) => pdfPreviewMock(props),
+  };
+});
 
 vi.mock("react-pdf", () => ({
   pdfjs: {
@@ -105,6 +121,14 @@ describe("ReferencePanel", () => {
   beforeEach(() => {
     getReferenceMetadataMock.mockReset();
     getReferenceMetadataMock.mockResolvedValue([]);
+    pdfPreviewMock.mockReset();
+    pdfPreviewMock.mockImplementation(() => (
+      <div data-testid="pdf-preview">
+        <div data-testid="pdf-preview-page" data-page-number={1} />
+        <div data-testid="pdf-preview-page" data-page-number={2} />
+        <div data-testid="pdf-preview-page" data-page-number={3} />
+      </div>
+    ));
   });
 
   afterEach(() => {
@@ -114,7 +138,7 @@ describe("ReferencePanel", () => {
   it("shows preview section with an open link beside the section title", async () => {
     vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://ai-documents-management.devt.vn/api/v1/documents/{documentId}/file");
 
-    render(<ReferencePanel reference={referenceWithPdf} onClose={vi.fn()} />);
+    render(<ReferencePanel reference={referenceWithPdf} scrollRequestKey={1} onClose={vi.fn()} />);
 
     expect(screen.getByText(/xem trong tài liệu/i)).toBeInTheDocument();
     expect(screen.getByText(/trang 12/i)).toBeInTheDocument();
@@ -136,7 +160,7 @@ describe("ReferencePanel", () => {
       },
     ]);
 
-    render(<ReferencePanel reference={referenceWithPdf} onClose={vi.fn()} />);
+    render(<ReferencePanel reference={referenceWithPdf} scrollRequestKey={1} onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(getReferenceMetadataMock).toHaveBeenCalledWith([123]);
@@ -175,13 +199,13 @@ describe("ReferencePanel", () => {
       },
     };
 
-    const { rerender } = render(<ReferencePanel reference={referenceWithPdf} onClose={vi.fn()} />);
+    const { rerender } = render(<ReferencePanel reference={referenceWithPdf} scrollRequestKey={1} onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(getReferenceMetadataMock).toHaveBeenNthCalledWith(1, [123]);
     });
 
-    rerender(<ReferencePanel reference={nextReference} onClose={vi.fn()} />);
+    rerender(<ReferencePanel reference={nextReference} scrollRequestKey={2} onClose={vi.fn()} />);
 
     await waitFor(() => {
       expect(getReferenceMetadataMock).toHaveBeenNthCalledWith(2, [456]);
@@ -189,6 +213,170 @@ describe("ReferencePanel", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Guideline 456")).toBeInTheDocument();
+    });
+  });
+
+  it("passes the scroll request key through to PdfPreview", async () => {
+    vi.stubEnv("VITE_DOCUMENT_FILE_URL_TEMPLATE", "https://docs.example.com/api/v1/documents/{documentId}/file");
+
+    render(
+      <ReferencePanel
+        reference={referenceWithPdf}
+        scrollRequestKey={7}
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(pdfPreviewMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentId: 55,
+          pdfPage: 12,
+          fallbackPage: 12,
+          scrollRequestKey: 7,
+        })
+      );
+    });
+  });
+
+  it("passes updated page props when switching to another chunk in the same pdf", async () => {
+    const nextReference: Reference = {
+      ...referenceWithPdf,
+      id: "citation-2-456",
+      chunkId: 456,
+      reference: {
+        ...referenceWithPdf.reference!,
+        chunkId: 456,
+        documentId: 55,
+        pdfPage: 18,
+        guidelineTitle: "Fallback 456",
+      },
+    };
+
+    getReferenceMetadataMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const { rerender } = render(
+      <ReferencePanel
+        reference={referenceWithPdf}
+        scrollRequestKey={1}
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(pdfPreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentId: 55,
+          pdfPage: 12,
+        })
+      );
+    });
+
+    rerender(
+      <ReferencePanel
+        reference={nextReference}
+        scrollRequestKey={2}
+        onClose={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(pdfPreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentId: 55,
+          pdfPage: 18,
+        })
+      );
+    });
+  });
+
+  it("keeps the current pdf viewer props while same-document metadata is still loading", async () => {
+    let resolveSecondMetadata:
+      | ((value: Array<{
+          chunkId: number;
+          documentId: number;
+          pdfPage: number;
+          startPage: number;
+          guidelineTitle: string;
+          headings: [];
+        }>) => void)
+      | undefined;
+
+    getReferenceMetadataMock
+      .mockResolvedValueOnce([
+        {
+          chunkId: 123,
+          documentId: 55,
+          pdfPage: 12,
+          startPage: 12,
+          guidelineTitle: "Guideline 123",
+          headings: [],
+        },
+      ])
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondMetadata = resolve;
+          })
+      );
+
+    const nextReference: Reference = {
+      ...referenceWithPdf,
+      id: "citation-2-456",
+      chunkId: 456,
+      reference: {
+        chunkId: 456,
+        guidelineTitle: "Fallback 456",
+        headings: [],
+      },
+    };
+
+    const { rerender } = render(
+      <ReferencePanel reference={referenceWithPdf} scrollRequestKey={1} onClose={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(pdfPreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentId: 55,
+          pdfPage: 12,
+        })
+      );
+    });
+
+    rerender(
+      <ReferencePanel reference={nextReference} scrollRequestKey={2} onClose={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(pdfPreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentId: 55,
+          pdfPage: 12,
+        })
+      );
+    });
+
+    resolveSecondMetadata?.([
+      {
+        chunkId: 456,
+        documentId: 55,
+        pdfPage: 18,
+        startPage: 18,
+        guidelineTitle: "Guideline 456",
+        headings: [],
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(pdfPreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          documentId: 55,
+          pdfPage: 18,
+        })
+      );
     });
   });
 });
