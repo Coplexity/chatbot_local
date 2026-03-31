@@ -13,8 +13,8 @@ import { citationToReference, parseTextAndCitations } from "@/utils/citation-par
 
 const EMPTY_STATE_HEADLINES = ["Xin chào! Tôi có thể giúp gì cho bạn?"];
 
-const AUTO_SCROLL_THRESHOLD_PX = 48;
-const STREAM_LOCK_THRESHOLD_PX = 1;
+const AUTO_SCROLL_THRESHOLD_PX = 80;
+const STREAM_LOCK_THRESHOLD_PX = 24;
 
 type MessagesQueryData = {
   conversation: unknown;
