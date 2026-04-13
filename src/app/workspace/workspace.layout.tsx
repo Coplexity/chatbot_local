@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import type { JSX } from "react";
 import { TitleSection } from "@/components/layout/title-section";
+import { MaintenanceBanner } from "@/components/layout/maintenance-banner";
 import Navigation from "@/components/layout/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/auth.service";
@@ -68,6 +69,7 @@ export function WorkspaceLayout(): JSX.Element | null {
       </div>
 
       <div className="flex-1 flex flex-col w-full h-screen overflow-hidden">
+        <MaintenanceBanner />
         <TitleSection onMenuClick={() => setIsMobileMenuOpen(true)} />
 
         <div className="bg-bg-app flex-1 overflow-hidden min-h-0 px-3 pb-3 lg:px-6 lg:pb-6">
