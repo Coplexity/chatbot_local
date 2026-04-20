@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@plugin '@tailwindcss/typography';
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+  }
+
+  h1 {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+  }
+
+  h2 {
+    font-size: var(--text-2xl);
+    font-weight: 700;
+  }
+
+  h3 {
+    font-size: var(--text-xl);
+    font-weight: 700;
+  }
+
+  a {
+    color: var(--color-blue-600);
+    text-decoration-line: underline;
+  }
+}
+
+@theme {
+  --default-font-family: "Inter", sans-serif;
+
+  --color-design-primary: #ffffff;
+  --color-design-secondary: #3b82f6;
+  --color-dark-blue: #02093f;
+  --color-primary-blue: #027bff;
+  --color-design-border: #d9dfeb;
+  --color-design-lightblue: #f2f8ff;
+
+  /* Medical Chatbot Theme Colors */
+  --color-bg-app: #f7f8fc;
+  --color-bg-main: #ffffff;
+  --color-bg-aside: #eff3fb;
+  --color-bg-answer: #eef3fb;
+  --color-cite: #4c82e8;
+  --color-btn-bg: #4c82e8;
+  --color-btn-text: #ffffff;
+  --color-btn-hover-bg: #3f73d4;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@custom-variant dark (&:is(.dark *));
