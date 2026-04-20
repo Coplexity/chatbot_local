@@ -1,0 +1,29 @@
+app:
+  name: FD Auth
+  port: 3008
+
+jwt:
+  # Token expiration
+  expiresIn: 2880m
+
+authCookie:
+  enabled: true
+  name: fdac
+  maxAge: 86400000 # 1 day in milliseconds
+
+cors:
+  allowCredentials: true
+
+otp:
+  length: 6
+  expiry: 900000 # 15 minutes in milliseconds
+
+token:
+  passwordResetExpiry: 900000 # 15 minutes in milliseconds
+  emailVerificationExpiry: 86400000 # 1 day in milliseconds
+
+magicLink:
+  expiry: 900000 # 15 minutes in milliseconds
+
+crypto:
+  saltRounds: 8
