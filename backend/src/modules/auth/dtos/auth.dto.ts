@@ -40,6 +40,11 @@ export class SignInSuccessResponseDto extends AuthResponseDto {}
  */
 export class SignUpSuccessResponseDto extends AuthResponseDto {}
 
+export class LogoutSuccessResponseDto {
+  @ApiProperty({ example: "Logged out successfully" })
+  message: string;
+}
+
 export class SignUpDto {
   @ApiProperty({ example: "T11" })
   @IsString()
@@ -59,9 +64,4 @@ export class SignUpDto {
   @ApiProperty({ example: "password123" })
   @IsString()
   password: string;
-}
-
-export class GoogleOAuthUrlSuccessResponseDto {
-  @ApiProperty()
-  url: string;
 }

@@ -20,7 +20,7 @@ interface AuthContextType {
   sessionExpired: boolean;
   login: (credentials: SignInRequest) => Promise<void>;
   register: (data: SignUpRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   continueAsGuest: () => void;
 }
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Fetch user on mount if token exists
   useEffect(() => {
     setUnauthorizedHandler(async () => {
-      authService.logout();
+      await authService.logout();
       setUser(null);
       setIsGuest(false);
       setSessionExpired(true);
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userData);
         } catch (error) {
           console.error("Failed to fetch user:", error);
-          authService.logout();
+          await authService.logout();
         }
       }
       setIsLoading(false);
@@ -124,8 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // migrateGuestData().catch(console.error);
   };
 
-  const logout = () => {
-    authService.logout();
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
     setIsGuest(false);
     setSessionExpired(false);

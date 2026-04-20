@@ -3,7 +3,6 @@ import { Request, Response } from "express";
 import { JwtAuthService } from "../services/jwt-auth.service";
 import { BaseOAuthService, OAuthMetadata } from "../services/base-oauth.service";
 import { SignInSuccessResponseDto } from "../dtos/auth.dto";
-import { UserEntity } from "../entities/user.entity";
 import { OAuthAuthDto } from "../dtos/oauth-auth.dto";
 
 /**
@@ -89,19 +88,6 @@ export abstract class BaseOAuthController {
       accessToken,
       user,
       metadata,
-    };
-  }
-
-  /**
-   * Generate authentication response with token and user data
-   * Common helper for all authentication endpoints
-   */
-  protected generateAuthResponse(user: UserEntity): SignInSuccessResponseDto {
-    const { accessToken } = this.jwtAuthService.generateToken(user);
-
-    return {
-      accessToken,
-      user,
     };
   }
 }

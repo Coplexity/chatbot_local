@@ -200,25 +200,6 @@ export abstract class BaseOAuthService {
   }
 
   /**
-   * Decode state parameter to extract metadata
-   */
-  protected decodeState(state: string): OAuthMetadata {
-    if (!state) {
-      return {};
-    }
-
-    try {
-      const metadata = JSON.parse(Buffer.from(state, "base64").toString("utf-8"));
-      this.logger.debug(`Decoded metadata from state: ${JSON.stringify(metadata)}`);
-      return metadata;
-    }
-    catch (error) {
-      this.logger.warn(`Failed to decode state parameter: ${error instanceof Error ? error.message : error}`);
-      return {};
-    }
-  }
-
-  /**
    * Validate OAuth configuration
    */
   protected validateConfig(configKeys: string[]): void {

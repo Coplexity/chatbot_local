@@ -73,8 +73,8 @@ export default function Navigation({
     onClose?.();
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate({ to: "/login" });
     onClose?.();
   };

@@ -6,6 +6,10 @@ import type {
   User,
 } from "@/types/api-types";
 
+interface LogoutResponse {
+  message: string;
+}
+
 export const authService = {
   /**
    * Sign in with username and password
@@ -50,10 +54,11 @@ export const authService = {
   },
 
   /**
-   * Logout (clear local token)
+   * Logout on the server and clear the local token fallback
    */
-  logout(): void {
+  async logout(): Promise<void> {
     localStorage.removeItem("accessToken");
+    await Promise.allSettled([api.post<LogoutResponse>("/auth/logout")]);
   },
 
   /**

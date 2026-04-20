@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { REQUEST } from "@nestjs/core";
-import { Request } from "express";
+import { Request, Response } from "express";
 
 export interface CookieConfig {
   name: string;
@@ -10,6 +10,7 @@ export interface CookieConfig {
     secure: boolean;
     sameSite: "none" | "lax" | "strict";
     maxAge: number;
+    path: string;
     domain?: string;
   };
 }
@@ -41,6 +42,19 @@ export class CookieService {
     return this.AUTH_COOKIE_ENABLED;
   }
 
+  private buildCookieOptions(overrides?: { domain?: string; sameSite?: "none" | "lax" | "strict" }): CookieConfig["options"] {
+    const secure = this.request.protocol === "https" || this.request.get("x-forwarded-proto") === "https";
+
+    return {
+      httpOnly: true,
+      secure,
+      sameSite: overrides?.sameSite ?? this.AUTH_COOKIE_SAME_SITE,
+      maxAge: this.AUTH_COOKIE_MAX_AGE,
+      path: "/",
+      ...(overrides?.domain ? { domain: overrides.domain } : {}),
+    };
+  }
+
   /**
    * Get cookie configuration based on environment
    */
@@ -50,34 +64,31 @@ export class CookieService {
       return null;
     }
     const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
-    const secure = this.request.protocol === "https" || this.request.get("x-forwarded-proto") === "https";
     const domain = this.AUTH_COOKIE_DOMAINS.find(domain => hostname.endsWith(domain));
     if (domain) {
       return {
         name: this.AUTH_COOKIE_NAME,
-        options: {
-          httpOnly: true,
-          secure,
-          sameSite: this.AUTH_COOKIE_SAME_SITE,
-          maxAge: this.AUTH_COOKIE_MAX_AGE,
-          domain,
-        },
+        options: this.buildCookieOptions({ domain }),
       };
     }
 
     if (isLocalhost) {
       return {
         name: this.AUTH_COOKIE_NAME,
-        options: {
-          httpOnly: true,
-          secure,
-          sameSite: "lax",
-          maxAge: this.AUTH_COOKIE_MAX_AGE,
-        },
+        options: this.buildCookieOptions({ sameSite: "lax" }),
       };
     }
 
     return null;
+  }
+
+  clearAuthCookie(response: Response): void {
+    const cookieConfig = this.getCookieConfig();
+
+    response.clearCookie(
+      this.AUTH_COOKIE_NAME,
+      cookieConfig?.options ?? this.buildCookieOptions({ sameSite: "lax" }),
+    );
   }
 
   /**
