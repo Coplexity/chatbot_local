@@ -1,6 +1,6 @@
 app:
-  name: FD Auth
-  port: 3008
+  name: Medical Chatbot
+  port: 3000
 
 jwt:
   # Token expiration

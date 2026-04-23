@@ -1,0 +1,85 @@
+name: ai4life-chatbot
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai4life-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medical-chatbot}
+      POSTGRES_USER: ${POSTGRES_USER:-ai4life}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Password123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ai4life-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: ai4life-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend.config.yml:/app/config/config.yml:ro
+
+  chat-api:
+    build:
+      context: ../chat-api
+      dockerfile: Dockerfile
+    container_name: ai4life-chat-api
+    restart: unless-stopped
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4.1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-large}
+      DB_HOST: ${CHAT_API_DB_HOST}
+      DB_PORT: ${CHAT_API_DB_PORT}
+      DB_NAME: ${CHAT_API_DB_NAME}
+      DB_USER: ${CHAT_API_DB_USER}
+      DB_PASS: ${CHAT_API_DB_PASS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://backend:3000}
+        VITE_DOCUMENT_FILE_URL_TEMPLATE: ${VITE_DOCUMENT_FILE_URL_TEMPLATE} # example: https://your-domain/api/v1/documents/{documentId}/file
+        VITE_MAINTENANCE_MESSAGE: ${VITE_MAINTENANCE_MESSAGE}
+    container_name: ai4life-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  postgres_data:
+  redis_data:
