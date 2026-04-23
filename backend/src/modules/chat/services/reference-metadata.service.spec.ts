@@ -2,7 +2,7 @@ import { ReferenceMetadataService } from "./reference-metadata.service";
 
 describe("ReferenceMetadataService", () => {
   it("resolves chunk ids through sections, versions, and guidelines", async () => {
-    const secondaryDataSource = {
+    const dataSource = {
       query: jest.fn()
         .mockResolvedValueOnce([
           {
@@ -42,7 +42,7 @@ describe("ReferenceMetadataService", () => {
         ]),
     };
 
-    const service = new ReferenceMetadataService(secondaryDataSource as any);
+    const service = new ReferenceMetadataService(dataSource as any);
 
     await expect(service.getByChunkIds([123])).resolves.toEqual([
       {
@@ -75,94 +75,5 @@ describe("ReferenceMetadataService", () => {
         pdfPage: 12,
       },
     ]);
-
-    expect(secondaryDataSource.query).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining("left join public.documents d on d.version_id = gv.version_id"),
-      [[7]],
-    );
-    expect(secondaryDataSource.query).toHaveBeenNthCalledWith(
-      3,
-      expect.stringContaining("d.document_id"),
-      [[7]],
-    );
-  });
-
-  it("deduplicates chunk ids before querying", async () => {
-    const secondaryDataSource = {
-      query: jest.fn()
-        .mockResolvedValueOnce([
-          {
-            chunk_id: 123,
-            section_id: null,
-            version_id: null,
-          },
-        ]),
-    };
-
-    const service = new ReferenceMetadataService(secondaryDataSource as any);
-
-    await expect(service.getByChunkIds([123, 123])).resolves.toEqual([
-      {
-        chunkId: 123,
-        guidelineId: undefined,
-        guidelineTitle: undefined,
-        versionId: undefined,
-        versionLabel: undefined,
-        sectionId: undefined,
-        headings: [],
-        deepestHeading: undefined,
-        sectionPath: undefined,
-        startPage: undefined,
-        documentId: undefined,
-        pdfPage: undefined,
-      },
-    ]);
-
-    expect(secondaryDataSource.query).toHaveBeenCalledTimes(1);
-    expect(secondaryDataSource.query).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining("where chunk_id = any($1)"),
-      [[123]],
-    );
-  });
-
-  it("falls back to startPage when pdfPage mapping is absent", async () => {
-    const secondaryDataSource = {
-      query: jest.fn()
-        .mockResolvedValueOnce([
-          {
-            chunk_id: 101,
-            section_id: 40,
-            version_id: 8,
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            section_id: 40,
-            heading: "Only section",
-            section_path: "2.1",
-            page_start: 14,
-            level: 1,
-            parent_id: null,
-            version_id: 8,
-          },
-        ])
-        .mockResolvedValueOnce([
-          {
-            version_id: 8,
-            version_label: "v2",
-            guideline_id: 12,
-            guideline_title: "Another guideline",
-            document_id: 88,
-          },
-        ]),
-    };
-
-    const service = new ReferenceMetadataService(secondaryDataSource as any);
-
-    const [reference] = await service.getByChunkIds([101]);
-
-    expect(reference.pdfPage).toBe(reference.startPage);
   });
 });

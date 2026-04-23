@@ -2,7 +2,7 @@ import { AccountController } from "./account.controller";
 
 describe("AccountController", () => {
   it("returns an access token and user on sign in", async () => {
-    const user = { id: "user-1", username: "demo" };
+    const user = { id: "1", email: "demo@example.com", role: "viewer", isActive: true };
     const controller = new AccountController(
       {
         signIn: jest.fn().mockResolvedValue(user),
@@ -14,7 +14,7 @@ describe("AccountController", () => {
       { clearAuthCookie: jest.fn() } as any,
     );
 
-    await expect(controller.signIn({ username: "demo", password: "secret" })).resolves.toEqual({
+    await expect(controller.signIn({ email: "demo@example.com", password: "secret" })).resolves.toEqual({
       accessToken: "jwt-token",
       user,
     });

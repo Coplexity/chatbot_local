@@ -8,10 +8,9 @@ import { CookieService } from "../services/cookie.service";
 import { JwtAuthService } from "../services/jwt-auth.service";
 import { GetUserId } from "../decorators/get-user-id.decorator";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
-import { ChangeUsernameDto } from "../dtos/username.dto";
 import { LogoutSuccessResponseDto, SignInDto, SignInSuccessResponseDto, SignUpDto, SignUpSuccessResponseDto } from "../dtos/auth.dto";
 import { AuthCookieInterceptor } from "../interceptors/auth-cookie.interceptor";
-import { ChangePasswordDto, GetPasswordResponseDto, RequestPasswordResetDto, ResetPasswordWithCodeDto } from "../dtos/password.dto";
+import { ChangePasswordDto, GetPasswordResponseDto } from "../dtos/password.dto";
 
 @ApiTags("Account")
 @Controller("auth")
@@ -84,17 +83,8 @@ export class AccountController {
   @ApiHttpException(() => [BadRequestException, UnauthorizedException])
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
-  async updateUser(@GetUserId() userId: string, @Body() dto: Pick<UserDto, "username" | "name" | "email" | "role">) {
+  async updateUser(@GetUserId() userId: string, @Body() dto: Pick<UserDto, "fullName" | "email" | "role" | "chatRole" | "isActive">) {
     return this.accountService.updateUser(userId, dto);
-  }
-
-  @Patch("change-username")
-  @ApiBearerAuth()
-  @ApiHttpException(() => [BadRequestException, UnauthorizedException])
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(200)
-  async changeUsername(@GetUserId() userId: string, @Body() dto: ChangeUsernameDto) {
-    return this.accountService.changeUsername(userId, dto.username);
   }
 
   // ==================== Password Management Endpoints ====================
@@ -122,17 +112,4 @@ export class AccountController {
     }
   }
 
-  @Post("request-password-reset")
-  @ApiHttpException(() => [BadRequestException])
-  @HttpCode(200)
-  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
-    return this.accountService.requestPasswordReset(dto);
-  }
-
-  @Post("reset-password-with-code")
-  @ApiHttpException(() => [BadRequestException])
-  @HttpCode(200)
-  async resetPasswordWithCode(@Body() dto: ResetPasswordWithCodeDto) {
-    return this.accountService.resetPasswordWithCode(dto);
-  }
 }

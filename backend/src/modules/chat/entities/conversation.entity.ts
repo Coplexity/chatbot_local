@@ -1,8 +1,8 @@
-import { Column, Entity, Index, ManyToOne, OneToMany, JoinColumn } from "typeorm";
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from "typeorm";
 import { SoftDeleteEntity } from "../../../common/entities/soft-delete-entity";
 import { UserEntity } from "../../auth/entities/user.entity";
-import { MessageEntity } from "./message.entity";
 import { ConversationSummaryEntity } from "./conversation-summary.entity";
+import { MessageEntity } from "./message.entity";
 
 @Entity("conversations")
 @Index(["userId", "createdAt"])
@@ -11,11 +11,11 @@ export class ConversationEntity extends SoftDeleteEntity {
   @Column({ type: "varchar", length: 255, nullable: true })
   title: string;
 
-  @Column({ type: "uuid" })
+  @Column({ name: "user_id", type: "uuid" })
   userId: string;
 
   @ManyToOne(() => UserEntity, { nullable: false })
-  @JoinColumn()
+  @JoinColumn({ name: "user_id", referencedColumnName: "id" })
   user: UserEntity;
 
   @OneToMany(() => MessageEntity, (message: MessageEntity) => message.conversation, {

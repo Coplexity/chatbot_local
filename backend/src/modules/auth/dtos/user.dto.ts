@@ -4,20 +4,17 @@ import { UserRole } from "../entities/user.entity";
 
 export class UserDto extends BaseEntityDto {
   @ApiProperty({ nullable: true })
-  name: string;
-
-  @ApiProperty({ nullable: true, required: false })
-  username: string;
+  fullName: string;
 
   @ApiProperty()
   email: string;
 
+  @ApiProperty({ enum: UserRole })
+  role: UserRole;
+
   @ApiProperty({ nullable: true, required: false })
-  image: string;
+  chatRole?: string;
 
-  @ApiProperty({ enum: UserRole, required: false })
-  role?: UserRole;
-
-  @ApiProperty({ enum: UserRole, required: false, isArray: true })
-  roles?: UserRole[];
+  @ApiProperty()
+  isActive: boolean;
 }

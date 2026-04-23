@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import { AccountProvider } from "../entities/account.entity";
 import { UserEntity } from "../entities/user.entity";
+import { UserRepository } from "../repositories/user.repository";
 import { BaseOAuthService, OAuthMetadata, OAuthTokenResponse, OAuthUserInfo } from "./base-oauth.service";
 
 export interface GitHubUserData {
@@ -14,10 +15,6 @@ export interface GitHubUserData {
   accessToken: string;
 }
 
-/**
- * GitHub OAuth Service
- * Handles GitHub authentication using OAuth 2.0
- */
 @Injectable()
 export class GitHubOAuthService extends BaseOAuthService {
   protected readonly provider = AccountProvider.GITHUB;
@@ -29,8 +26,9 @@ export class GitHubOAuthService extends BaseOAuthService {
   constructor(
     configService: ConfigService,
     dataSource: DataSource,
+    userRepository: UserRepository,
   ) {
-    super(configService, dataSource);
+    super(configService, dataSource, userRepository);
 
     this.clientId = this.configService.get<string>("github.clientID") || "";
     this.clientSecret = this.configService.get<string>("github.clientSecret") || "";
@@ -38,27 +36,21 @@ export class GitHubOAuthService extends BaseOAuthService {
     this.scope = this.configService.get<string>("github.scope") || "user:email";
 
     if (!this.clientId || !this.clientSecret) {
-      this.logger.warn(
-        "GitHub OAuth configuration is missing. GitHub authentication will be unavailable.",
-      );
+      this.logger.warn("GitHub OAuth configuration is missing. GitHub authentication will be unavailable.");
     }
   }
 
-  /**
-   * Exchange authorization code for tokens (implements BaseOAuthService)
-   */
   async getTokens(code: string): Promise<OAuthTokenResponse> {
     if (!this.clientId || !this.clientSecret) {
       throw new UnauthorizedException("GitHub OAuth is not configured");
     }
 
     try {
-      // GitHub token exchange endpoint
       const response = await fetch("https://github.com/login/oauth/access_token", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           client_id: this.clientId,
@@ -71,7 +63,6 @@ export class GitHubOAuthService extends BaseOAuthService {
       const data = await response.json() as any;
 
       if (!response.ok || data.error) {
-        this.logger.error(`GitHub token exchange failed: ${data.error_description || data.error}`);
         throw new UnauthorizedException(data.error_description || "Failed to exchange authorization code");
       }
 
@@ -86,26 +77,19 @@ export class GitHubOAuthService extends BaseOAuthService {
       };
     }
     catch (error) {
-      this.logger.error("GitHub token exchange failed", error instanceof Error ? error.stack : error);
-
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-
       throw new UnauthorizedException("Failed to exchange authorization code");
     }
   }
 
-  /**
-   * Get GitHub user info using access token (implements BaseOAuthService)
-   */
   async getUserInfo(tokenData: OAuthTokenResponse): Promise<OAuthUserInfo> {
     if (!tokenData.accessToken) {
       throw new UnauthorizedException("Access token is required for GitHub OAuth");
     }
 
     try {
-      // Fetch user profile
       const userResponse = await fetch("https://api.github.com/user", {
         headers: {
           Authorization: `Bearer ${tokenData.accessToken}`,
@@ -118,8 +102,6 @@ export class GitHubOAuthService extends BaseOAuthService {
       }
 
       const userData = await userResponse.json() as any;
-
-      // Fetch user emails (if not public)
       let email = userData.email;
 
       if (!email) {
@@ -132,7 +114,6 @@ export class GitHubOAuthService extends BaseOAuthService {
 
         if (emailResponse.ok) {
           const emails = await emailResponse.json() as any[];
-          // Find primary email or first verified email
           const primaryEmail = emails.find((e: any) => e.primary && e.verified);
           const verifiedEmail = emails.find((e: any) => e.verified);
           email = primaryEmail?.email || verifiedEmail?.email || emails[0]?.email;
@@ -152,19 +133,13 @@ export class GitHubOAuthService extends BaseOAuthService {
       };
     }
     catch (error) {
-      this.logger.error("GitHub user info fetch failed", error instanceof Error ? error.stack : error);
-
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-
       throw new UnauthorizedException("Failed to fetch GitHub user information");
     }
   }
 
-  /**
-   * Authenticate user with GitHub (wrapper using base class method)
-   */
   async authenticateWithGitHub(
     code: string,
     state?: string,
@@ -172,27 +147,12 @@ export class GitHubOAuthService extends BaseOAuthService {
     return this.authenticateWithOAuth(code, state);
   }
 
-  /**
-   * Validate GitHub user data (legacy compatibility method)
-   */
   async validateGitHubUser(githubData: GitHubUserData): Promise<UserEntity> {
     return this.dataSource.transaction(async (manager) => {
-      let user = await manager.findOne(UserEntity, {
-        where: { email: githubData.email },
-      });
+      const documentUser = await this.findDocumentUserOrThrow(manager, githubData.email);
+      const systemUser = await this.ensureSystemUserFromPython(manager, documentUser);
 
-      if (!user) {
-        user = manager.create(UserEntity, {
-          email: githubData.email,
-          name: githubData.name,
-          username: githubData.username,
-          image: githubData.avatarUrl,
-        });
-        user = await manager.save(user);
-        this.logger.log(`New user created via GitHub OAuth: ${githubData.email}`);
-      }
-
-      await this.upsertOAuthAccount(manager, user, {
+      await this.upsertOAuthAccount(manager, systemUser, {
         providerId: githubData.githubId,
         email: githubData.email,
         name: githubData.name,
@@ -202,32 +162,23 @@ export class GitHubOAuthService extends BaseOAuthService {
         accessToken: githubData.accessToken,
       });
 
-      return user;
+      return systemUser;
     });
   }
 
-  /**
-   * Get authorization URL for GitHub OAuth (implements BaseOAuthService)
-   */
   getAuthorizationUrl(metadata?: OAuthMetadata): string {
     if (!this.clientId) {
       throw new BadRequestException("GitHub OAuth is not configured");
     }
 
-    const uri = this.callbackURL;
     const state = this.encodeState(metadata || {});
-
     const params = new URLSearchParams({
       client_id: this.clientId,
-      redirect_uri: uri,
+      redirect_uri: this.callbackURL,
       scope: this.scope,
       ...(state && { state }),
     });
 
-    const url = `https://github.com/login/oauth/authorize?${params.toString()}`;
-
-    this.logger.debug(`Generated GitHub auth URL with redirect_uri: ${uri}`);
-
-    return url;
+    return `https://github.com/login/oauth/authorize?${params.toString()}`;
   }
 }

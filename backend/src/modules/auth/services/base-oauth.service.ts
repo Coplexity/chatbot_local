@@ -1,9 +1,11 @@
 import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { DataSource } from "typeorm";
 import { Buffer } from "node:buffer";
-import { UserEntity } from "../entities/user.entity";
+import { DataSource } from "typeorm";
 import { AccountEntity, AccountProvider } from "../entities/account.entity";
+import { DocumentUserEntity } from "../entities/document-user.entity";
+import { UserEntity, UserRole } from "../entities/user.entity";
+import { UserRepository } from "../repositories/user.repository";
 
 export interface OAuthTokenResponse {
   accessToken: string;
@@ -20,7 +22,7 @@ export interface OAuthUserInfo {
   name: string;
   username?: string;
   picture?: string;
-  [key: string]: any; // Allow additional provider-specific fields
+  [key: string]: any;
 }
 
 export interface OAuthMetadata {
@@ -29,14 +31,9 @@ export interface OAuthMetadata {
   userAgent?: string;
   ipAddress?: string;
   timestamp?: string;
-  [key: string]: any; // Allow additional metadata fields
+  [key: string]: any;
 }
 
-/**
- * Base OAuth Service
- * Abstract class providing common OAuth functionality
- * All OAuth providers (Google, GitHub, etc.) should extend this class
- */
 @Injectable()
 export abstract class BaseOAuthService {
   protected readonly logger: Logger;
@@ -45,92 +42,93 @@ export abstract class BaseOAuthService {
   constructor(
     protected configService: ConfigService,
     protected dataSource: DataSource,
+    protected userRepository: UserRepository,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
 
-  /**
-   * Abstract methods to be implemented by each OAuth provider
-   */
-
-  /**
-   * Exchange authorization code for access tokens
-   */
   abstract getTokens(code: string, redirectUri?: string): Promise<OAuthTokenResponse>;
-
-  /**
-   * Verify and extract user info from token/code
-   */
   abstract getUserInfo(tokenData: OAuthTokenResponse): Promise<OAuthUserInfo>;
-
-  /**
-   * Generate OAuth authorization URL
-   */
   abstract getAuthorizationUrl(metadata?: OAuthMetadata): string;
 
-  /**
-   * Main authentication flow - common logic for all providers
-   */
+  protected mapPythonRoleToSystemRole(role: string): UserRole {
+    if (role === UserRole.ADMIN || role === UserRole.EDITOR || role === UserRole.VIEWER) {
+      return role;
+    }
+    return UserRole.VIEWER;
+  }
+
+  protected async findDocumentUserOrThrow(
+    manager: any,
+    email: string,
+  ): Promise<DocumentUserEntity> {
+    const documentUser = await manager.findOne(DocumentUserEntity, {
+      where: { email },
+    });
+
+    if (!documentUser) {
+      throw new UnauthorizedException("Python user not found");
+    }
+
+    return documentUser;
+  }
+
+  protected async ensureSystemUserFromPython(
+    manager: any,
+    documentUser: DocumentUserEntity,
+  ): Promise<UserEntity> {
+    let systemUser = await manager.findOne(UserEntity, {
+      where: { documentUserId: documentUser.id },
+    });
+
+    if (!systemUser) {
+      systemUser = manager.create(UserEntity, {
+        documentUserId: documentUser.id,
+        email: documentUser.email,
+        fullName: documentUser.fullName,
+        role: this.mapPythonRoleToSystemRole(documentUser.role),
+        chatRole: documentUser.chatRole,
+        isActive: documentUser.isActive,
+      });
+      return manager.save(systemUser);
+    }
+
+    systemUser.email = documentUser.email;
+    systemUser.fullName = documentUser.fullName;
+    systemUser.role = this.mapPythonRoleToSystemRole(documentUser.role);
+    systemUser.chatRole = documentUser.chatRole;
+    systemUser.isActive = documentUser.isActive;
+
+    return manager.save(systemUser);
+  }
+
   async authenticateWithOAuth(
     code: string,
     state?: string,
   ): Promise<{ user: UserEntity; metadata: OAuthMetadata }> {
-    // Exchange code for tokens
     const tokenData = await this.getTokens(code);
-
-    // Get user info from provider
     const oauthUser = await this.getUserInfo(tokenData);
 
-    // Decode metadata from state parameter
     let metadata: OAuthMetadata = {};
     if (state) {
       try {
         metadata = JSON.parse(Buffer.from(state, "base64").toString("utf-8"));
-        this.logger.debug(`Decoded metadata from state: ${JSON.stringify(metadata)}`);
       }
-      catch (error) {
-        this.logger.warn(`Failed to decode state parameter: ${error instanceof Error ? error.message : error}`);
+      catch {
+        metadata = {};
       }
     }
 
-    // Find or create user in database
     const user = await this.dataSource.transaction(async (manager) => {
-      let user = await manager.findOne(UserEntity, {
-        where: { email: oauthUser.email },
-      });
-
-      if (!user) {
-        user = await this.createUserFromOAuth(manager, oauthUser);
-        this.logger.log(`New user created via ${this.provider} OAuth: ${oauthUser.email}`);
-      }
-
-      await this.upsertOAuthAccount(manager, user, oauthUser, tokenData);
-
-      return user;
+      const documentUser = await this.findDocumentUserOrThrow(manager, oauthUser.email);
+      const systemUser = await this.ensureSystemUserFromPython(manager, documentUser);
+      await this.upsertOAuthAccount(manager, systemUser, oauthUser, tokenData);
+      return systemUser;
     });
 
     return { user, metadata };
   }
 
-  /**
-   * Create new user from OAuth profile
-   */
-  protected async createUserFromOAuth(
-    manager: any,
-    oauthUser: OAuthUserInfo,
-  ): Promise<UserEntity> {
-    const user = manager.create(UserEntity, {
-      email: oauthUser.email,
-      name: oauthUser.name,
-      image: oauthUser.picture,
-      username: oauthUser.username,
-    });
-    return manager.save(user);
-  }
-
-  /**
-   * Create or update OAuth account link
-   */
   protected async upsertOAuthAccount(
     manager: any,
     user: UserEntity,
@@ -147,6 +145,7 @@ export abstract class BaseOAuthService {
     if (!account) {
       account = manager.create(AccountEntity, {
         user,
+        userId: user.id,
         provider: this.provider,
         providerAccountId: oauthUser.providerId,
         accessToken: tokenData.accessToken,
@@ -158,7 +157,8 @@ export abstract class BaseOAuthService {
       });
     }
     else {
-      // Update existing account
+      account.user = user;
+      account.userId = user.id;
       account.accessToken = tokenData.accessToken;
       if (tokenData.refreshToken) {
         account.refreshToken = tokenData.refreshToken;
@@ -180,36 +180,22 @@ export abstract class BaseOAuthService {
     return manager.save(account);
   }
 
-  /**
-   * Encode metadata into base64 state parameter
-   */
   protected encodeState(metadata: OAuthMetadata): string | undefined {
     if (!metadata || Object.keys(metadata).length === 0) {
       return undefined;
     }
 
     try {
-      const state = Buffer.from(JSON.stringify(metadata)).toString("base64");
-      this.logger.debug(`Encoded metadata into state: ${JSON.stringify(metadata)}`);
-      return state;
+      return Buffer.from(JSON.stringify(metadata)).toString("base64");
     }
-    catch (error) {
-      this.logger.warn(`Failed to encode metadata: ${error instanceof Error ? error.message : error}`);
+    catch {
       return undefined;
     }
   }
 
-  /**
-   * Validate OAuth configuration
-   */
   protected validateConfig(configKeys: string[]): void {
     const missingKeys = configKeys.filter(key => !this.configService.get<string>(key));
-
     if (missingKeys.length > 0) {
-      this.logger.warn(
-        `${this.provider} OAuth configuration is missing keys: ${missingKeys.join(", ")}. `
-        + `${this.provider} authentication will be unavailable.`,
-      );
       throw new UnauthorizedException(`${this.provider} OAuth is not configured`);
     }
   }

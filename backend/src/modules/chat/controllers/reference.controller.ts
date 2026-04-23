@@ -1,7 +1,5 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
-
-import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { ReferenceMetadataDto } from "../dtos/reference-metadata.dto";
 import { ReferenceMetadataService } from "../services/reference-metadata.service";
 

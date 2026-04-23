@@ -1,7 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { DataSource } from "typeorm";
-
-import { RAG_DATA_SOURCE } from "../rag-data-source.module";
 import { ReferenceMetadataDto } from "../dtos/reference-metadata.dto";
 
 interface ChunkRow {
@@ -30,9 +28,7 @@ interface VersionRow {
 
 @Injectable()
 export class ReferenceMetadataService {
-  constructor(
-    @Inject(RAG_DATA_SOURCE) private readonly ragDataSource: DataSource,
-  ) {}
+  constructor(private readonly dataSource: DataSource) {}
 
   async getByChunkIds(chunkIds: number[]): Promise<ReferenceMetadataDto[]> {
     const uniqueChunkIds = [...new Set(chunkIds)];
@@ -46,7 +42,7 @@ export class ReferenceMetadataService {
   }
 
   private async resolveMissingChunkIds(chunkIds: number[]): Promise<ReferenceMetadataDto[]> {
-    const chunkRows = await this.ragDataSource.query(
+    const chunkRows = await this.dataSource.query(
       `
         select chunk_id, section_id, version_id
         from public.chunks
@@ -62,7 +58,7 @@ export class ReferenceMetadataService {
     const sectionIds = [...new Set(chunkRows.flatMap(row => row.section_id ? [row.section_id] : []))];
     const sectionRows = sectionIds.length === 0
       ? []
-      : await this.ragDataSource.query(
+      : await this.dataSource.query(
           `
             with recursive section_tree as (
               select section_id, heading, section_path, page_start, level, parent_id, version_id
@@ -82,7 +78,7 @@ export class ReferenceMetadataService {
     const versionIds = [...new Set(chunkRows.flatMap(row => row.version_id ? [row.version_id] : []))];
     const versionRows = versionIds.length === 0
       ? []
-      : await this.ragDataSource.query(
+      : await this.dataSource.query(
           `
             select gv.version_id, gv.version_label, gv.guideline_id, g.title as guideline_title, d.document_id as document_id
             from public.guideline_versions gv

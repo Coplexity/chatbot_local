@@ -24,7 +24,6 @@ export class JwtAuthService {
 
     const payload: Omit<JwtPayloadDto, "exp"> = {
       sub: user.id,
-      roles: user.roles,
       role: user.role,
       iat: currentTimestamp,
     };

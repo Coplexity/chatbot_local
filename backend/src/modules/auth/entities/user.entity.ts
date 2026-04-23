@@ -1,49 +1,38 @@
-import { Column, Entity, Index } from "typeorm";
+import { Column, Entity, Index, JoinColumn, OneToOne } from "typeorm";
 import { BaseEntity } from "../../../common/entities/base-entity";
+import { DocumentUserEntity } from "./document-user.entity";
 
 export enum UserRole {
   ADMIN = "admin",
-  USER = "user",
-  NONE = "",
-  NHAN_VIEN_Y_TE = "nhan_vien_y_te",
-  BAC_SI_TRAM_Y_TE = "bac_si_tram_y_te",
-  BAC_SI_BENH_VIEN_CHUYEN_SAU = "bac_si_benh_vien_chuyen_sau",
+  EDITOR = "editor",
+  VIEWER = "viewer",
 }
 
-@Entity()
+@Entity("chat_users")
 @Index(["email"], { unique: true })
-@Index(["username"], { unique: true, where: "username IS NOT NULL" })
+@Index(["documentUserId"], { unique: true, where: "document_user_id IS NOT NULL" })
 export class UserEntity extends BaseEntity {
-  @Column({ nullable: true })
-  name: string;
+  @Column({ name: "document_user_id", type: "bigint", nullable: true })
+  documentUserId: string | null;
 
-  @Column({ unique: true, nullable: true })
-  username: string;
+  @OneToOne(() => DocumentUserEntity, (documentUser: DocumentUserEntity) => documentUser.systemUser, {
+    nullable: true,
+  })
+  @JoinColumn({ name: "document_user_id", referencedColumnName: "id" })
+  documentUser: DocumentUserEntity | null;
 
-  @Column({ unique: true })
+  @Column({ name: "full_name", type: "varchar", length: 255, nullable: true })
+  fullName: string | null;
+
+  @Column({ type: "varchar", length: 255, unique: true })
   email: string;
 
-  @Column({ nullable: true })
-  emailVerifiedAt: Date;
+  @Column({ type: "varchar", length: 20, default: UserRole.VIEWER })
+  role: UserRole;
 
-  @Column({ nullable: true })
-  image: string;
+  @Column({ name: "chat_role", type: "varchar", length: 255, nullable: true })
+  chatRole: string | null;
 
-  @Column({
-    type: "enum",
-    enum: UserRole,
-    nullable: true,
-  })
-  role?: UserRole;
-
-  @Column({
-    type: "enum",
-    array: true,
-    enum: UserRole,
-    nullable: true,
-  })
-  roles?: UserRole[];
-
-  @Column({ type: "json", nullable: true })
-  metadata: Record<string, any>; // Additional user data
+  @Column({ name: "is_active", type: "boolean", default: true })
+  isActive: boolean;
 }

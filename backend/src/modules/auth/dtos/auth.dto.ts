@@ -4,10 +4,10 @@ import { IsEmail, IsString } from "class-validator";
 import { UserDto } from "./user.dto";
 
 export class SignInDto {
-  @ApiProperty({ example: "t11" })
+  @ApiProperty({ example: "t11@example.com" })
   @IsString()
   @Transform(({ value }) => value.trim().toLowerCase())
-  username: string;
+  email: string;
 
   @ApiProperty({ example: "password123" })
   @IsString()
@@ -48,18 +48,13 @@ export class LogoutSuccessResponseDto {
 export class SignUpDto {
   @ApiProperty({ example: "T11" })
   @IsString()
-  name: string;
+  fullName: string;
 
   @ApiProperty({ example: "t11@example.com" })
   @IsString()
   @IsEmail()
   @Transform(({ value }) => value.trim().toLowerCase())
   email: string;
-
-  @ApiProperty({ example: "t11" })
-  @IsString()
-  @Transform(({ value }) => value.trim().toLowerCase())
-  username: string;
 
   @ApiProperty({ example: "password123" })
   @IsString()

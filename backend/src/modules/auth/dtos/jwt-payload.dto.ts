@@ -5,5 +5,4 @@ export class JwtPayloadDto {
   iat: number;
   exp: number;
   role?: UserRole;
-  roles?: UserRole[];
 }

@@ -4,6 +4,7 @@ import { OAuth2Client } from "google-auth-library";
 import { DataSource } from "typeorm";
 import { AccountProvider } from "../entities/account.entity";
 import { UserEntity } from "../entities/user.entity";
+import { UserRepository } from "../repositories/user.repository";
 import { BaseOAuthService, OAuthMetadata, OAuthTokenResponse, OAuthUserInfo } from "./base-oauth.service";
 
 export interface GoogleUserData {
@@ -15,10 +16,6 @@ export interface GoogleUserData {
   refreshToken?: string;
 }
 
-/**
- * Google OAuth Service
- * Handles Google authentication using OAuth 2.0
- */
 @Injectable()
 export class GoogleOAuthService extends BaseOAuthService {
   protected readonly provider = AccountProvider.GOOGLE;
@@ -29,10 +26,10 @@ export class GoogleOAuthService extends BaseOAuthService {
   constructor(
     configService: ConfigService,
     dataSource: DataSource,
+    userRepository: UserRepository,
   ) {
-    super(configService, dataSource);
+    super(configService, dataSource, userRepository);
 
-    // Initialize Google OAuth client
     const clientId = this.configService.get<string>("google.clientID");
     const clientSecret = this.configService.get<string>("google.clientSecret");
     this.callbackURL = this.configService.get<string>("google.callbackURL") || "";
@@ -46,15 +43,10 @@ export class GoogleOAuthService extends BaseOAuthService {
       });
     }
     else {
-      this.logger.warn(
-        "Google OAuth configuration is missing. Google authentication will be unavailable.",
-      );
+      this.logger.warn("Google OAuth configuration is missing. Google authentication will be unavailable.");
     }
   }
 
-  /**
-   * Exchange authorization code for tokens (implements BaseOAuthService)
-   */
   async getTokens(code: string, redirectUri?: string): Promise<OAuthTokenResponse> {
     if (!this.googleOAuthClient) {
       throw new UnauthorizedException("Google OAuth is not configured");
@@ -62,9 +54,6 @@ export class GoogleOAuthService extends BaseOAuthService {
 
     try {
       const uri = redirectUri || this.callbackURL;
-
-      this.logger.debug(`Exchanging code with redirect_uri: ${uri}`);
-
       const { tokens } = await this.googleOAuthClient.getToken({
         code,
         redirect_uri: uri,
@@ -83,18 +72,12 @@ export class GoogleOAuthService extends BaseOAuthService {
       };
     }
     catch (error) {
-      this.logger.error("Google token exchange failed", error instanceof Error ? error.stack : error);
-
       if (error instanceof Error) {
         if (error.message.includes("invalid_grant")) {
-          throw new UnauthorizedException(
-            "Authorization code is invalid, expired, or already used. Please try authenticating again.",
-          );
+          throw new UnauthorizedException("Authorization code is invalid, expired, or already used. Please try authenticating again.");
         }
         if (error.message.includes("redirect_uri_mismatch")) {
-          throw new UnauthorizedException(
-            "Redirect URI mismatch. Please check your Google OAuth configuration.",
-          );
+          throw new UnauthorizedException("Redirect URI mismatch. Please check your Google OAuth configuration.");
         }
       }
 
@@ -102,9 +85,6 @@ export class GoogleOAuthService extends BaseOAuthService {
     }
   }
 
-  /**
-   * Verify Google ID token and extract user info (implements BaseOAuthService)
-   */
   async getUserInfo(tokenData: OAuthTokenResponse): Promise<OAuthUserInfo> {
     if (!this.googleOAuthClient) {
       throw new UnauthorizedException("Google OAuth is not configured");
@@ -132,15 +112,11 @@ export class GoogleOAuthService extends BaseOAuthService {
         picture: payload.picture,
       };
     }
-    catch (error) {
-      this.logger.error("Google token verification failed", error instanceof Error ? error.stack : error);
+    catch {
       throw new UnauthorizedException("Invalid Google token");
     }
   }
 
-  /**
-   * Authenticate user with Google (wrapper using base class method)
-   */
   async authenticateWithGoogle(
     code: string,
     state?: string,
@@ -148,26 +124,12 @@ export class GoogleOAuthService extends BaseOAuthService {
     return this.authenticateWithOAuth(code, state);
   }
 
-  /**
-   * Validate Google user data (legacy compatibility method)
-   */
   async validateGoogleUser(googleData: GoogleUserData): Promise<UserEntity> {
     return this.dataSource.transaction(async (manager) => {
-      let user = await manager.findOne(UserEntity, {
-        where: { email: googleData.email },
-      });
+      const documentUser = await this.findDocumentUserOrThrow(manager, googleData.email);
+      const systemUser = await this.ensureSystemUserFromPython(manager, documentUser);
 
-      if (!user) {
-        user = manager.create(UserEntity, {
-          email: googleData.email,
-          name: googleData.name,
-          image: googleData.picture,
-        });
-        user = await manager.save(user);
-        this.logger.log(`New user created via Google OAuth: ${googleData.email}`);
-      }
-
-      await this.upsertOAuthAccount(manager, user, {
+      await this.upsertOAuthAccount(manager, systemUser, {
         providerId: googleData.googleId,
         email: googleData.email,
         name: googleData.name,
@@ -177,13 +139,10 @@ export class GoogleOAuthService extends BaseOAuthService {
         refreshToken: googleData.refreshToken,
       });
 
-      return user;
+      return systemUser;
     });
   }
 
-  /**
-   * Get authorization URL for Google OAuth (implements BaseOAuthService)
-   */
   getAuthorizationUrl(metadata?: OAuthMetadata): string {
     if (!this.googleOAuthClient) {
       throw new BadRequestException("Google OAuth is not configured");
@@ -191,15 +150,11 @@ export class GoogleOAuthService extends BaseOAuthService {
 
     const state = this.encodeState(metadata || {});
 
-    const url = this.googleOAuthClient.generateAuthUrl({
+    return this.googleOAuthClient.generateAuthUrl({
       access_type: "offline",
       scope: this.scope,
       redirect_uri: this.callbackURL,
       ...(state && { state }),
     });
-
-    this.logger.debug(`Generated auth URL with redirect_uri: ${this.callbackURL}`);
-
-    return url;
   }
 }

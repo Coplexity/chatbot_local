@@ -1,11 +1,3 @@
-export interface ReferenceHeadingDto {
-  sectionId: number;
-  heading: string;
-  sectionPath: string | null;
-  startPage: number | null;
-  level: number | null;
-}
-
 export interface ReferenceMetadataDto {
   chunkId: number;
   guidelineId?: number;
@@ -13,7 +5,13 @@ export interface ReferenceMetadataDto {
   versionId?: number;
   versionLabel?: string;
   sectionId?: number;
-  headings: ReferenceHeadingDto[];
+  headings: Array<{
+    sectionId: number;
+    heading: string;
+    sectionPath?: string | null;
+    startPage?: number | null;
+    level?: number | null;
+  }>;
   deepestHeading?: string;
   sectionPath?: string;
   startPage?: number;

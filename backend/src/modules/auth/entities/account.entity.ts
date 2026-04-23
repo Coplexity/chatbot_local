@@ -1,27 +1,21 @@
-import { Column, Entity, ManyToOne, JoinColumn, Index } from "typeorm";
+import { Column, Entity, Index, JoinColumn, ManyToOne } from "typeorm";
 import { BaseEntity } from "../../../common/entities/base-entity";
 import { UserEntity } from "./user.entity";
 
 export enum AccountProvider {
   GOOGLE = "google",
   GITHUB = "github",
-  // FACEBOOK = "facebook",
-  // APPLE = "apple",
-  // MICROSOFT = "microsoft",
-  // TWITTER = "twitter",
-  // LINKEDIN = "linkedin",
-  // LOCAL = "local",
 }
 
 @Entity()
 @Index(["provider", "providerAccountId"], { unique: true })
 @Index(["userId"])
 export class AccountEntity extends BaseEntity {
-  @Column()
+  @Column({ name: "user_id", type: "uuid" })
   userId: string;
 
   @ManyToOne(() => UserEntity)
-  @JoinColumn()
+  @JoinColumn({ name: "user_id", referencedColumnName: "id" })
   user: UserEntity;
 
   @Column({ type: "enum", enum: AccountProvider })
@@ -31,26 +25,26 @@ export class AccountEntity extends BaseEntity {
   providerAccountId: string;
 
   @Column({ type: "text", nullable: true })
-  accessToken: string; // Should be encrypted
+  accessToken: string;
 
   @Column({ type: "text", nullable: true })
-  refreshToken: string; // Should be encrypted
+  refreshToken: string;
 
   @Column({ nullable: true })
-  expiresAt: Date; // Renamed from expiryAt for consistency
+  expiresAt: Date;
 
   @Column({ type: "text", nullable: true })
-  idToken: string; // For OpenID Connect
+  idToken: string;
 
   @Column({ nullable: true })
-  tokenType: string; // e.g., 'Bearer'
+  tokenType: string;
 
   @Column({ type: "simple-array", nullable: true })
-  scope: string[]; // OAuth scopes granted
+  scope: string[];
 
   @Column({ type: "json", nullable: true })
-  profile: Record<string, any>; // Store provider profile data
+  profile: Record<string, any>;
 
   @Column({ type: "json", nullable: true })
-  metadata: Record<string, any>; // Additional provider-specific data
+  metadata: Record<string, any>;
 }
