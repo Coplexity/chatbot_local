@@ -111,5 +111,4 @@ export class AccountController {
       return this.accountService.createPassword(userId, dto);
     }
   }
-
 }

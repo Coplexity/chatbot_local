@@ -8,7 +8,7 @@ export enum DocumentUserRole {
   VIEWER = "viewer",
 }
 
-@Entity("users")
+@Entity("users", { synchronize: false })
 @Check(`role IN ('admin', 'editor', 'viewer')`)
 @Index(["email"], { unique: true })
 export class DocumentUserEntity {
@@ -27,9 +27,6 @@ export class DocumentUserEntity {
 
   @Column({ type: "varchar", length: 20, default: DocumentUserRole.VIEWER })
   role: DocumentUserRole;
-
-  @Column({ name: "chat_role", type: "varchar", length: 255, nullable: true })
-  chatRole: string | null;
 
   @Column({ name: "is_active", type: "boolean", default: true })
   isActive: boolean;

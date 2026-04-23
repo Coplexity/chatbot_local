@@ -1,6 +1,6 @@
 import { JwtAuthService } from "./jwt-auth.service";
 
-describe("JwtAuthService", () => {
+describe("jwtAuthService", () => {
   it("extracts a bearer token before checking cookies", () => {
     const service = new JwtAuthService(
       {} as any,

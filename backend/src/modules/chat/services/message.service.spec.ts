@@ -1,10 +1,10 @@
 import { MessageService } from "./message.service";
 import { MessageRole } from "../entities/message.entity";
 
-describe("MessageService", () => {
+describe("messageService", () => {
   it("persists deduped thinking metadata without mixing trace into assistant content", async () => {
-    const save = jest.fn(async (entity) => entity);
-    const create = jest.fn((payload) => payload);
+    const save = jest.fn(async entity => entity);
+    const create = jest.fn(payload => payload);
 
     const service = new MessageService(
       {

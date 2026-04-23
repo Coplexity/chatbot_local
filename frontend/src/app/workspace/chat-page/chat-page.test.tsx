@@ -518,7 +518,7 @@ describe("ChatPage", () => {
     async function* stream() {
       yield { type: "trace", trace: "Routing: analyzing intent" };
       yield { type: "text", text: "Partial answer" };
-      throw new Error("AI4Life API error: Unprocessable Entity");
+      throw new Error("Chat API error: Unprocessable Entity");
     }
 
     sendMessageStreamMock.mockReturnValue(stream());
@@ -535,7 +535,7 @@ describe("ChatPage", () => {
 
     await waitFor(() => {
       expect(messageErrorMock).toHaveBeenCalledWith(
-        "AI4Life API error: Unprocessable Entity"
+        "Chat API error: Unprocessable Entity"
       );
     });
 

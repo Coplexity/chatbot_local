@@ -29,19 +29,19 @@ describe("parseSseBlock", () => {
   it("parses an error event block", () => {
     expect(
       parseSseBlock(
-        "id: 1\nevent: error\ndata: AI4Life API error: Unprocessable Entity"
+        "id: 1\nevent: error\ndata: Chat API error: Unprocessable Entity"
       )
     ).toEqual({
       event: "error",
-      data: "AI4Life API error: Unprocessable Entity",
+      data: "Chat API error: Unprocessable Entity",
     });
   });
 });
 
 describe("resolveSseErrorMessage", () => {
   it("returns the server message when present", () => {
-    expect(resolveSseErrorMessage("AI4Life API error: Unprocessable Entity")).toBe(
-      "AI4Life API error: Unprocessable Entity"
+    expect(resolveSseErrorMessage("Chat API error: Unprocessable Entity")).toBe(
+      "Chat API error: Unprocessable Entity"
     );
   });
 

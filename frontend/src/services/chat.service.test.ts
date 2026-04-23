@@ -34,14 +34,14 @@ describe("chatService streaming", () => {
   it("throws the server error message for authenticated SSE error events", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createStreamingResponse(
-        "event: error\ndata: AI4Life API error: Unprocessable Entity\n\n"
+        "event: error\ndata: Chat API error: Unprocessable Entity\n\n"
       )
     );
 
     const stream = chatService.sendMessageStream("conversation-1", "Hello");
 
     await expect(stream.next()).rejects.toThrow(
-      "AI4Life API error: Unprocessable Entity"
+      "Chat API error: Unprocessable Entity"
     );
   });
 

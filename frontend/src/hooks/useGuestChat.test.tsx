@@ -72,7 +72,7 @@ describe("useGuestChat streaming", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createStreamingResponse(
         'data: {"text":"Partial answer"}\n\n',
-        "event: error\ndata: AI4Life API error: Unprocessable Entity\n\n"
+        "event: error\ndata: Chat API error: Unprocessable Entity\n\n"
       )
     );
 
@@ -80,7 +80,7 @@ describe("useGuestChat streaming", () => {
     const stream = result.current.startConversationStream("Hello");
 
     await expect(readAll(stream)).rejects.toThrow(
-      "AI4Life API error: Unprocessable Entity"
+      "Chat API error: Unprocessable Entity"
     );
 
     expect(addMessageMock).not.toHaveBeenCalledWith(

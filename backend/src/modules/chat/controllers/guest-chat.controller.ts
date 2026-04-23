@@ -8,9 +8,12 @@ import {
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiProperty } from "@nestjs/swagger";
 import { Observable, from, map } from "rxjs";
-import { AiService } from "../services/ai.service";
+import { ChatApiService } from "../services/chat-api.service";
 import { SendMessageDto } from "../dtos/send-message.dto";
-import { AiStreamResponse, AiStreamChunk } from "../services/ai-provider.interface";
+import {
+  ChatApiStreamResponse,
+  ChatApiStreamChunk,
+} from "../services/chat-api.interface";
 import { IsNotEmpty, IsString, MaxLength, IsArray, IsOptional, ValidateNested, IsIn } from "class-validator";
 import { Type } from "class-transformer";
 
@@ -44,7 +47,7 @@ class GuestChatWithContextDto {
 @Controller("chat/guest")
 @UsePipes(new ValidationPipe())
 export class GuestChatController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(private readonly chatApiService: ChatApiService) {}
 
   /**
    * Guest streaming endpoint - no authentication required
@@ -63,17 +66,17 @@ export class GuestChatController {
     ];
 
     // Generate streaming response
-    const aiResponse = (await this.aiService.generateResponse(
+    const aiResponse = (await this.chatApiService.generateResponse(
       messages,
       true,
-    )) as AiStreamResponse;
+    )) as ChatApiStreamResponse;
 
     const stream = aiResponse.stream;
 
     return from(
       (async function* () {
         for await (const chunk of stream) {
-          yield JSON.stringify(chunk as AiStreamChunk);
+          yield JSON.stringify(chunk as ChatApiStreamChunk);
         }
       })(),
     ).pipe(map(data => ({ data })));
@@ -99,17 +102,17 @@ export class GuestChatController {
     ];
 
     // Generate streaming response
-    const aiResponse = (await this.aiService.generateResponse(
+    const aiResponse = (await this.chatApiService.generateResponse(
       messages,
       true,
-    )) as AiStreamResponse;
+    )) as ChatApiStreamResponse;
 
     const stream = aiResponse.stream;
 
     return from(
       (async function* () {
         for await (const chunk of stream) {
-          yield JSON.stringify(chunk as AiStreamChunk);
+          yield JSON.stringify(chunk as ChatApiStreamChunk);
         }
       })(),
     ).pipe(map(data => ({ data })));

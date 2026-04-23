@@ -59,7 +59,7 @@ export class ReferenceMetadataService {
     const sectionRows = sectionIds.length === 0
       ? []
       : await this.dataSource.query(
-          `
+        `
             with recursive section_tree as (
               select section_id, heading, section_path, page_start, level, parent_id, version_id
               from public.sections
@@ -72,22 +72,22 @@ export class ReferenceMetadataService {
             select distinct section_id, heading, section_path, page_start, level, parent_id, version_id
             from section_tree
           `,
-          [sectionIds],
-        ) as SectionRow[];
+        [sectionIds],
+      ) as SectionRow[];
 
     const versionIds = [...new Set(chunkRows.flatMap(row => row.version_id ? [row.version_id] : []))];
     const versionRows = versionIds.length === 0
       ? []
       : await this.dataSource.query(
-          `
+        `
             select gv.version_id, gv.version_label, gv.guideline_id, g.title as guideline_title, d.document_id as document_id
             from public.guideline_versions gv
             left join public.guidelines g on g.guideline_id = gv.guideline_id
             left join public.documents d on d.version_id = gv.version_id
             where gv.version_id = any($1)
           `,
-          [versionIds],
-        ) as VersionRow[];
+        [versionIds],
+      ) as VersionRow[];
 
     const sectionsById = new Map(sectionRows.map(row => [row.section_id, row]));
     const versionsById = new Map(versionRows.map(row => [row.version_id, row]));

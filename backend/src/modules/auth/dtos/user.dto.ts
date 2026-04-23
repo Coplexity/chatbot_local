@@ -4,7 +4,7 @@ import { UserRole } from "../entities/user.entity";
 
 export class UserDto extends BaseEntityDto {
   @ApiProperty({ nullable: true })
-  fullName: string;
+  fullName: string | null;
 
   @ApiProperty()
   email: string;
@@ -13,7 +13,7 @@ export class UserDto extends BaseEntityDto {
   role: UserRole;
 
   @ApiProperty({ nullable: true, required: false })
-  chatRole?: string;
+  chatRole?: string | null;
 
   @ApiProperty()
   isActive: boolean;

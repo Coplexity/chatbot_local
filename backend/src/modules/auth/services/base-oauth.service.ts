@@ -87,7 +87,6 @@ export abstract class BaseOAuthService {
         email: documentUser.email,
         fullName: documentUser.fullName,
         role: this.mapPythonRoleToSystemRole(documentUser.role),
-        chatRole: documentUser.chatRole,
         isActive: documentUser.isActive,
       });
       return manager.save(systemUser);
@@ -96,7 +95,6 @@ export abstract class BaseOAuthService {
     systemUser.email = documentUser.email;
     systemUser.fullName = documentUser.fullName;
     systemUser.role = this.mapPythonRoleToSystemRole(documentUser.role);
-    systemUser.chatRole = documentUser.chatRole;
     systemUser.isActive = documentUser.isActive;
 
     return manager.save(systemUser);

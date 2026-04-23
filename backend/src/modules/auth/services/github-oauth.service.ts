@@ -50,7 +50,7 @@ export class GitHubOAuthService extends BaseOAuthService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
+          "Accept": "application/json",
         },
         body: JSON.stringify({
           client_id: this.clientId,

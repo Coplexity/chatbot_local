@@ -1,6 +1,6 @@
 import { ReferenceController } from "./reference.controller";
 
-describe("ReferenceController", () => {
+describe("referenceController", () => {
   it("parses comma-separated chunk ids and forwards them to the service", async () => {
     const referenceMetadataService = {
       getByChunkIds: jest.fn().mockResolvedValue([]),

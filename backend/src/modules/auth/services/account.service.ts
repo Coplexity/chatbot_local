@@ -37,7 +37,6 @@ export class AccountService {
         email: documentUser.email,
         fullName: documentUser.fullName,
         role: this.mapPythonRoleToSystemRole(documentUser.role),
-        chatRole: documentUser.chatRole,
         isActive: documentUser.isActive,
       });
       await this.userRepo.save(systemUser);
@@ -47,7 +46,6 @@ export class AccountService {
     systemUser.email = documentUser.email;
     systemUser.fullName = documentUser.fullName;
     systemUser.role = this.mapPythonRoleToSystemRole(documentUser.role);
-    systemUser.chatRole = documentUser.chatRole;
     systemUser.isActive = documentUser.isActive;
 
     await this.userRepo.save(systemUser);

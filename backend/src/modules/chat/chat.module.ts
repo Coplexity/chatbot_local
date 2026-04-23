@@ -13,9 +13,8 @@ import { ConversationEntity } from "./entities/conversation.entity";
 import { MessageEntity } from "./entities/message.entity";
 import { ConversationRepository } from "./repositories/conversation.repository";
 import { MessageRepository } from "./repositories/message.repository";
-import { Ai4lifeAiProvider } from "./services/ai4life-ai.provider";
-import { AiProvider } from "./services/ai-provider.interface";
-import { AiService } from "./services/ai.service";
+import { ChatApiProviderService } from "./services/chat-api.provider";
+import { ChatApiService } from "./services/chat-api.service";
 import { ChatService } from "./services/chat.service";
 import { MessageService } from "./services/message.service";
 import { ReferenceMetadataService } from "./services/reference-metadata.service";
@@ -36,11 +35,8 @@ import { ReferenceMetadataService } from "./services/reference-metadata.service"
   providers: [
     ConversationRepository,
     MessageRepository,
-    {
-      provide: AiProvider,
-      useClass: Ai4lifeAiProvider,
-    },
-    AiService,
+    ChatApiProviderService,
+    ChatApiService,
     ChatService,
     MessageService,
     ReferenceMetadataService,

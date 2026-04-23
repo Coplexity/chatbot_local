@@ -1,33 +1,32 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
-  AiProvider,
-  AiMessage,
-  AiResponse,
-  AiStreamResponse,
-  AiStreamChunk,
-} from "./ai-provider.interface";
+  ChatApiMessage,
+  ChatApiResponse,
+  ChatApiStreamResponse,
+  ChatApiStreamChunk,
+} from "./chat-api.interface";
 
 const ROLE_MAPPING = {
   bac_si_tram_y_te: "bac_si_tramyte",
 };
 
 @Injectable()
-export class Ai4lifeAiProvider extends AiProvider {
-  private readonly logger = new Logger(Ai4lifeAiProvider.name);
+export class ChatApiProviderService {
+  private readonly logger = new Logger(ChatApiProviderService.name);
   private readonly apiUrl: string;
 
   constructor(private configService: ConfigService) {
-    super();
-    this.apiUrl = this.configService.get<string>("AI4LIFE_API_URL")
+    this.apiUrl = this.configService.get<string>("CHAT_API_URL")
+      || this.configService.get<string>("AI4LIFE_API_URL")
       || "http://localhost:8000";
   }
 
   async generateResponse(
-    messages: AiMessage[],
+    messages: ChatApiMessage[],
     streaming = false,
     role = "",
-  ): Promise<AiResponse | AiStreamResponse> {
+  ): Promise<ChatApiResponse | ChatApiStreamResponse> {
     if (streaming) {
       return this.generateStreamingResponse(messages, role);
     }
@@ -98,7 +97,7 @@ export class Ai4lifeAiProvider extends AiProvider {
     options: { includeTrace: boolean },
   ): {
     shouldStop: boolean;
-    chunks: AiStreamChunk[];
+    chunks: ChatApiStreamChunk[];
     fullText: string;
   } {
     const payload = this.parseStreamPayload(message.data);
@@ -134,7 +133,7 @@ export class Ai4lifeAiProvider extends AiProvider {
     }
 
     const payloadText = this.extractTextFromStreamPayload(message.data);
-    const chunks: AiStreamChunk[] = [];
+    const chunks: ChatApiStreamChunk[] = [];
     const text = payloadText || message.data;
 
     if (text) {
@@ -149,9 +148,9 @@ export class Ai4lifeAiProvider extends AiProvider {
   }
 
   private async generateNonStreamingResponse(
-    messages: AiMessage[],
+    messages: ChatApiMessage[],
     role = "",
-  ): Promise<AiResponse> {
+  ): Promise<ChatApiResponse> {
     try {
       // Get the last user message as the question
       const lastUserMessage = messages.filter(m => m.role === "user").pop();
@@ -171,7 +170,7 @@ export class Ai4lifeAiProvider extends AiProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`AI4Life API error: ${response.statusText}`);
+        throw new Error(`Chat API error: ${response.statusText}`);
       }
 
       // Collect full response from stream
@@ -240,15 +239,15 @@ export class Ai4lifeAiProvider extends AiProvider {
       };
     }
     catch (error) {
-      this.logger.error("Error calling AI4Life API", error);
+      this.logger.error("Error calling Chat API", error);
       throw error;
     }
   }
 
   private async generateStreamingResponse(
-    messages: AiMessage[],
+    messages: ChatApiMessage[],
     role = "",
-  ): Promise<AiStreamResponse> {
+  ): Promise<ChatApiStreamResponse> {
     try {
       // Get the last user message as the question
       const lastUserMessage = messages.filter(m => m.role === "user").pop();
@@ -268,7 +267,7 @@ export class Ai4lifeAiProvider extends AiProvider {
       });
 
       if (!response.ok) {
-        throw new Error(`AI4Life API error: ${response.statusText}`);
+        throw new Error(`Chat API error: ${response.statusText}`);
       }
 
       const reader = response.body?.getReader();
@@ -281,7 +280,7 @@ export class Ai4lifeAiProvider extends AiProvider {
       const flushChunkBuffer = this.flushChunkBuffer.bind(this);
       const processSseMessage = this.processSseMessage.bind(this);
 
-      const stream = async function* (): AsyncIterable<AiStreamChunk> {
+      const stream = async function* (): AsyncIterable<ChatApiStreamChunk> {
         try {
           let buffer = "";
 
@@ -339,7 +338,7 @@ export class Ai4lifeAiProvider extends AiProvider {
       };
     }
     catch (error) {
-      this.logger.error("Error calling AI4Life API (streaming)", error);
+      this.logger.error("Error calling Chat API (streaming)", error);
       throw error;
     }
   }

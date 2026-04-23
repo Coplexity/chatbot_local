@@ -1,6 +1,6 @@
 import { ReferenceMetadataService } from "./reference-metadata.service";
 
-describe("ReferenceMetadataService", () => {
+describe("referenceMetadataService", () => {
   it("resolves chunk ids through sections, versions, and guidelines", async () => {
     const dataSource = {
       query: jest.fn()

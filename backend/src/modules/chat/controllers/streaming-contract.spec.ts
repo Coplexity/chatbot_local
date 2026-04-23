@@ -1,9 +1,9 @@
+import { ChatController } from "./chat.controller";
+import { GuestChatController } from "./guest-chat.controller";
+
 jest.mock("../../auth/guards/jwt-auth.guard", () => ({
   JwtAuthGuard: class JwtAuthGuardMock {},
 }));
-
-import { ChatController } from "./chat.controller";
-import { GuestChatController } from "./guest-chat.controller";
 
 describe("chat streaming contract", () => {
   it("forwards conversation, trace, and text payloads from startConversationStream", async () => {
@@ -25,7 +25,7 @@ describe("chat streaming contract", () => {
     const values = await new Promise<Array<{ data: string }>>((resolve, reject) => {
       const emitted: Array<{ data: string }> = [];
       events.subscribe({
-        next: (value) => emitted.push(value),
+        next: value => emitted.push(value),
         error: reject,
         complete: () => resolve(emitted),
       });
@@ -53,7 +53,7 @@ describe("chat streaming contract", () => {
     const values = await new Promise<Array<{ data: string }>>((resolve, reject) => {
       const emitted: Array<{ data: string }> = [];
       events.subscribe({
-        next: (value) => emitted.push(value),
+        next: value => emitted.push(value),
         error: reject,
         complete: () => resolve(emitted),
       });

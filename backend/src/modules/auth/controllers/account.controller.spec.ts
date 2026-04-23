@@ -1,6 +1,6 @@
 import { AccountController } from "./account.controller";
 
-describe("AccountController", () => {
+describe("accountController", () => {
   it("returns an access token and user on sign in", async () => {
     const user = { id: "1", email: "demo@example.com", role: "viewer", isActive: true };
     const controller = new AccountController(

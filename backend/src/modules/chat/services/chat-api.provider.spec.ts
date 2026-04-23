@@ -1,5 +1,5 @@
 import { ConfigService } from "@nestjs/config";
-import { Ai4lifeAiProvider } from "./ai4life-ai.provider";
+import { ChatApiProviderService } from "./chat-api.provider";
 
 function createStreamResponse(chunks: string[]) {
   const encoder = new TextEncoder();
@@ -18,10 +18,10 @@ function createStreamResponse(chunks: string[]) {
   };
 }
 
-describe("Ai4lifeAiProvider", () => {
-  const originalFetch = global.fetch;
+describe("chatApiProviderService", () => {
+  const originalFetch = globalThis.fetch;
 
-  async function collectStreamTexts(provider: Ai4lifeAiProvider) {
+  async function collectStreamTexts(provider: ChatApiProviderService) {
     const result = await provider.generateResponse([
       { role: "user", content: "Hi" },
     ], true);
@@ -39,18 +39,18 @@ describe("Ai4lifeAiProvider", () => {
   }
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
   it("returns the final SSE text chunk even when the stream ends without a trailing newline", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"text":"Xin chao"}',
+        "data: {\"text\":\"Xin chao\"}",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -62,7 +62,7 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("ignores trace events and joins multi-line answer data in non-streaming mode", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
         "event: trace\n",
         "data: Dinh tuyen: Dang phan tich y dinh\n\n",
@@ -72,7 +72,7 @@ describe("Ai4lifeAiProvider", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -84,7 +84,7 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("emits trace text before answer chunks in streaming mode", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
         "event: trace\n",
         "data: Dinh tuyen: Dang phan tich y dinh\n\n",
@@ -94,7 +94,7 @@ describe("Ai4lifeAiProvider", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -107,15 +107,15 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("maps new type-based payloads into trace and text chunks", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"trace","text":" Dang suy luan... "}\n\n',
-        'data: {"type":"text","text":"#"}\n\n',
-        'data: {"type":"text","text":" Phan tich"}\n\n',
+        "data: {\"type\":\"trace\",\"text\":\" Dang suy luan... \"}\n\n",
+        "data: {\"type\":\"text\",\"text\":\"#\"}\n\n",
+        "data: {\"type\":\"text\",\"text\":\" Phan tich\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -129,15 +129,15 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("ignores new trace payloads and joins new text payloads in non-streaming mode", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"trace","text":"Dang suy luan"}\n\n',
-        'data: {"type":"text","text":"Xin"}\n\n',
-        'data: {"type":"text","text":" chao"}\n\n',
+        "data: {\"type\":\"trace\",\"text\":\"Dang suy luan\"}\n\n",
+        "data: {\"type\":\"text\",\"text\":\"Xin\"}\n\n",
+        "data: {\"type\":\"text\",\"text\":\" chao\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -149,34 +149,34 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("keeps legacy trace events working when payload JSON says text", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'event: trace\ndata: {"type":"text","text":"partial answer"}\n\n',
+        "event: trace\ndata: {\"type\":\"text\",\"text\":\"partial answer\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
     const chunks = await collectStreamTexts(provider);
 
     expect(chunks).toEqual([
-      { type: "trace", trace: '{"type":"text","text":"partial answer"}' },
+      { type: "trace", trace: "{\"type\":\"text\",\"text\":\"partial answer\"}" },
     ]);
   });
 
   it("ignores recognized trace payloads without valid text", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"trace"}\n\n',
-        'data: {"type":"trace","text":123}\n\n',
-        'data: {"type":"trace","text":"   "}\n\n',
-        'data: {"type":"text","text":"Answer"}\n\n',
+        "data: {\"type\":\"trace\"}\n\n",
+        "data: {\"type\":\"trace\",\"text\":123}\n\n",
+        "data: {\"type\":\"trace\",\"text\":\"   \"}\n\n",
+        "data: {\"type\":\"text\",\"text\":\"Answer\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -188,14 +188,14 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("suppresses empty recognized text payloads", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"text","text":""}\n\n',
-        'data: {"type":"text","text":"Answer"}\n\n',
+        "data: {\"type\":\"text\",\"text\":\"\"}\n\n",
+        "data: {\"type\":\"text\",\"text\":\"Answer\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -207,33 +207,33 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("falls back to raw payload for recognized text payloads without string text", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"text"}\n\n',
-        'data: {"type":"text","text":123}\n\n',
+        "data: {\"type\":\"text\"}\n\n",
+        "data: {\"type\":\"text\",\"text\":123}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
     const chunks = await collectStreamTexts(provider);
 
     expect(chunks).toEqual([
-      { type: "text", text: '{"type":"text"}' },
-      { type: "text", text: '{"type":"text","text":123}' },
+      { type: "text", text: "{\"type\":\"text\"}" },
+      { type: "text", text: "{\"type\":\"text\",\"text\":123}" },
     ]);
   });
 
   it("falls back through legacy extraction for unknown payload types", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"status","text":"still visible"}\n\n',
+        "data: {\"type\":\"status\",\"text\":\"still visible\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -245,13 +245,13 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("keeps raw non-JSON payload fallback behavior", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
         "data: not-json\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -263,15 +263,15 @@ describe("Ai4lifeAiProvider", () => {
   });
 
   it("stops on upstream done data markers without yielding them", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"type":"text","text":"Answer before done"}\n\n',
-        'data: [DONE]\n\n',
-        'data: {"type":"text","text":"Ignored after done"}\n\n',
+        "data: {\"type\":\"text\",\"text\":\"Answer before done\"}\n\n",
+        "data: [DONE]\n\n",
+        "data: {\"type\":\"text\",\"text\":\"Ignored after done\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -284,16 +284,16 @@ describe("Ai4lifeAiProvider", () => {
 
   it("does not emit citation chunks in streaming mode", async () => {
     const payload = JSON.stringify({
-      text: 'Noi dung {"start_char":0,"end_char":8,"resource_type":"guideline"}',
+      text: "Noi dung {\"start_char\":0,\"end_char\":8,\"resource_type\":\"guideline\"}",
     });
 
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
         `data: ${payload}\n\n`,
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -302,23 +302,23 @@ describe("Ai4lifeAiProvider", () => {
     expect(chunks).toEqual([
       {
         type: "text",
-        text: 'Noi dung {"start_char":0,"end_char":8,"resource_type":"guideline"}',
+        text: "Noi dung {\"start_char\":0,\"end_char\":8,\"resource_type\":\"guideline\"}",
       },
     ]);
   });
 
   it("keeps citation-like text untouched in non-streaming mode", async () => {
     const payload = JSON.stringify({
-      text: 'Noi dung {"start_char":0,"end_char":8,"resource_type":"guideline"}',
+      text: "Noi dung {\"start_char\":0,\"end_char\":8,\"resource_type\":\"guideline\"}",
     });
 
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
         `data: ${payload}\n\n`,
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 
@@ -327,20 +327,20 @@ describe("Ai4lifeAiProvider", () => {
     ], false);
 
     expect("content" in result && result.content).toBe(
-      'Noi dung {"start_char":0,"end_char":8,"resource_type":"guideline"}'
+      "Noi dung {\"start_char\":0,\"end_char\":8,\"resource_type\":\"guideline\"}",
     );
   });
 
   it("stops on upstream done events without yielding them", async () => {
-    global.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
-        'data: {"text":"Answer before done"}\n\n',
+        "data: {\"text\":\"Answer before done\"}\n\n",
         "event: done\ndata: finished\n\n",
-        'data: {"text":"Ignored after done"}\n\n',
+        "data: {\"text\":\"Ignored after done\"}\n\n",
       ]) as unknown as Response,
     );
 
-    const provider = new Ai4lifeAiProvider({
+    const provider = new ChatApiProviderService({
       get: jest.fn().mockReturnValue("http://example.test"),
     } as unknown as ConfigService);
 

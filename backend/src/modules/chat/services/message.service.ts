@@ -1,11 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import { MessageRepository } from "../repositories/message.repository";
 import { ConversationRepository } from "../repositories/conversation.repository";
-import { AiService } from "./ai.service";
+import { ChatApiService } from "./chat-api.service";
 import { ChatService } from "./chat.service";
 import { MessageEntity, MessageRole } from "../entities/message.entity";
 import { SendMessageDto } from "../dtos/send-message.dto";
-import { AiResponse, AiStreamChunk, AiStreamResponse } from "./ai-provider.interface";
+import {
+  ChatApiResponse,
+  ChatApiStreamChunk,
+  ChatApiStreamResponse,
+} from "./chat-api.interface";
 
 function mergeThinkingMetadata(
   metadata: Record<string, unknown> | null | undefined,
@@ -26,7 +30,7 @@ export class MessageService {
   constructor(
     private readonly messageRepository: MessageRepository,
     private readonly conversationRepository: ConversationRepository,
-    private readonly aiService: AiService,
+    private readonly chatApiService: ChatApiService,
     private readonly chatService: ChatService,
   ) {}
 
@@ -43,7 +47,7 @@ export class MessageService {
     );
 
     // Create user message
-    const userTokenCount = this.aiService.countTokens(dto.content);
+    const userTokenCount = this.chatApiService.countTokens(dto.content);
     const userMessage = this.messageRepository.create({
       conversationId,
       role: MessageRole.USER,
@@ -60,11 +64,11 @@ export class MessageService {
     );
 
     // Generate AI response
-    const aiResponse = (await this.aiService.generateResponse(
+    const aiResponse = (await this.chatApiService.generateResponse(
       contextMessages,
       false,
       role,
-    )) as AiResponse;
+    )) as ChatApiResponse;
 
     // Create assistant message
     const assistantMessage = this.messageRepository.create({
@@ -92,7 +96,7 @@ export class MessageService {
     role = "",
   ): Promise<{
     userMessage: MessageEntity;
-    stream: AsyncIterable<AiStreamChunk>;
+    stream: AsyncIterable<ChatApiStreamChunk>;
   }> {
     // Verify conversation exists and belongs to user
     const conversation = await this.chatService.getConversationById(
@@ -101,7 +105,7 @@ export class MessageService {
     );
 
     // Create user message
-    const userTokenCount = this.aiService.countTokens(dto.content);
+    const userTokenCount = this.chatApiService.countTokens(dto.content);
     const userMessage = this.messageRepository.create({
       conversationId,
       role: MessageRole.USER,
@@ -118,11 +122,11 @@ export class MessageService {
     );
 
     // Generate AI streaming response
-    const aiResponse = (await this.aiService.generateResponse(
+    const aiResponse = (await this.chatApiService.generateResponse(
       contextMessages,
       true,
       role,
-    )) as AiStreamResponse;
+    )) as ChatApiStreamResponse;
 
     // We'll save the complete assistant message after streaming completes
     // For now, return the stream and userMessage
@@ -136,16 +140,17 @@ export class MessageService {
   }
 
   private async* wrapStreamWithSave(
-    stream: AsyncIterable<AiStreamChunk>,
+    stream: AsyncIterable<ChatApiStreamChunk>,
     conversationId: string,
-  ): AsyncIterable<AiStreamChunk> {
+  ): AsyncIterable<ChatApiStreamChunk> {
     let fullContent = "";
     const thinkingSteps: string[] = [];
 
     for await (const chunk of stream) {
       if (chunk.type === "text") {
         fullContent += chunk.text;
-      } else if (chunk.type === "trace") {
+      }
+      else if (chunk.type === "trace") {
         const nextTrace = chunk.trace.trim();
 
         if (nextTrace && thinkingSteps.at(-1) !== nextTrace) {
@@ -157,7 +162,7 @@ export class MessageService {
     }
 
     // After streaming completes, save the assistant message
-    const tokenCount = this.aiService.countTokens(fullContent);
+    const tokenCount = this.chatApiService.countTokens(fullContent);
     const assistantMessage = this.messageRepository.create({
       conversationId,
       role: MessageRole.ASSISTANT,
@@ -214,11 +219,11 @@ export class MessageService {
     assistantMessage: MessageEntity;
   }> {
     // Create conversation with user's message as title (truncated to 100 chars)
-    const title = content.length > 100 ? content.substring(0, 97) + "..." : content;
+    const title = content.length > 100 ? `${content.substring(0, 97)}...` : content;
     const conversation = await this.chatService.createConversation(userId, { title });
 
     // Create and save user message
-    const userTokenCount = this.aiService.countTokens(content);
+    const userTokenCount = this.chatApiService.countTokens(content);
     const userMessage = this.messageRepository.create({
       conversationId: conversation.id,
       role: MessageRole.USER,
@@ -233,11 +238,11 @@ export class MessageService {
       conversation.maxTokens * 0.7,
     );
 
-    const aiResponse = (await this.aiService.generateResponse(
+    const aiResponse = (await this.chatApiService.generateResponse(
       contextMessages,
       false,
       role,
-    )) as AiResponse;
+    )) as ChatApiResponse;
 
     // Create assistant message
     const assistantMessage = this.messageRepository.create({
@@ -269,14 +274,14 @@ export class MessageService {
   ): Promise<{
     conversation: import("../entities/conversation.entity").ConversationEntity;
     userMessage: MessageEntity;
-    stream: AsyncIterable<AiStreamChunk>;
+    stream: AsyncIterable<ChatApiStreamChunk>;
   }> {
     // Create conversation with user's message as title (truncated to 100 chars)
-    const title = content.length > 100 ? content.substring(0, 97) + "..." : content;
+    const title = content.length > 100 ? `${content.substring(0, 97)}...` : content;
     const conversation = await this.chatService.createConversation(userId, { title });
 
     // Create and save user message
-    const userTokenCount = this.aiService.countTokens(content);
+    const userTokenCount = this.chatApiService.countTokens(content);
     const userMessage = this.messageRepository.create({
       conversationId: conversation.id,
       role: MessageRole.USER,
@@ -291,11 +296,11 @@ export class MessageService {
       conversation.maxTokens * 0.7,
     );
 
-    const aiResponse = (await this.aiService.generateResponse(
+    const aiResponse = (await this.chatApiService.generateResponse(
       contextMessages,
       true,
       role,
-    )) as AiStreamResponse;
+    )) as ChatApiStreamResponse;
 
     return {
       conversation,
