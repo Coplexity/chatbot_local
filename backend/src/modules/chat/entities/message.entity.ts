@@ -9,7 +9,7 @@ export enum MessageRole {
   SYSTEM = "system",
 }
 
-@Entity("messages")
+@Entity("chat_messages")
 @Index(["conversationId", "createdAt"])
 @Index(["role", "createdAt"])
 export class MessageEntity extends BaseEntity {
