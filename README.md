@@ -1,6 +1,6 @@
 # Medical Chatbot
 
-A multi-service medical chatbot platform with a web frontend, a core backend API, and a dedicated chat streaming service.
+A multi-service medical chatbot with a React frontend, NestJS backend API, and FastAPI chat streaming service.
 
 ## Repository Structure
 
@@ -17,11 +17,11 @@ A multi-service medical chatbot platform with a web frontend, a core backend API
 
 ```text
 Browser
-  └─> Frontend (Nginx, :8080)
-        └─> Backend API (NestJS, :3008)
+  └─> Frontend (Nginx, host :8400 -> container :80)
+        └─> Backend API (NestJS, internal :3000)
 
 External chat clients / integrations
-  └─> Chat API (FastAPI, :8003 -> container :8000)
+  └─> Chat API (FastAPI, internal :8000)
 
 Backend + Chat API
   ├─> PostgreSQL
@@ -65,25 +65,32 @@ Backend + Chat API
 
 ### Prepare environment files
 
+Copy the sample environment file:
+
 ```bash
 cp deploy/.env.example deploy/.env
+```
+
+Optionally copy the backend config if you need file-based overrides:
+
+```bash
 cp deploy/backend.config.example.yml deploy/backend.config.yml
 ```
 
 ## Configuration
 
-Update `deploy/.env` with the values required for your environment.
+Edit `deploy/.env` for local values, public ports, and secrets. Use `deploy/backend.config.yml` only when you need to override backend settings from a mounted config file.
 
 ## Running the Project
 
-### Start the full stack
+### Start services
 
 ```bash
 cd deploy
-docker compose --env-file .env up -d --build
+docker compose up -d --build
 ```
 
-### Check service status
+### Check status and logs
 
 ```bash
 docker compose ps
@@ -92,24 +99,17 @@ docker compose logs -f backend
 docker compose logs -f chat-api
 ```
 
-### Stop the stack
+### Stop services
 
 ```bash
 cd deploy
 docker compose down
 ```
 
-### Stop and remove persisted volumes
-
-```bash
-cd deploy
-docker compose down -v
-```
-
 ## Deployment Notes
 
-- The frontend proxies API requests through `VITE_BACKEND_URL`; inside Docker the default is `http://backend:3000`.
-- The deploy-side file `deploy/backend.config.yml` is mounted to `/app/config/config.yml` inside the backend container, then environment variables override those values when provided.
+- The frontend proxies API requests through `VITE_BACKEND_URL`; inside Docker it defaults to `http://backend:3000`.
+- `deploy/backend.config.yml` is mounted as `/app/config/config.yml`; environment variables override it when provided.
 - The chat API uses environment variables directly for OpenAI and database configuration.
 - Do not commit real secret files such as `deploy/.env`.
 
@@ -118,4 +118,3 @@ Deployment assets available in this repository:
 - `deploy/docker-compose.yml`
 - `deploy/.env.example`
 - `deploy/backend.config.example.yml`
-
