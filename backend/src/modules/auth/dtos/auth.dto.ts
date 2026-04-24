@@ -16,7 +16,6 @@ export class SignInDto {
 
 /**
  * Base authentication response
- * This DTO marks responses that should have auth cookies set by the interceptor
  */
 export class AuthResponseDto {
   @ApiProperty({ description: "JWT access token" })

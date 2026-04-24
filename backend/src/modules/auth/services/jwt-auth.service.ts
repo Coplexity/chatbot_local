@@ -3,7 +3,6 @@ import { JsonWebTokenError, JwtService } from "@nestjs/jwt";
 import { Request } from "express";
 import { JwtPayloadDto } from "../dtos/jwt-payload.dto";
 import { UserEntity } from "../entities/user.entity";
-import { CookieService } from "./cookie.service";
 
 /**
  * JWT Authentication Service
@@ -13,7 +12,6 @@ import { CookieService } from "./cookie.service";
 export class JwtAuthService {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly cookieService: CookieService,
   ) { }
 
   /**
@@ -41,12 +39,6 @@ export class JwtAuthService {
     const authHeader = request.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       return authHeader.substring(7);
-    }
-
-    // Try Cookie
-    const cookieToken = request.cookies?.[this.cookieService.getCookieName()];
-    if (cookieToken) {
-      return cookieToken;
     }
 
     return null;

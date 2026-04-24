@@ -7,13 +7,11 @@ import { JwtAuthService } from "../services/jwt-auth.service";
 import { SignInSuccessResponseDto } from "../dtos/auth.dto";
 import { OAuthAuthDto } from "../dtos/oauth-auth.dto";
 import { OAuthCallbackDto, OAuthTokenExchangeDto } from "../dtos/oauth-callback.dto";
-import { AuthCookieInterceptor } from "../interceptors/auth-cookie.interceptor";
 import { BaseOAuthController } from "./base-oauth.controller";
 
 @ApiTags("Google OAuth")
 @Controller("auth/google")
 @UsePipes(new ValidationPipe())
-@UseInterceptors(AuthCookieInterceptor)
 export class GoogleOAuthController extends BaseOAuthController {
   protected oauthService: GoogleOAuthService;
   protected jwtAuthService: JwtAuthService;

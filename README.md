@@ -1,4 +1,4 @@
-# AI4Life Chatbot
+# Medical Chatbot
 
 A multi-service medical chatbot platform with a web frontend, a core backend API, and a dedicated chat streaming service.
 
@@ -74,20 +74,6 @@ cp deploy/backend.config.example.yml deploy/backend.config.yml
 
 Update `deploy/.env` with the values required for your environment.
 
-Important variables include:
-
-- `POSTGRES_PASSWORD`
-- `OPENAI_API_KEY`
-- `VITE_DOCUMENT_FILE_URL_TEMPLATE`
-- `VITE_MAINTENANCE_MESSAGE`
-- `CHAT_API_DB_*`
-
-Update `deploy/backend.config.yml` as needed:
-
-- `db.*`
-- `cors.allowedOrigins`
-- `ragDatabase.url`
-
 ## Running the Project
 
 ### Start the full stack
@@ -120,17 +106,10 @@ cd deploy
 docker compose down -v
 ```
 
-## Available Endpoints
-
-- Frontend: `http://localhost:8080`
-- Backend API base: `http://localhost:3008/api`
-- Chat API health: `http://localhost:8003/health`
-- Chat API stream: `http://localhost:8003/api/chat/stream`
-
 ## Deployment Notes
 
-- The frontend proxies API requests through `VITE_BACKEND_URL`; inside Docker the default is `http://backend:3008`.
-- The backend mounts `deploy/backend.config.yml` at runtime.
+- The frontend proxies API requests through `VITE_BACKEND_URL`; inside Docker the default is `http://backend:3000`.
+- The deploy-side file `deploy/backend.config.yml` is mounted to `/app/config/config.yml` inside the backend container, then environment variables override those values when provided.
 - The chat API uses environment variables directly for OpenAI and database configuration.
 - Do not commit real secret files such as `deploy/.env`.
 
@@ -139,7 +118,4 @@ Deployment assets available in this repository:
 - `deploy/docker-compose.yml`
 - `deploy/.env.example`
 - `deploy/backend.config.example.yml`
-
-
-
 

@@ -1,4 +1,4 @@
-import { ConfigService } from "@nestjs/config";
+import { ChatApiConfig } from "../../../configs/root-config";
 import { ChatApiProviderService } from "./chat-api.provider";
 
 function createStreamResponse(chunks: string[]) {
@@ -20,6 +20,10 @@ function createStreamResponse(chunks: string[]) {
 
 describe("chatApiProviderService", () => {
   const originalFetch = globalThis.fetch;
+
+  function createProvider(url = "http://example.test") {
+    return new ChatApiProviderService({ url } as ChatApiConfig);
+  }
 
   async function collectStreamTexts(provider: ChatApiProviderService) {
     const result = await provider.generateResponse([
@@ -50,9 +54,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const result = await provider.generateResponse([
       { role: "user", content: "Hi" },
@@ -72,9 +74,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const result = await provider.generateResponse([
       { role: "user", content: "Hi" },
@@ -94,9 +94,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -115,9 +113,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -137,9 +133,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const result = await provider.generateResponse([
       { role: "user", content: "Hi" },
@@ -155,9 +149,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -176,9 +168,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -195,9 +185,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -214,9 +202,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -233,9 +219,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -251,9 +235,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -271,9 +253,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -293,9 +273,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 
@@ -318,9 +296,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const result = await provider.generateResponse([
       { role: "user", content: "Hi" },
@@ -340,9 +316,7 @@ describe("chatApiProviderService", () => {
       ]) as unknown as Response,
     );
 
-    const provider = new ChatApiProviderService({
-      get: jest.fn().mockReturnValue("http://example.test"),
-    } as unknown as ConfigService);
+    const provider = createProvider();
 
     const chunks = await collectStreamTexts(provider);
 

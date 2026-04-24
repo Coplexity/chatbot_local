@@ -1,28 +1,25 @@
-import { BadRequestException, Body, ClassSerializerInterceptor, Controller, Get, HttpCode, Logger, Patch, Post, Res, UnauthorizedException, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from "@nestjs/common";
+import { BadRequestException, Body, ClassSerializerInterceptor, Controller, Get, HttpCode, Logger, Patch, Post, Req, Res, UnauthorizedException, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiResponse, ApiTags } from "@nestjs/swagger";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { ApiHttpException } from "../../../common/decorators/api-http-exception.decorator";
 import { UserDto } from "../dtos/user.dto";
 import { AccountService } from "../services/account.service";
-import { CookieService } from "../services/cookie.service";
 import { JwtAuthService } from "../services/jwt-auth.service";
 import { GetUserId } from "../decorators/get-user-id.decorator";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { LogoutSuccessResponseDto, SignInDto, SignInSuccessResponseDto, SignUpDto, SignUpSuccessResponseDto } from "../dtos/auth.dto";
-import { AuthCookieInterceptor } from "../interceptors/auth-cookie.interceptor";
 import { ChangePasswordDto, GetPasswordResponseDto } from "../dtos/password.dto";
 
 @ApiTags("Account")
 @Controller("auth")
 @UsePipes(new ValidationPipe())
-@UseInterceptors(ClassSerializerInterceptor, AuthCookieInterceptor)
+@UseInterceptors(ClassSerializerInterceptor)
 export class AccountController {
   private readonly logger = new Logger(AccountController.name);
 
   constructor(
     private accountService: AccountService,
     private jwtAuthService: JwtAuthService,
-    private cookieService: CookieService,
   ) { }
 
   // ==================== Authentication Endpoints ====================
@@ -53,16 +50,6 @@ export class AccountController {
       accessToken,
       user,
     };
-  }
-
-  @Post("logout")
-  @ApiOkResponse({ type: LogoutSuccessResponseDto })
-  @HttpCode(200)
-  logout(@Res({ passthrough: true }) response: Response): LogoutSuccessResponseDto {
-    this.cookieService.clearAuthCookie(response);
-    this.logger.log("Authentication cookie cleared");
-
-    return { message: "Logged out successfully" };
   }
 
   // ==================== User Profile Endpoints ====================

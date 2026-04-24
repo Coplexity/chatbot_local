@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { OAuth2Client } from "google-auth-library";
 import { DataSource } from "typeorm";
+import { GoogleConfig } from "../../../configs/root-config";
 import { AccountProvider } from "../entities/account.entity";
 import { UserEntity } from "../entities/user.entity";
 import { UserRepository } from "../repositories/user.repository";
@@ -22,18 +22,20 @@ export class GoogleOAuthService extends BaseOAuthService {
   private googleOAuthClient: OAuth2Client;
   private readonly callbackURL: string;
   private readonly scope: string;
+  private readonly clientId?: string;
 
   constructor(
-    configService: ConfigService,
+    private readonly googleConfig: GoogleConfig,
     dataSource: DataSource,
     userRepository: UserRepository,
   ) {
-    super(configService, dataSource, userRepository);
+    super(dataSource, userRepository);
 
-    const clientId = this.configService.get<string>("google.clientID");
-    const clientSecret = this.configService.get<string>("google.clientSecret");
-    this.callbackURL = this.configService.get<string>("google.callbackURL") || "";
-    this.scope = this.configService.get<string>("google.scope") || "email profile";
+    const clientId = this.googleConfig.clientID;
+    const clientSecret = this.googleConfig.clientSecret;
+    this.clientId = clientId;
+    this.callbackURL = this.googleConfig.callbackURL || "";
+    this.scope = this.googleConfig.scope || "email profile";
 
     if (clientId && clientSecret) {
       this.googleOAuthClient = new OAuth2Client({
@@ -97,7 +99,7 @@ export class GoogleOAuthService extends BaseOAuthService {
     try {
       const ticket = await this.googleOAuthClient.verifyIdToken({
         idToken: tokenData.idToken,
-        audience: this.configService.get<string>("google.clientID"),
+        audience: this.clientId,
       });
       const payload = ticket.getPayload();
 

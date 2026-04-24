@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
+import { GithubConfig } from "../../../configs/root-config";
 import { AccountProvider } from "../entities/account.entity";
 import { UserEntity } from "../entities/user.entity";
 import { UserRepository } from "../repositories/user.repository";
@@ -24,16 +24,16 @@ export class GitHubOAuthService extends BaseOAuthService {
   private readonly scope: string;
 
   constructor(
-    configService: ConfigService,
+    githubConfig: GithubConfig,
     dataSource: DataSource,
     userRepository: UserRepository,
   ) {
-    super(configService, dataSource, userRepository);
+    super(dataSource, userRepository);
 
-    this.clientId = this.configService.get<string>("github.clientID") || "";
-    this.clientSecret = this.configService.get<string>("github.clientSecret") || "";
-    this.callbackURL = this.configService.get<string>("github.callbackURL") || "";
-    this.scope = this.configService.get<string>("github.scope") || "user:email";
+    this.clientId = githubConfig.clientID || "";
+    this.clientSecret = githubConfig.clientSecret || "";
+    this.callbackURL = githubConfig.callbackURL || "";
+    this.scope = githubConfig.scope || "user:email";
 
     if (!this.clientId || !this.clientSecret) {
       this.logger.warn("GitHub OAuth configuration is missing. GitHub authentication will be unavailable.");

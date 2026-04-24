@@ -1,7 +1,8 @@
 import { Global, Module } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { AppConfigModule } from "../../configs/app-config.module";
+import { JwtConfig } from "../../configs/root-config";
 
 import { AccountController } from "./controllers/account.controller";
 import { GitHubOAuthController } from "./controllers/github-oauth.controller";
@@ -17,26 +18,24 @@ import { DocumentUserRepository } from "./repositories/python-user.repository";
 import { UserRepository } from "./repositories/user.repository";
 
 import { AccountService } from "./services/account.service";
-import { CookieService } from "./services/cookie.service";
 import { GitHubOAuthService } from "./services/github-oauth.service";
 import { GoogleOAuthService } from "./services/google-oauth.service";
 import { JwtAuthService } from "./services/jwt-auth.service";
 
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
-import { AuthCookieInterceptor } from "./interceptors/auth-cookie.interceptor";
-
 @Global()
 @Module({
   imports: [
+    AppConfigModule,
     TypeOrmModule.forFeature([
       UserEntity,
       DocumentUserEntity,
       AccountEntity,
     ]),
     JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
+      imports: [AppConfigModule],
+      inject: [JwtConfig],
       useFactory: jwtConfigFactory,
     }),
   ],
@@ -50,15 +49,12 @@ import { AuthCookieInterceptor } from "./interceptors/auth-cookie.interceptor";
     JwtAuthService,
     GoogleOAuthService,
     GitHubOAuthService,
-    CookieService,
 
     UserRepository,
     DocumentUserRepository,
     AccountRepository,
 
     JwtAuthGuard,
-
-    AuthCookieInterceptor,
   ],
   exports: [JwtAuthGuard, GoogleOAuthService, GitHubOAuthService, JwtAuthService, AccountService],
 })

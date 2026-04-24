@@ -5,7 +5,6 @@ import { ApiHttpException } from "../../../common/decorators/api-http-exception.
 import { SignInSuccessResponseDto } from "../dtos/auth.dto";
 import { OAuthAuthDto } from "../dtos/oauth-auth.dto";
 import { OAuthCallbackDto, OAuthTokenExchangeDto } from "../dtos/oauth-callback.dto";
-import { AuthCookieInterceptor } from "../interceptors/auth-cookie.interceptor";
 import { GitHubOAuthService } from "../services/github-oauth.service";
 import { JwtAuthService } from "../services/jwt-auth.service";
 import { BaseOAuthController } from "./base-oauth.controller";
@@ -13,7 +12,6 @@ import { BaseOAuthController } from "./base-oauth.controller";
 @ApiTags("GitHub OAuth")
 @Controller("auth/github")
 @UsePipes(new ValidationPipe())
-@UseInterceptors(AuthCookieInterceptor)
 export class GitHubOAuthController extends BaseOAuthController {
   protected oauthService: GitHubOAuthService;
   protected jwtAuthService: JwtAuthService;

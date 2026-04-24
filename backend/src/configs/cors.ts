@@ -1,11 +1,9 @@
-import { ConfigService } from "@nestjs/config";
-import { NestExpressApplication } from "@nestjs/platform-express";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import type { CorsConfig } from "./root-config";
 
-export function configCORS(app: NestExpressApplication) {
-  const configService = app.get<ConfigService>(ConfigService);
-
-  const allowedOrigins = configService.get<string[]>("cors.allowedOrigins") || [];
-  const allowCredentials = configService.get<boolean>("cors.allowCredentials");
+export function configCORS(app: NestExpressApplication, config: CorsConfig) {
+  const allowedOrigins = config.allowedOrigins || [];
+  const allowCredentials = config.allowCredentials;
 
   app.enableCors({
     origin: (origin, callback) => {

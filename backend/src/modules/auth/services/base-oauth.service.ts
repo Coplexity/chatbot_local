@@ -1,5 +1,4 @@
 import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { Buffer } from "node:buffer";
 import { DataSource } from "typeorm";
 import { AccountEntity, AccountProvider } from "../entities/account.entity";
@@ -40,7 +39,6 @@ export abstract class BaseOAuthService {
   protected abstract readonly provider: AccountProvider;
 
   constructor(
-    protected configService: ConfigService,
     protected dataSource: DataSource,
     protected userRepository: UserRepository,
   ) {
@@ -188,13 +186,6 @@ export abstract class BaseOAuthService {
     }
     catch {
       return undefined;
-    }
-  }
-
-  protected validateConfig(configKeys: string[]): void {
-    const missingKeys = configKeys.filter(key => !this.configService.get<string>(key));
-    if (missingKeys.length > 0) {
-      throw new UnauthorizedException(`${this.provider} OAuth is not configured`);
     }
   }
 }

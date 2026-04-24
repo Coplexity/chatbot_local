@@ -1,12 +1,11 @@
 import "./configs/vars";
 
 import { Logger, ValidationPipe } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { useContainer } from "class-validator";
-import * as cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
+import { AppConfig, CorsConfig } from "./configs/root-config";
 import { configSwagger } from "./configs/swagger";
 import { QueryFailedErrorFilter } from "./common/filters/query-failed-error.filter";
 import { configCORS } from "./configs/cors";
@@ -20,17 +19,14 @@ async function bootstrap() {
 
   const logger = new Logger("Bootstrap");
 
-  configCORS(app);
+  const appConfig = app.get(AppConfig);
+  const corsConfig = app.get(CorsConfig);
 
-  // Get the port from the config
-  const configService = app.get<ConfigService>(ConfigService);
-  const port = configService.getOrThrow<number>("app.port");
+  configCORS(app, corsConfig);
+  const port = appConfig.port;
 
   // Trust proxy headers (for Cloudflare Tunnel, Nginx, etc.)
   app.set("trust proxy", true);
-
-  // Enable cookie parser
-  app.use(cookieParser());
 
   // Validation
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
@@ -49,7 +45,7 @@ async function bootstrap() {
   app.useGlobalFilters(new QueryFailedErrorFilter());
 
   // Config Swagger
-  configSwagger(app);
+  configSwagger(app, appConfig);
 
   // Start the app
   await app.listen(port, () => {

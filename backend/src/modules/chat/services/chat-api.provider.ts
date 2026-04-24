@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { ChatApiConfig } from "../../../configs/root-config";
 import {
   ChatApiMessage,
   ChatApiResponse,
@@ -16,10 +16,8 @@ export class ChatApiProviderService {
   private readonly logger = new Logger(ChatApiProviderService.name);
   private readonly apiUrl: string;
 
-  constructor(private configService: ConfigService) {
-    this.apiUrl = this.configService.get<string>("CHAT_API_URL")
-      || this.configService.get<string>("AI4LIFE_API_URL")
-      || "http://localhost:8000";
+  constructor(private readonly chatApiConfig: ChatApiConfig) {
+    this.apiUrl = this.chatApiConfig.url || "http://localhost:8000";
   }
 
   async generateResponse(

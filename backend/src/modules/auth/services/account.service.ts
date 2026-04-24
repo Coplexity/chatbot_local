@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { compareSync, hashSync } from "bcrypt";
 import { SignInDto, SignUpDto } from "../dtos/auth.dto";
 import { ChangePasswordDto } from "../dtos/password.dto";
@@ -16,9 +15,8 @@ export class AccountService {
   constructor(
     private userRepo: UserRepository,
     private documentUserRepo: DocumentUserRepository,
-    private configService: ConfigService,
   ) {
-    this.SALT_ROUND = this.configService.getOrThrow<number>("crypto.saltRounds");
+    this.SALT_ROUND = 10;
   }
 
   private mapPythonRoleToSystemRole(role: string): UserRole {

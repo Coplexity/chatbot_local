@@ -3,11 +3,11 @@
  * Determines if a JWT algorithm is symmetric (HMAC) or asymmetric (RSA/ECDSA)
  */
 
-import { ConfigService } from "@nestjs/config";
 import { JwtModuleOptions } from "@nestjs/jwt";
 import { readFileSync } from "fs";
 import { StringValue } from "ms";
 import { join } from "path";
+import { JwtConfig } from "../../../configs/root-config";
 
 export enum JwtAlgorithmType {
   SYMMETRIC = "SYMMETRIC", // HS256, HS384, HS512
@@ -49,14 +49,14 @@ export function isSymmetricAlgorithm(algorithm: string): boolean {
 /**
  * JWT Configuration Factory for NestJS JwtModule
  */
-export function jwtConfigFactory(configService: ConfigService): JwtModuleOptions {
-  const algorithm = configService.get<string>("jwt.algorithm", "HS256");
-  const expiresIn = configService.getOrThrow<number | StringValue>("jwt.expiresIn");
+export function jwtConfigFactory(config: JwtConfig): JwtModuleOptions {
+  const algorithm = config.algorithm || "HS256";
+  const expiresIn = config.expiresIn as number | StringValue;
 
   // Check algorithm type using helper
   if (isSymmetricAlgorithm(algorithm)) {
     // Symmetric: Use shared secret for signing
-    const secret = configService.get<string>("jwt.secret");
+    const secret = config.secret;
     if (!secret) {
       throw new Error(`JWT algorithm '${algorithm}' requires secret in config`);
     }
@@ -68,8 +68,8 @@ export function jwtConfigFactory(configService: ConfigService): JwtModuleOptions
   }
   else {
     // Asymmetric: Use private key for signing
-    const privateKeyPath = configService.get<string>("jwt.privateKeyPath");
-    const publicKeyPath = configService.get<string>("jwt.publicKeyPath");
+    const privateKeyPath = config.privateKeyPath;
+    const publicKeyPath = config.publicKeyPath;
     if (!privateKeyPath || !publicKeyPath) {
       throw new Error(
         `JWT algorithm '${algorithm}' requires privateKeyPath and publicKeyPath in config. `
