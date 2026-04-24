@@ -45,8 +45,8 @@ class GlobalSynthesizerNode:
 
         print(f"🧬 [Global Synthesizer] Merging {len(reports)} data streams...")
         all_reports_text = ""
-        for branch_name, content in reports.items():
-            all_reports_text += f"\n--- BÁO CÁO TỪ NHÁNH {branch_name.upper()} ---\n{content}\n"
+        for domain, content in reports.items():
+            all_reports_text += f"\n--- BÁO CÁO TỪ KHOA {domain.upper()} ---\n{content}\n"
 
         prompt = SYNTHESIZER_PROMPT.format(
             all_reports_text=all_reports_text,

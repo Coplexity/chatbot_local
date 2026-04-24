@@ -10,9 +10,7 @@ class VectorRetrievalNode:
         print("⏳ [Retriever] Loading Embedding Model...")
         self.embedding_backend = "sentence_transformers"
         self.retrieval_top_k = 10
-        self.retrieval_top_k_per_document = 6
         self.retrieval_candidate_k = 50
-        self.retrieval_candidate_per_document_k = 10
         self.rerank_model_name = "namdp-ptit/ViRanker"
         self.reranker = None
 
@@ -51,7 +49,7 @@ class VectorRetrievalNode:
 
         pairs = []
         for row in rows:
-            _, _, chunk_text, chunk_abstract = row
+            _, chunk_text, chunk_abstract = row
             candidate_text = f"{chunk_abstract or ''}\n{chunk_text or ''}".strip()
             pairs.append([query, candidate_text[:3000]])
 
@@ -93,8 +91,7 @@ class VectorRetrievalNode:
         }
 
         def fetch_from_db(domain_name):
-            per_document_limit = self.retrieval_candidate_per_document_k
-            chunk_limit = max(self.retrieval_candidate_k, per_document_limit * max(1, len(active_version_ids)))
+            chunk_limit = self.retrieval_candidate_k
             disease_values = sorted(disease_filters.get(domain_name, set()))
 
             conn = None
@@ -106,84 +103,39 @@ class VectorRetrievalNode:
                 if disease_values:
                     cursor.execute(
                         """
-                        WITH ranked_chunks AS (
-                            SELECT
-                                c.version_id,
-                                c.chunk_id,
-                                c.text,
-                                c.text_abstract,
-                                c.embedding <=> %s::halfvec(3072) AS semantic_distance,
-                                ROW_NUMBER() OVER (
-                                    PARTITION BY c.version_id
-                                    ORDER BY c.embedding <=> %s::halfvec(3072)
-                                ) AS rn
-                            FROM chunks c
-                            JOIN guideline_versions gv ON gv.version_id = c.version_id
-                            JOIN guidelines g ON g.guideline_id = gv.guideline_id
-                            WHERE c.version_id = ANY(%s)
-                              AND g.chuyen_khoa = %s
-                              AND g.ten_benh = ANY(%s)
-                              AND c.embedding IS NOT NULL
-                        )
                         SELECT
-                            version_id,
-                            chunk_id,
-                            text,
-                            text_abstract
-                        FROM ranked_chunks
-                        WHERE rn <= %s
-                        ORDER BY semantic_distance
+                            c.chunk_id,
+                            c.text,
+                            c.text_abstract
+                        FROM chunks c
+                        JOIN guideline_versions gv ON gv.version_id = c.version_id
+                        JOIN guidelines g ON g.guideline_id = gv.guideline_id
+                        WHERE c.version_id = ANY(%s)
+                          AND g.chuyen_khoa = %s
+                          AND g.ten_benh = ANY(%s)
+                          AND c.embedding IS NOT NULL
+                        ORDER BY c.embedding <=> %s::halfvec(3072)
                         LIMIT %s;
                         """,
-                        (
-                            embedding_literal,
-                            embedding_literal,
-                            active_version_ids,
-                            domain_name,
-                            disease_values,
-                            per_document_limit,
-                            chunk_limit,
-                        ),
+                        (active_version_ids, domain_name, disease_values, embedding_literal, chunk_limit),
                     )
                 else:
                     cursor.execute(
                         """
-                        WITH ranked_chunks AS (
-                            SELECT
-                                c.version_id,
-                                c.chunk_id,
-                                c.text,
-                                c.text_abstract,
-                                c.embedding <=> %s::halfvec(3072) AS semantic_distance,
-                                ROW_NUMBER() OVER (
-                                    PARTITION BY c.version_id
-                                    ORDER BY c.embedding <=> %s::halfvec(3072)
-                                ) AS rn
-                            FROM chunks c
-                            JOIN guideline_versions gv ON gv.version_id = c.version_id
-                            JOIN guidelines g ON g.guideline_id = gv.guideline_id
-                            WHERE c.version_id = ANY(%s)
-                              AND g.chuyen_khoa = %s
-                              AND c.embedding IS NOT NULL
-                        )
                         SELECT
-                            version_id,
-                            chunk_id,
-                            text,
-                            text_abstract
-                        FROM ranked_chunks
-                        WHERE rn <= %s
-                        ORDER BY semantic_distance
+                            c.chunk_id,
+                            c.text,
+                            c.text_abstract
+                        FROM chunks c
+                        JOIN guideline_versions gv ON gv.version_id = c.version_id
+                        JOIN guidelines g ON g.guideline_id = gv.guideline_id
+                        WHERE c.version_id = ANY(%s)
+                          AND g.chuyen_khoa = %s
+                          AND c.embedding IS NOT NULL
+                        ORDER BY c.embedding <=> %s::halfvec(3072)
                         LIMIT %s;
                         """,
-                        (
-                            embedding_literal,
-                            embedding_literal,
-                            active_version_ids,
-                            domain_name,
-                            per_document_limit,
-                            chunk_limit,
-                        ),
+                        (active_version_ids, domain_name, embedding_literal, chunk_limit),
                     )
 
                 return domain_name, cursor.fetchall()
@@ -205,34 +157,16 @@ class VectorRetrievalNode:
                 continue
 
             rerank_query = (query or "").strip() or hyde_text
-            rows_by_version = {}
-            for row in rows:
-                version_id = row[0]
-                rows_by_version.setdefault(version_id, []).append(row)
+            selected_rows = self._rerank_rows(rerank_query, rows, self.retrieval_top_k)
 
-            for version_id, version_rows in rows_by_version.items():
-                selected_rows = self._rerank_rows(
-                    rerank_query,
-                    version_rows,
-                    self.retrieval_top_k_per_document,
-                )
-                if not selected_rows:
-                    continue
-
-                branch_key = f"{domain_name} | {version_id}"
-                formatted_chunks = []
-                for row in selected_rows:
-                    _, chunk_id, chunk_text, chunk_abstract = row
-                    # Use stable chunk_id as citation reference so IDs are durable for audit.
-                    ref_id = f"[{str(chunk_id)}]"
-                    abstract_part = f"\nTÓM TẮT: {chunk_abstract}" if chunk_abstract else ""
-                    formatted_chunks.append(f"{ref_id}{abstract_part}\nNỘI DUNG: {chunk_text}")
-                specialty_contexts[branch_key] = "\n\n".join(formatted_chunks)
-
-        # Global cap for safety when many active versions are present.
-        if len(specialty_contexts) > self.retrieval_top_k:
-            limited_keys = list(specialty_contexts.keys())[: self.retrieval_top_k]
-            specialty_contexts = {key: specialty_contexts[key] for key in limited_keys}
+            formatted_chunks = []
+            for row in selected_rows:
+                chunk_id, chunk_text, chunk_abstract = row
+                # Use stable chunk_id as citation reference so IDs are durable for audit.
+                ref_id = f"[{str(chunk_id)}]"
+                abstract_part = f"\nTÓM TẮT: {chunk_abstract}" if chunk_abstract else ""
+                formatted_chunks.append(f"{ref_id}{abstract_part}\nNỘI DUNG: {chunk_text}")
+            specialty_contexts[domain_name] = "\n\n".join(formatted_chunks)
 
         return {
             "specialty_contexts": specialty_contexts,

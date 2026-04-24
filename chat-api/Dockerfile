@@ -1,25 +1,25 @@
 FROM python:3.11-slim
 
-# Working directory
+# Thư mục làm việc
 WORKDIR /app
 
-# Install basic system dependencies
+# Cài một số system deps cơ bản
 RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies
+# Copy file requirements và cài đặt
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire codebase into the container
+# Copy toàn bộ code vào container
 COPY . .
 
-# Note: No model preload is needed because the service uses the OpenAI API
-# OpenAI embeddings are fetched through the API, so no local cache is required
+# Note: Không cần preload model vì đang dùng OpenAI API (không có local model)
+# OpenAI embeddings được gọi qua API, không cần cache local
 
-# Expose port (optional, mainly for docker-compose)
+# Expose port (cho docker-compose, optional)
 EXPOSE 8000
 
-# Default API startup command
+# Lệnh chạy API
 CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -27,7 +27,7 @@ class DiseaseRoutingNode:
                 """
                 SELECT DISTINCT ten_benh
                 FROM guidelines
-                                WHERE lower(btrim(chuyen_khoa)) = lower(btrim(%s))
+                WHERE chuyen_khoa = %s
                   AND ten_benh IS NOT NULL
                   AND btrim(ten_benh) <> ''
                 ORDER BY ten_benh;

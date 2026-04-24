@@ -1,15 +1,12 @@
 from langchain_openai import ChatOpenAI
-import re
-import unicodedata
 from core import config
-from core.schemas import RouterState
+from core.schemas import RouterState, RouteDecision
+from core.prompts import ROUTER_PROMPT
 from core.database import DatabaseManager
 
 
 class SpecialtyRoutingNode:
     """Class đảm nhiệm việc phân tích ý định và định tuyến (Routing)"""
-
-    FORCED_SPECIALTY_ALIAS = "STDs"
 
     def __init__(self):
         print("⏳ [Router] Initializing Intent Analyzer...")
@@ -43,23 +40,9 @@ class SpecialtyRoutingNode:
             if conn:
                 conn.close()
 
-    @staticmethod
-    def _normalize_specialty_alias(text: str) -> str:
-        normalized = unicodedata.normalize("NFD", text or "")
-        normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
-        normalized = normalized.lower().strip().replace("-", "_").replace(" ", "_")
-        normalized = re.sub(r"_+", "_", normalized)
-        return normalized
-
-    def _resolve_forced_specialty_name(self, valid_domains: list[str]) -> str:
-        normalized_alias = self._normalize_specialty_alias(self.FORCED_SPECIALTY_ALIAS)
-        for domain in valid_domains:
-            if self._normalize_specialty_alias(domain) == normalized_alias:
-                return domain
-        return self.FORCED_SPECIALTY_ALIAS
-
     def process(self, state: RouterState):
         query = state["query"]
+        structured_llm = self.llm.with_structured_output(RouteDecision)
 
         valid_domains = self._load_valid_domains()
 
@@ -67,9 +50,19 @@ class SpecialtyRoutingNode:
             print("⚠️ [Router] Không tìm thấy chuyên khoa hợp lệ trong bảng guidelines.")
             return {"analyzed_specialties": [], "hypothetical_document": ""}
 
-        forced_specialty = self._resolve_forced_specialty_name(valid_domains)
-        print(f"🧭 [Router] Điều phối chuyên khoa ưu tiên: {forced_specialty}")
-        return {
-            "analyzed_specialties": [{"name": forced_specialty}],
-            "hypothetical_document": query,
-        }
+        # Biến danh sách trên thành một chuỗi văn bản (VD: "tim_mach, ho_hap, ...")
+        domains_string = ", ".join(valid_domains)
+
+        # GỌI PROMPT TỪ FILE MỚI VÀ TRUYỀN BIẾN VÀO
+        prompt = ROUTER_PROMPT.format(
+            domains_string=domains_string,
+            query=query
+        )
+
+        decision = structured_llm.invoke(prompt)
+
+        filtered_domains = [{"name": s.name}
+                            for s in decision.analyzed_specialties if s.name in valid_domains]
+
+        print(f"🧭 [Router] Điều phối đến các domain: {[s['name'] for s in filtered_domains]}")
+        return {"analyzed_specialties": filtered_domains, "hypothetical_document": decision.hypothetical_document}
