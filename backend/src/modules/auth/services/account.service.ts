@@ -1,23 +1,20 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-import { compareSync, hashSync } from "bcrypt";
-import { SignInDto, SignUpDto } from "../dtos/auth.dto";
-import { ChangePasswordDto } from "../dtos/password.dto";
-import { DocumentUserEntity } from "../entities/document-user.entity";
-import { UserEntity, UserRole } from "../entities/user.entity";
+import type { SignInDto, SignUpDto } from "../dtos/auth.dto";
+import type { ChangePasswordDto } from "../dtos/password.dto";
+import type { DocumentUserEntity } from "../entities/document-user.entity";
+import { UserRole, type UserEntity } from "../entities/user.entity";
 import { DocumentUserRepository } from "../repositories/python-user.repository";
 import { UserRepository } from "../repositories/user.repository";
+import { hashPasslibPbkdf2Sha256, verifyDocumentUserPasswordHash } from "../utils/passlib-pbkdf2-sha256.util";
 
 @Injectable()
 export class AccountService {
   private readonly logger = new Logger(AccountService.name);
-  private readonly SALT_ROUND: number;
 
   constructor(
     private userRepo: UserRepository,
     private documentUserRepo: DocumentUserRepository,
-  ) {
-    this.SALT_ROUND = 10;
-  }
+  ) { }
 
   private mapPythonRoleToSystemRole(role: string): UserRole {
     if (role === UserRole.ADMIN || role === UserRole.EDITOR || role === UserRole.VIEWER) {
@@ -26,7 +23,7 @@ export class AccountService {
     return UserRole.VIEWER;
   }
 
-  private async ensureSystemUserFromPython(documentUser: DocumentUserEntity): Promise<UserEntity> {
+  private async ensureSystemUserFromDocumentUser(documentUser: DocumentUserEntity): Promise<UserEntity> {
     let systemUser = await this.userRepo.findOne({ where: { documentUserId: documentUser.id } });
 
     if (!systemUser) {
@@ -54,31 +51,31 @@ export class AccountService {
     const documentUser = await this.documentUserRepo.findByEmail(email);
 
     if (!documentUser) {
-      throw new UnauthorizedException("Python user not found");
+      throw new UnauthorizedException("User not found");
     }
 
     return documentUser;
   }
 
   async signIn(dto: SignInDto): Promise<UserEntity> {
-    const documentUser = await this.getDocumentUserByEmailOrThrow(dto.email);
+    const documentUser = await this.getDocumentUserByEmailOrThrow(dto.username);
 
     if (!documentUser.isActive) {
       throw new UnauthorizedException("User is inactive");
     }
 
-    const isPasswordMatch = compareSync(dto.password, documentUser.passwordHash);
+    const isPasswordMatch = verifyDocumentUserPasswordHash(dto.password, documentUser.passwordHash);
     if (!isPasswordMatch) {
       throw new UnauthorizedException("Email or password is not correct");
     }
 
-    return this.ensureSystemUserFromPython(documentUser);
+    return this.ensureSystemUserFromDocumentUser(documentUser);
   }
 
   async signUp(dto: SignUpDto): Promise<UserEntity> {
     const documentUser = await this.getDocumentUserByEmailOrThrow(dto.email);
 
-    const isPasswordMatch = compareSync(dto.password, documentUser.passwordHash);
+    const isPasswordMatch = verifyDocumentUserPasswordHash(dto.password, documentUser.passwordHash);
     if (!isPasswordMatch) {
       throw new UnauthorizedException("Email or password is not correct");
     }
@@ -88,7 +85,7 @@ export class AccountService {
       await this.documentUserRepo.save(documentUser);
     }
 
-    return this.ensureSystemUserFromPython(documentUser);
+    return this.ensureSystemUserFromDocumentUser(documentUser);
   }
 
   async getUser(userId: string) {
@@ -128,16 +125,16 @@ export class AccountService {
     const systemUser = await this.userRepo.findOne({ where: { id: userId } });
 
     if (!systemUser?.documentUserId) {
-      throw new BadRequestException("Python user link not found");
+      throw new BadRequestException("User link not found");
     }
 
     const documentUser = await this.documentUserRepo.findOne({ where: { id: systemUser.documentUserId } });
 
     if (!documentUser) {
-      throw new BadRequestException("Python user not found");
+      throw new BadRequestException("User not found");
     }
 
-    documentUser.passwordHash = hashSync(dto.newPassword, this.SALT_ROUND);
+    documentUser.passwordHash = hashPasslibPbkdf2Sha256(dto.newPassword);
     await this.documentUserRepo.save(documentUser);
 
     return { message: "Password created successfully" };
@@ -147,22 +144,22 @@ export class AccountService {
     const systemUser = await this.userRepo.findOne({ where: { id: userId } });
 
     if (!systemUser?.documentUserId) {
-      throw new BadRequestException("Python user link not found");
+      throw new BadRequestException("User link not found");
     }
 
     const documentUser = await this.documentUserRepo.findOne({ where: { id: systemUser.documentUserId } });
 
     if (!documentUser) {
-      throw new BadRequestException("Python user not found");
+      throw new BadRequestException("User not found");
     }
 
-    const isPasswordMatch = compareSync(dto.oldPassword, documentUser.passwordHash);
+    const isPasswordMatch = verifyDocumentUserPasswordHash(dto.oldPassword, documentUser.passwordHash);
 
     if (!isPasswordMatch) {
       throw new BadRequestException("Old password is not correct");
     }
 
-    documentUser.passwordHash = hashSync(dto.newPassword, this.SALT_ROUND);
+    documentUser.passwordHash = hashPasslibPbkdf2Sha256(dto.newPassword);
     await this.documentUserRepo.save(documentUser);
 
     this.logger.log(`Password changed for user: ${userId}`);

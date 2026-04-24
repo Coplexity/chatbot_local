@@ -3,6 +3,7 @@ import re
 import unicodedata
 
 from app.workflow import MedicalWorkflow
+from nodes.reasoning.citation_transformer import CitationStreamTransformer
 
 
 class MarkdownStreamSanitizer:
@@ -201,7 +202,7 @@ class ChatbotApp:
         if self._is_tram_y_te_shortcut(role):
             tram_y_te_specialty = self._resolve_tram_y_te_specialty_name()
             tram_y_te_diseases = self.workflow.disease_router._load_disease_candidates(tram_y_te_specialty)
-            # Role-specific fast path to keep response flow consistent.
+            # Shortcut for tram y te doctors: skip routing nodes and force one specialty.
             state.update(
                 {
                     "analyzed_specialties": [{"name": tram_y_te_specialty}],
@@ -210,8 +211,8 @@ class ChatbotApp:
                 }
             )
             yield "trace", (
-                "Định tuyến: Đã áp dụng hồ sơ chuyên môn phù hợp và tải dữ liệu chuyên khoa "
-                f"({len(tram_y_te_diseases)} bệnh)."
+                "Shortcut: Role bac_si_tramyte -> bỏ qua định tuyến, cố định chuyên khoa tram_y_te "
+                f"và nạp trước {len(tram_y_te_diseases)} bệnh từ DB."
             )
         else:
             # 1) Intent routing
@@ -232,10 +233,11 @@ class ChatbotApp:
                 return
 
             # 2) Disease routing
-            yield "trace", "Định tuyến bệnh: Đang định tuyến bệnh theo chuyên khoa..."
+            yield "trace", "Định tuyến bệnh: Đang định tuyến bệnh theo từng chuyên khoa..."
             state.update(await self.workflow.disease_router.process(state))
             routed_diseases = state.get("routed_diseases", {})
             total_diseases = sum(len(items) for items in routed_diseases.values())
+            yield "trace", f"Định tuyến bệnh: Tổng số bệnh định tuyến được: {total_diseases}"
             if self.workflow.disease_route_logic(state) == "synthesis_node":
                 yield "trace", "Định tuyến bệnh: Không có bệnh phù hợp, chuyển sang tổng hợp."
                 async for chunk in self.workflow.synthesizer.stream_process(state):
@@ -267,13 +269,33 @@ class ChatbotApp:
         yield "trace", f"Truy xuất: Đang truy xuất trên {len(active_version_ids)} phiên bản đang hoạt động..."
         state.update(await self.workflow.retriever.process(state))
         specialty_contexts = state.get("specialty_contexts", {})
-        yield "trace", f"Truy xuất: Đã tạo {len(specialty_contexts)} nhánh theo văn bản để phân tích song song."
 
-        yield "trace", "Chuyên gia: Đang tạo báo cáo theo từng văn bản..."
+        # Single-specialty path previously bypassed synthesizer and returned one-shot text.
+        # Stream expert output directly here to achieve true streaming behavior.
+        if len(specialty_contexts) == 1:
+            domain_name, context = next(iter(specialty_contexts.items()))
+            transformer = CitationStreamTransformer()
+            async for chunk in self.workflow.experts.stream_single_report(state["query"], domain_name, context):
+                delta = transformer.feed(chunk)
+                if delta:
+                    cleaned = emit_clean(delta)
+                    if cleaned:
+                        yield "chunk", cleaned
+            tail = transformer.flush()
+            if tail:
+                cleaned = emit_clean(tail)
+                if cleaned:
+                    yield "chunk", cleaned
+            final_tail = flush_clean()
+            if final_tail:
+                yield "chunk", final_tail
+            return
+
+        yield "trace", "Chuyên gia: Đang tạo báo cáo cho nhiều chuyên khoa..."
         state.update(await self.workflow.experts.process(state))
 
         # 5) Final synthesis streaming
-        yield "trace", "Tổng hợp: Đang tổng hợp các báo cáo từ từng văn bản..."
+        yield "trace", "Tổng hợp: Đang tổng hợp báo cáo liên chuyên khoa..."
         async for chunk in self.workflow.synthesizer.stream_process(state):
             cleaned = emit_clean(chunk)
             if cleaned:

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useAuth } from "@/contexts/AuthContext";
 import Logos from "@/components/logos/logos";
+import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/services/api";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -22,8 +23,9 @@ export function LoginPage() {
     try {
       await login(formData);
       navigate({ to: "/chat" });
-    } catch (err: any) {
-      setError(err?.data?.message || "Login failed. Please try again.");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.data?.message : undefined;
+      setError(message || "Login failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +67,7 @@ export function LoginPage() {
                 htmlFor="username"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Tên đăng nhập
+                Email hoặc tên đăng nhập
               </label>
               <input
                 id="username"
@@ -75,7 +77,7 @@ export function LoginPage() {
                 value={formData.username}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-design-border rounded-xl focus:outline-none focus:ring-2 focus:ring-btn-text/20 focus:border-btn-text transition"
-                placeholder="Nhập tên đăng nhập"
+                placeholder="Nhập email hoặc tên đăng nhập"
               />
             </div>
 
@@ -111,6 +113,7 @@ export function LoginPage() {
             <p className="text-sm text-gray-600">
               Chưa có tài khoản?{" "}
               <button
+                type="button"
                 onClick={() => navigate({ to: "/signup" })}
                 className="text-btn-link font-medium hover:underline cursor-pointer"
               >
@@ -121,6 +124,7 @@ export function LoginPage() {
 
           <div className="mt-4 pt-4 border-t border-design-border">
             <button
+              type="button"
               onClick={() => {
                 continueAsGuest();
                 navigate({ to: "/chat" });

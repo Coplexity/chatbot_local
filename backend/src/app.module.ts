@@ -1,13 +1,15 @@
 import { Module } from "@nestjs/common";
 
-import { AuthModule } from "./modules/auth/auth.module";
 import { AppConfigModule } from "./configs/app-config.module";
-import { HealthModule } from "./modules/health/health.module";
+import { AuthModule } from "./modules/auth/auth.module";
 import { ChatModule } from "./modules/chat/chat.module";
+import { DatabaseModule } from "./modules/database/database.module";
+import { HealthModule } from "./modules/health/health.module";
 
 @Module({
   imports: [
     AppConfigModule,
+    DatabaseModule,
     AuthModule,
     HealthModule,
     ChatModule,

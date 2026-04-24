@@ -88,7 +88,7 @@ def main():
     parser = argparse.ArgumentParser(description="SSE streaming client for Medical RAG API")
     parser.add_argument("--url", default="http://127.0.0.1:3636", help="Base URL of API server")
     parser.add_argument("--query", required=True, help="User query to send")
-    parser.add_argument("--role", default="", help="Optional user role for routing profile (e.g. bac_si_namkhoa)")
+    parser.add_argument("--role", default="", help="Optional role for shortcut flow (e.g. bac_si_tramyte)")
     parser.add_argument("--timeout", type=float, default=600.0, help="HTTP timeout in seconds")
     args = parser.parse_args()
 

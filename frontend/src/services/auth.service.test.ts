@@ -1,5 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const authResponse = {
+  accessToken: "demo-token",
+  user: {
+    id: "user-1",
+    username: "demo",
+    name: "Demo User",
+    email: "demo@example.com",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+};
+
 const { postMock } = vi.hoisted(() => ({
   postMock: vi.fn(),
 }));
@@ -38,5 +50,26 @@ describe("authService.logout", () => {
 
     await expect(authService.logout()).resolves.toBeUndefined();
     expect(localStorage.getItem("accessToken")).toBeNull();
+  });
+});
+
+describe("authService.signIn", () => {
+  beforeEach(() => {
+    postMock.mockReset();
+    localStorage.clear();
+  });
+
+  it("sends the username login payload expected by the backend", async () => {
+    postMock.mockResolvedValue(authResponse);
+
+    const { authService } = await import("./auth.service");
+
+    await authService.signIn({ username: "demo@example.com", password: "password123" });
+
+    expect(postMock).toHaveBeenCalledWith("/auth/sign-in", {
+      username: "demo@example.com",
+      password: "password123",
+    });
+    expect(localStorage.getItem("accessToken")).toBe("demo-token");
   });
 });

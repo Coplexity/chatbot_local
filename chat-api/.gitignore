@@ -1,5 +1,5 @@
 # Giấu các file chứa mật khẩu
-config.py
+/config.py
 .env
 
 # Giấu file rác

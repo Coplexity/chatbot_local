@@ -33,7 +33,7 @@ export interface SignInRequest {
 export interface SignUpRequest {
   name: string;
   email: string;
-  username: string;
+  fullName: string;
   password: string;
 }
 
@@ -65,7 +65,7 @@ export interface Conversation {
   userId: string;
   totalTokens: number;
   maxTokens: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   messages?: Message[];
