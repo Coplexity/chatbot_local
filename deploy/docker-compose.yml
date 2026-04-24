@@ -48,8 +48,6 @@ services:
       #   condition: service_healthy
       chat-api:
         condition: service_started
-    volumes:
-      - ./backend.config.yml:/app/config/config.yml:ro
 
   chat-api:
     build:
