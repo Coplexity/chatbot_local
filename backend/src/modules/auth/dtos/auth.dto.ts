@@ -3,11 +3,19 @@ import { Transform, Type } from "class-transformer";
 import { IsEmail, IsString } from "class-validator";
 import { UserDto } from "./user.dto";
 
+const normalizeIdentifier = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  return value.trim().toLowerCase();
+};
+
 export class SignInDto {
   @ApiProperty({ example: "t11@example.com" })
   @IsString()
-  @Transform(({ value }) => value.trim().toLowerCase())
-  email: string;
+  @Transform(normalizeIdentifier)
+  username: string;
 
   @ApiProperty({ example: "password123" })
   @IsString()
@@ -26,7 +34,7 @@ export class AuthResponseDto {
   user: UserDto;
 
   @ApiPropertyOptional({ description: "Additional metadata from the authentication flow" })
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -52,7 +60,7 @@ export class SignUpDto {
   @ApiProperty({ example: "t11@example.com" })
   @IsString()
   @IsEmail()
-  @Transform(({ value }) => value.trim().toLowerCase())
+  @Transform(normalizeIdentifier)
   email: string;
 
   @ApiProperty({ example: "password123" })

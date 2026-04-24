@@ -10,7 +10,7 @@ export function SignupPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    username: "",
+    fullName: "",
     password: "",
     confirmPassword: "",
   });
@@ -111,14 +111,14 @@ export function SignupPage() {
                 htmlFor="username"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
-                Tên đăng nhập
+                Tên
               </label>
               <input
                 id="username"
                 name="username"
                 type="text"
                 required
-                value={formData.username}
+                value={formData.fullName}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-design-border rounded-xl focus:outline-none focus:ring-2 focus:ring-btn-text/20 focus:border-btn-text transition"
                 placeholder="Nhập tên đăng nhập"

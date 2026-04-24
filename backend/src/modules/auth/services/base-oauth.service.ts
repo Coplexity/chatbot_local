@@ -65,7 +65,7 @@ export abstract class BaseOAuthService {
     });
 
     if (!documentUser) {
-      throw new UnauthorizedException("Python user not found");
+      throw new UnauthorizedException("User not found");
     }
 
     return documentUser;

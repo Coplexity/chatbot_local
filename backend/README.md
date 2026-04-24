@@ -27,7 +27,7 @@ The backend reads runtime configuration from `config/config.yml` and supports en
 
 | Variable | Description | Example |
 | --- | --- | --- |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated list of frontend origins allowed to call the backend. Leave empty only for environments where the config file supplies the value. | `http://localhost:8080,https://app.example.com` |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated list of frontend origins allowed to call the backend. Leave empty only for environments where the config file supplies the value. | `http://localhost:8400,https://app.example.com` |
 | `CORS_ALLOW_CREDENTIALS` | Whether browsers may send credentials such as cookies and authorization headers in cross-origin requests. | `true` |
 
 ### Database
