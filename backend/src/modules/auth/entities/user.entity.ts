@@ -3,9 +3,10 @@ import { BaseEntity } from "../../../common/entities/base-entity";
 import { DocumentUserEntity } from "./document-user.entity";
 
 export enum UserRole {
-  ADMIN = "admin",
-  EDITOR = "editor",
-  VIEWER = "viewer",
+  NONE = "",
+  NHAN_VIEN_Y_TE = "nhan_vien_y_te",
+  BAC_SI_TRAM_Y_TE = "bac_si_tram_y_te",
+  BAC_SI_BENH_VIEN_CHUYEN_SAU = "bac_si_benh_vien_chuyen_sau",
 }
 
 @Entity("chat_users")
@@ -27,11 +28,8 @@ export class UserEntity extends BaseEntity {
   @Column({ type: "varchar", length: 255, unique: true })
   email: string;
 
-  @Column({ type: "varchar", length: 20, default: UserRole.VIEWER })
+  @Column({ type: "varchar", length: 50, default: UserRole.NONE })
   role: UserRole;
-
-  @Column({ name: "chat_role", type: "varchar", length: 255, nullable: true })
-  chatRole: string | null;
 
   @Column({ name: "is_active", type: "boolean", default: true })
   isActive: boolean;

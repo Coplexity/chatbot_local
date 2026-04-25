@@ -12,9 +12,6 @@ export class UserDto extends BaseEntityDto {
   @ApiProperty({ enum: UserRole })
   role: UserRole;
 
-  @ApiProperty({ nullable: true, required: false })
-  chatRole?: string | null;
-
   @ApiProperty()
   isActive: boolean;
 }

@@ -10,6 +10,7 @@ import { BaseOAuthService, OAuthMetadata, OAuthTokenResponse, OAuthUserInfo } fr
 export interface GoogleUserData {
   googleId: string;
   email: string;
+  emailVerified?: boolean;
   name: string;
   picture?: string;
   accessToken: string;
@@ -103,7 +104,7 @@ export class GoogleOAuthService extends BaseOAuthService {
       });
       const payload = ticket.getPayload();
 
-      if (!payload?.email || !payload?.sub) {
+      if (!payload?.email || !payload?.sub || payload.email_verified !== true) {
         throw new UnauthorizedException("Invalid Google token payload");
       }
 
@@ -127,21 +128,21 @@ export class GoogleOAuthService extends BaseOAuthService {
   }
 
   async validateGoogleUser(googleData: GoogleUserData): Promise<UserEntity> {
-    return this.dataSource.transaction(async (manager) => {
-      const documentUser = await this.findDocumentUserOrThrow(manager, googleData.email);
-      const systemUser = await this.ensureSystemUserFromPython(manager, documentUser);
+    if (googleData.emailVerified === false) {
+      throw new UnauthorizedException("Google account email is not verified");
+    }
 
-      await this.upsertOAuthAccount(manager, systemUser, {
+    return this.dataSource.transaction(async (manager) => {
+      const oauthUser = {
         providerId: googleData.googleId,
         email: googleData.email,
         name: googleData.name,
         picture: googleData.picture,
-      }, {
+      };
+      return this.authenticateOAuthUser(manager, oauthUser, {
         accessToken: googleData.accessToken,
         refreshToken: googleData.refreshToken,
       });
-
-      return systemUser;
     });
   }
 

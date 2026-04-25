@@ -102,7 +102,7 @@ export class GitHubOAuthService extends BaseOAuthService {
       }
 
       const userData = await userResponse.json() as any;
-      let email = userData.email;
+      let email: string | undefined;
 
       if (!email) {
         const emailResponse = await fetch("https://api.github.com/user/emails", {
@@ -116,7 +116,7 @@ export class GitHubOAuthService extends BaseOAuthService {
           const emails = await emailResponse.json() as any[];
           const primaryEmail = emails.find((e: any) => e.primary && e.verified);
           const verifiedEmail = emails.find((e: any) => e.verified);
-          email = primaryEmail?.email || verifiedEmail?.email || emails[0]?.email;
+          email = primaryEmail?.email || verifiedEmail?.email;
         }
       }
 
@@ -149,20 +149,16 @@ export class GitHubOAuthService extends BaseOAuthService {
 
   async validateGitHubUser(githubData: GitHubUserData): Promise<UserEntity> {
     return this.dataSource.transaction(async (manager) => {
-      const documentUser = await this.findDocumentUserOrThrow(manager, githubData.email);
-      const systemUser = await this.ensureSystemUserFromPython(manager, documentUser);
-
-      await this.upsertOAuthAccount(manager, systemUser, {
+      const oauthUser = {
         providerId: githubData.githubId,
         email: githubData.email,
         name: githubData.name,
         username: githubData.username,
         picture: githubData.avatarUrl,
-      }, {
+      };
+      return this.authenticateOAuthUser(manager, oauthUser, {
         accessToken: githubData.accessToken,
       });
-
-      return systemUser;
     });
   }
 

@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { DataSource, EntityManager } from "typeorm";
 import type { SignInDto, SignUpDto } from "../dtos/auth.dto";
 import type { ChangePasswordDto } from "../dtos/password.dto";
-import type { DocumentUserEntity } from "../entities/document-user.entity";
-import { UserRole, type UserEntity } from "../entities/user.entity";
+import { DocumentUserEntity, DocumentUserRole } from "../entities/document-user.entity";
+import { UserRole, UserEntity } from "../entities/user.entity";
 import { DocumentUserRepository } from "../repositories/python-user.repository";
 import { UserRepository } from "../repositories/user.repository";
 import { hashPasslibPbkdf2Sha256, verifyDocumentUserPasswordHash } from "../utils/passlib-pbkdf2-sha256.util";
@@ -14,14 +15,8 @@ export class AccountService {
   constructor(
     private userRepo: UserRepository,
     private documentUserRepo: DocumentUserRepository,
+    private dataSource: DataSource,
   ) { }
-
-  private mapPythonRoleToSystemRole(role: string): UserRole {
-    if (role === UserRole.ADMIN || role === UserRole.EDITOR || role === UserRole.VIEWER) {
-      return role;
-    }
-    return UserRole.VIEWER;
-  }
 
   private async ensureSystemUserFromDocumentUser(documentUser: DocumentUserEntity): Promise<UserEntity> {
     let systemUser = await this.userRepo.findOne({ where: { documentUserId: documentUser.id } });
@@ -31,7 +26,7 @@ export class AccountService {
         documentUserId: documentUser.id,
         email: documentUser.email,
         fullName: documentUser.fullName,
-        role: this.mapPythonRoleToSystemRole(documentUser.role),
+        role: UserRole.NONE,
         isActive: documentUser.isActive,
       });
       await this.userRepo.save(systemUser);
@@ -40,11 +35,34 @@ export class AccountService {
 
     systemUser.email = documentUser.email;
     systemUser.fullName = documentUser.fullName;
-    systemUser.role = this.mapPythonRoleToSystemRole(documentUser.role);
     systemUser.isActive = documentUser.isActive;
 
     await this.userRepo.save(systemUser);
     return systemUser;
+  }
+
+  private async ensureSystemUserFromDocumentUserInTransaction(
+    manager: EntityManager,
+    documentUser: DocumentUserEntity,
+  ): Promise<UserEntity> {
+    let systemUser = await manager.findOne(UserEntity, { where: { documentUserId: documentUser.id } });
+
+    if (!systemUser) {
+      systemUser = manager.create(UserEntity, {
+        documentUserId: documentUser.id,
+        email: documentUser.email,
+        fullName: documentUser.fullName,
+        role: UserRole.NONE,
+        isActive: documentUser.isActive,
+      });
+      return manager.save(systemUser);
+    }
+
+    systemUser.email = documentUser.email;
+    systemUser.fullName = documentUser.fullName;
+    systemUser.isActive = documentUser.isActive;
+
+    return manager.save(systemUser);
   }
 
   private async getDocumentUserByEmailOrThrow(email: string): Promise<DocumentUserEntity> {
@@ -73,19 +91,25 @@ export class AccountService {
   }
 
   async signUp(dto: SignUpDto): Promise<UserEntity> {
-    const documentUser = await this.getDocumentUserByEmailOrThrow(dto.email);
+    return this.dataSource.transaction(async (manager) => {
+      const existingDocumentUser = await manager.findOne(DocumentUserEntity, { where: { email: dto.email } });
 
-    const isPasswordMatch = verifyDocumentUserPasswordHash(dto.password, documentUser.passwordHash);
-    if (!isPasswordMatch) {
-      throw new UnauthorizedException("Email or password is not correct");
-    }
+      if (existingDocumentUser) {
+        throw new BadRequestException("Email already exists");
+      }
 
-    if (!documentUser.fullName && dto.fullName) {
-      documentUser.fullName = dto.fullName;
-      await this.documentUserRepo.save(documentUser);
-    }
+      const documentUser = manager.create(DocumentUserEntity, {
+        email: dto.email,
+        fullName: dto.fullName,
+        passwordHash: hashPasslibPbkdf2Sha256(dto.password),
+        role: DocumentUserRole.VIEWER,
+        isActive: true,
+      });
 
-    return this.ensureSystemUserFromDocumentUser(documentUser);
+      await manager.save(documentUser);
+
+      return this.ensureSystemUserFromDocumentUserInTransaction(manager, documentUser);
+    });
   }
 
   async getUser(userId: string) {
@@ -96,14 +120,14 @@ export class AccountService {
     return this.userRepo.findOne({ where: { email } });
   }
 
-  async updateUser(userId: string, updateData: Partial<UserEntity>) {
+  async updateUserRole(userId: string, role: UserRole) {
     const user = await this.userRepo.findOne({ where: { id: userId } });
 
     if (!user) {
       throw new BadRequestException("User not found");
     }
 
-    Object.assign(user, updateData);
+    user.role = role;
     await user.save();
 
     return user;
