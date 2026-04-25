@@ -4,7 +4,7 @@ import { UserEntity } from "../../auth/entities/user.entity";
 import { ConversationSummaryEntity } from "./conversation-summary.entity";
 import { MessageEntity } from "./message.entity";
 
-@Entity("chat_conversations")
+@Entity("conversations")
 @Index(["userId", "createdAt"])
 @Index(["userId", "deletedAt"])
 export class ConversationEntity extends SoftDeleteEntity {

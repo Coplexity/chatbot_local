@@ -7,7 +7,7 @@ export enum AccountProvider {
   GITHUB = "github",
 }
 
-@Entity("chat_accounts")
+@Entity("accounts")
 @Index(["provider", "providerAccountId"], { unique: true })
 @Index(["userId"])
 export class AccountEntity extends BaseEntity {

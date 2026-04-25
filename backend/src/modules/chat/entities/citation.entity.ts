@@ -2,7 +2,7 @@ import { Column, Entity, Index, ManyToOne, JoinColumn } from "typeorm";
 import { BaseEntity } from "../../../common/entities/base-entity";
 import { MessageEntity } from "./message.entity";
 
-@Entity("chat_citations")
+@Entity("citations")
 @Index(["messageId", "createdAt"])
 export class CitationEntity extends BaseEntity {
   @Column({ type: "uuid" })

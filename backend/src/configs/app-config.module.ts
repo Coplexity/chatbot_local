@@ -4,9 +4,9 @@ import { Global, Logger, Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { TypedConfigModule } from "nest-typed-config";
 import { join } from "node:path";
-import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 import { createConfigLoaders } from "./config-loader";
 import { DbConfig, MailerConfig, RootConfig } from "./root-config";
+import { PrefixedSnakeNamingStrategy } from "./prefixed-snake-naming-strategy";
 
 const logger = new Logger("AppConfigModule");
 
@@ -63,7 +63,7 @@ const typedConfigModule = TypedConfigModule.forRoot({
         synchronize: config.synchronize,
         logging: config.logging,
         autoLoadEntities: true,
-        namingStrategy: new SnakeNamingStrategy(),
+        namingStrategy: new PrefixedSnakeNamingStrategy(),
       }),
       inject: [DbConfig],
     }),
