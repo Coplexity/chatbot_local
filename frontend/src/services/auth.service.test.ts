@@ -1,26 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UserRole } from "@/types/api-types";
 
 const authResponse = {
   accessToken: "demo-token",
   user: {
     id: "user-1",
-    username: "demo",
-    name: "Demo User",
+    fullName: "Demo User",
     email: "demo@example.com",
+    role: "",
+    isActive: true,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
 };
 
-const { postMock } = vi.hoisted(() => ({
+const { postMock, patchMock } = vi.hoisted(() => ({
   postMock: vi.fn(),
+  patchMock: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
   api: {
     post: postMock,
     get: vi.fn(),
-    patch: vi.fn(),
+    patch: patchMock,
   },
 }));
 
@@ -71,5 +74,23 @@ describe("authService.signIn", () => {
       password: "password123",
     });
     expect(localStorage.getItem("accessToken")).toBe("demo-token");
+  });
+});
+
+describe("authService.updateUserRole", () => {
+  beforeEach(() => {
+    patchMock.mockReset();
+  });
+
+  it("sends chat role updates to the dedicated endpoint", async () => {
+    patchMock.mockResolvedValue(authResponse.user);
+
+    const { authService } = await import("./auth.service");
+
+    await authService.updateUserRole(UserRole.BAC_SI_TRAM_Y_TE);
+
+    expect(patchMock).toHaveBeenCalledWith("/auth/me/role", {
+      role: "bac_si_tram_y_te",
+    });
   });
 });
