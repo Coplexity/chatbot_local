@@ -15,11 +15,11 @@ const ROLE_OPTIONS = [
 export function TitleSection({ onMenuClick }: { onMenuClick?: () => void }) {
   const { message } = App.useApp();
   const { user, isAuthenticated, refreshUser } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole>(user?.role ?? UserRole.USER);
+  const [selectedRole, setSelectedRole] = useState<UserRole>(user?.role ?? UserRole.NONE);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
   useEffect(() => {
-    setSelectedRole(user?.role ?? UserRole.USER);
+    setSelectedRole(user?.role ?? UserRole.NONE);
   }, [user?.role]);
 
   const handleRoleChange = async (nextRole: UserRole) => {
@@ -32,7 +32,7 @@ export function TitleSection({ onMenuClick }: { onMenuClick?: () => void }) {
     setIsUpdatingRole(true);
 
     try {
-      await authService.updateUser({ role: nextRole });
+      await authService.updateUserRole(nextRole);
       await refreshUser();
       message.success("Cập nhật role thành công");
     } catch (error) {
@@ -49,11 +49,13 @@ export function TitleSection({ onMenuClick }: { onMenuClick?: () => void }) {
       {/* Mobile menu button + Title */}
       <div className="flex items-center gap-3">
         <button
+          type="button"
           onClick={onMenuClick}
           className="lg:hidden p-2 rounded-full hover:bg-white transition-colors"
           aria-label="Open menu"
         >
           <svg
+            aria-hidden="true"
             className="w-5 h-5"
             fill="none"
             stroke="currentColor"
@@ -87,10 +89,10 @@ export function TitleSection({ onMenuClick }: { onMenuClick?: () => void }) {
             size="middle"
           />
         ) : null}
-        <button className="p-2 rounded-full text-slate-500 hover:bg-white transition-colors cursor-pointer">
+        <button type="button" className="p-2 rounded-full text-slate-500 hover:bg-white transition-colors cursor-pointer">
           <Icons.UploadIcon className="w-4 h-4 lg:w-5 lg:h-5" />
         </button>
-        <button className="p-2 rounded-full text-slate-500 hover:bg-white transition-colors cursor-pointer">
+        <button type="button" className="p-2 rounded-full text-slate-500 hover:bg-white transition-colors cursor-pointer">
           <Icons.Copy className="w-4 h-4 lg:w-5 lg:h-5" />
         </button>
       </div>

@@ -1,5 +1,6 @@
 import { BadRequestException, Body, ClassSerializerInterceptor, Controller, Get, HttpCode, Logger, Patch, Post, Req, Res, UnauthorizedException, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { IsEnum } from "class-validator";
 import { Request, Response } from "express";
 import { ApiHttpException } from "../../../common/decorators/api-http-exception.decorator";
 import { UserDto } from "../dtos/user.dto";
@@ -9,6 +10,12 @@ import { GetUserId } from "../decorators/get-user-id.decorator";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { LogoutSuccessResponseDto, SignInDto, SignInSuccessResponseDto, SignUpDto, SignUpSuccessResponseDto } from "../dtos/auth.dto";
 import { ChangePasswordDto, GetPasswordResponseDto } from "../dtos/password.dto";
+import { UserRole } from "../entities/user.entity";
+
+class UpdateChatRoleDto {
+  @IsEnum(UserRole)
+  role: UserRole;
+}
 
 @ApiTags("Account")
 @Controller("auth")
@@ -64,14 +71,14 @@ export class AccountController {
     return this.accountService.getUser(userId);
   }
 
-  @Patch("me")
+  @Patch("me/role")
   @ApiBearerAuth()
   @ApiOkResponse({ type: UserDto })
   @ApiHttpException(() => [BadRequestException, UnauthorizedException])
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
-  async updateUser(@GetUserId() userId: string, @Body() dto: Pick<UserDto, "fullName" | "email" | "role" | "chatRole" | "isActive">) {
-    return this.accountService.updateUser(userId, dto);
+  async updateUserRole(@GetUserId() userId: string, @Body() dto: UpdateChatRoleDto) {
+    return this.accountService.updateUserRole(userId, dto.role);
   }
 
   // ==================== Password Management Endpoints ====================

@@ -4,6 +4,7 @@ import type {
   SignInRequest,
   SignUpRequest,
   User,
+  UserRole,
 } from "@/types/api-types";
 
 interface LogoutResponse {
@@ -16,12 +17,12 @@ export const authService = {
    */
   async signIn(credentials: SignInRequest): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>("/auth/sign-in", credentials);
-    
+
     // Store token in localStorage
     if (response.accessToken) {
       localStorage.setItem("accessToken", response.accessToken);
     }
-    
+
     return response;
   },
 
@@ -30,12 +31,12 @@ export const authService = {
    */
   async signUp(data: SignUpRequest): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>("/auth/sign-up", data);
-    
+
     // Store token in localStorage
     if (response.accessToken) {
       localStorage.setItem("accessToken", response.accessToken);
     }
-    
+
     return response;
   },
 
@@ -46,11 +47,8 @@ export const authService = {
     return api.get<User>("/auth/me");
   },
 
-  /**
-   * Update user profile
-   */
-  async updateUser(data: Partial<Pick<User, "username" | "name" | "email" | "role">>): Promise<User> {
-    return api.patch<User>("/auth/me", data);
+  async updateUserRole(role: UserRole): Promise<User> {
+    return api.patch<User>("/auth/me/role", { role });
   },
 
   /**

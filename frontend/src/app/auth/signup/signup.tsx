@@ -2,15 +2,15 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/contexts/AuthContext";
 import Logos from "@/components/logos/logos";
+import { ApiError } from "@/services/api";
 
 export function SignupPage() {
   const navigate = useNavigate();
   const { register, continueAsGuest } = useAuth();
 
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
     fullName: "",
+    email: "",
     password: "",
     confirmPassword: "",
   });
@@ -21,7 +21,6 @@ export function SignupPage() {
     e.preventDefault();
     setError("");
 
-    // Validate password match
     if (formData.password !== formData.confirmPassword) {
       setError("Mật khẩu xác nhận không khớp");
       return;
@@ -33,8 +32,9 @@ export function SignupPage() {
       const { confirmPassword, ...signupData } = formData;
       await register(signupData);
       navigate({ to: "/chat", search: { chatId: undefined } });
-    } catch (err: any) {
-      setError(err?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.");
+    } catch (err) {
+      const message = err instanceof ApiError ? err.data?.message : undefined;
+      setError(message || "Đăng ký thất bại. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
     }
@@ -70,17 +70,17 @@ export function SignupPage() {
 
             <div>
               <label
-                htmlFor="name"
+                htmlFor="fullName"
                 className="block text-sm font-medium text-gray-700 mb-2"
               >
                 Họ và tên
               </label>
               <input
-                id="name"
-                name="name"
+                id="fullName"
+                name="fullName"
                 type="text"
                 required
-                value={formData.name}
+                value={formData.fullName}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-design-border rounded-xl focus:outline-none focus:ring-2 focus:ring-btn-text/20 focus:border-btn-text transition"
                 placeholder="Nhập họ và tên"
@@ -103,25 +103,6 @@ export function SignupPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-design-border rounded-xl focus:outline-none focus:ring-2 focus:ring-btn-text/20 focus:border-btn-text transition"
                 placeholder="Nhập email"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Tên
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                value={formData.fullName}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-design-border rounded-xl focus:outline-none focus:ring-2 focus:ring-btn-text/20 focus:border-btn-text transition"
-                placeholder="Nhập tên đăng nhập"
               />
             </div>
 
@@ -176,6 +157,7 @@ export function SignupPage() {
             <p className="text-sm text-gray-600">
               Đã có tài khoản?{" "}
               <button
+                type="button"
                 onClick={() => navigate({ to: "/login" })}
                 className="text-btn-link font-medium hover:underline cursor-pointer"
               >
@@ -186,6 +168,7 @@ export function SignupPage() {
 
           <div className="mt-4 pt-4 border-t border-design-border">
             <button
+              type="button"
               onClick={() => {
                 continueAsGuest();
                 navigate({ to: "/chat" });

@@ -1,8 +1,6 @@
 // API Response Types matching backend DTOs
 
 export enum UserRole {
-  ADMIN = "admin",
-  USER = "user",
   NONE = "",
   NHAN_VIEN_Y_TE = "nhan_vien_y_te",
   BAC_SI_TRAM_Y_TE = "bac_si_tram_y_te",
@@ -11,11 +9,10 @@ export enum UserRole {
 
 export interface User {
   id: string;
-  username: string;
-  name: string;
+  fullName: string | null;
   email: string;
-  role?: UserRole;
-  roles?: UserRole[];
+  role: UserRole;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,9 +28,8 @@ export interface SignInRequest {
 }
 
 export interface SignUpRequest {
-  name: string;
-  email: string;
   fullName: string;
+  email: string;
   password: string;
 }
 
