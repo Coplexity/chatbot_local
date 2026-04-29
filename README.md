@@ -6,10 +6,10 @@ A multi-service medical chatbot with a React frontend, NestJS backend API, and F
 
 ```text
 .
-├── backend/      # Main NestJS API
-├── chat-api/     # FastAPI chat streaming service
-├── deploy/       # Docker Compose and deployment config samples
-├── frontend/     # React + Vite frontend
+├── chat-api/       # FastAPI chat streaming service
+├── chat-backend/   # Main NestJS API
+├── chat-frontend/  # React + Vite frontend
+├── deploy/         # Docker Compose and deployment config samples
 └── README.md
 ```
 
@@ -17,13 +17,13 @@ A multi-service medical chatbot with a React frontend, NestJS backend API, and F
 
 ```text
 Browser
-  └─> Frontend (Nginx, host :8400 -> container :80)
-        └─> Backend API (NestJS, internal :3000)
+  └─> Chat Frontend (Nginx, host :8400 -> container :80)
+        └─> Chat Backend API (NestJS, internal :3000)
 
 External chat clients / integrations
   └─> Chat API (FastAPI, internal :8000)
 
-Backend + Chat API
+Chat Backend + Chat API
   ├─> PostgreSQL
   └─> Redis
 ```
@@ -94,8 +94,8 @@ docker compose up -d --build
 
 ```bash
 docker compose ps
-docker compose logs -f frontend
-docker compose logs -f backend
+docker compose logs -f chat-frontend
+docker compose logs -f chat-backend
 docker compose logs -f chat-api
 ```
 
@@ -108,7 +108,7 @@ docker compose down
 
 ## Deployment Notes
 
-- The frontend proxies API requests through `VITE_BACKEND_URL`; inside Docker it defaults to `http://backend:3000`.
+- The chat frontend proxies API requests through `VITE_BACKEND_URL`; inside Docker it defaults to `http://chat-backend:3000`.
 - `deploy/backend.config.yml` is mounted as `/app/config/config.yml`; environment variables override it when provided.
 - The chat API uses environment variables directly for OpenAI and database configuration.
 - Do not commit real secret files such as `deploy/.env`.

@@ -31,9 +31,9 @@ services:
     networks:
       - medical-chatbot
 
-  backend:
+  chat-backend:
     build:
-      context: ../backend
+      context: ../chat-backend
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -73,17 +73,17 @@ services:
     networks:
       - medical-chatbot
 
-  frontend:
+  chat-frontend:
     build:
-      context: ../frontend
+      context: ../chat-frontend
       dockerfile: Dockerfile
       args:
-        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://backend:3000}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://chat-backend:3000}
         VITE_DOCUMENT_FILE_URL_TEMPLATE: ${VITE_DOCUMENT_FILE_URL_TEMPLATE} # example: https://your-domain/api/v1/documents/{documentId}/file
         VITE_MAINTENANCE_MESSAGE: ${VITE_MAINTENANCE_MESSAGE}
     restart: unless-stopped
     depends_on:
-      - backend
+      - chat-backend
     ports:
       - "${FRONTEND_PORT:-8400}:80"
     networks:
