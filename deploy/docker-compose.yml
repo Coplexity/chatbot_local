@@ -1,20 +1,24 @@
 name: medical-chatbot
 
 services:
-  # postgres:
-  #   image: postgres:16-alpine
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_DB: ${DB_NAME}
-  #     POSTGRES_USER: ${DB_USER}
-  #     POSTGRES_PASSWORD: ${DB_PASS}
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - disabled
+    networks:
+      - default 
 
   redis:
     image: redis:7-alpine
@@ -29,7 +33,7 @@ services:
     profiles:
       - disabled
     networks:
-      - medical-chatbot
+      - default
 
   chat-backend:
     build:
@@ -46,12 +50,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CHAT_API_URL: http://chat-api:8000
     depends_on:
-      # postgres:
-      #   condition: service_healthy
-      chat-api:
-        condition: service_started
+      # - postgres
+      - chat-api
     networks:
-      - medical-chatbot
+      - default
+      - chatbot-db
 
   chat-api:
     build:
@@ -68,10 +71,10 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
     # depends_on:
-    #   postgres:
-    #     condition: service_healthy
+    #   - postgres
     networks:
-      - medical-chatbot
+      - default
+      - chatbot-db
 
   chat-frontend:
     build:
@@ -87,11 +90,13 @@ services:
     ports:
       - "${FRONTEND_PORT:-8400}:80"
     networks:
-      - medical-chatbot
+      - default
 
 volumes:
   postgres_data:
   redis_data:
+
 networks:
-  medical-chatbot:
+  chatbot-db:
     external: true
+    
