@@ -3,7 +3,6 @@ import re
 import unicodedata
 
 from app.workflow import MedicalWorkflow
-from nodes.reasoning.citation_transformer import CitationStreamTransformer
 
 
 class MarkdownStreamSanitizer:
@@ -199,10 +198,11 @@ class ChatbotApp:
 
         yield "trace", "Xác nhận: Câu hỏi liên quan y tế ✓"
 
-        if self._is_tram_y_te_shortcut(role):
+        shortcut_active = self._is_tram_y_te_shortcut(role)
+        if shortcut_active:
             tram_y_te_specialty = self._resolve_tram_y_te_specialty_name()
             tram_y_te_diseases = self.workflow.disease_router._load_disease_candidates(tram_y_te_specialty)
-            # Shortcut for tram y te doctors: skip routing nodes and force one specialty.
+            # Shortcut for tram y te doctors: skip intent routing and force one specialty.
             state.update(
                 {
                     "analyzed_specialties": [{"name": tram_y_te_specialty}],
@@ -211,43 +211,46 @@ class ChatbotApp:
                 }
             )
             yield "trace", (
-                "Shortcut: Role bac_si_tramyte -> bỏ qua định tuyến, cố định chuyên khoa tram_y_te "
+                "Shortcut: Role bac_si_tramyte -> bỏ qua intent routing, cố định chuyên khoa tram_y_te "
                 f"và nạp trước {len(tram_y_te_diseases)} bệnh từ DB."
             )
         else:
             # 1) Intent routing
             yield "trace", "Định tuyến: Đang phân tích ý định và chuyên khoa liên quan"
             state.update(self.workflow.router.process(state))
-            routed_specialties = [item.get("name") for item in state.get("analyzed_specialties", []) if item.get("name")]
-            formatted_specialties = ", ".join(routed_specialties) if routed_specialties else "không có"
-            yield "trace", f"Định tuyến: Điều phối đến các chuyên khoa: {formatted_specialties}"
-            if self.workflow.route_logic(state) == "synthesis_node":
-                yield "trace", "Định tuyến: Không xác định được chuyên khoa, chuyển thẳng sang tổng hợp."
-                async for chunk in self.workflow.synthesizer.stream_process(state):
-                    cleaned = emit_clean(chunk)
-                    if cleaned:
-                        yield "chunk", cleaned
-                tail = flush_clean()
-                if tail:
-                    yield "chunk", tail
-                return
 
-            # 2) Disease routing
+        routed_specialties = [item.get("name") for item in state.get("analyzed_specialties", []) if item.get("name")]
+        formatted_specialties = ", ".join(routed_specialties) if routed_specialties else "không có"
+        yield "trace", f"Định tuyến: Điều phối đến các chuyên khoa: {formatted_specialties}"
+        if self.workflow.route_logic(state) == "synthesis_node":
+            yield "trace", "Định tuyến: Không xác định được chuyên khoa, chuyển thẳng sang tổng hợp."
+            async for chunk in self.workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
+
+        # 2) Disease routing
+        if not shortcut_active:
             yield "trace", "Định tuyến bệnh: Đang định tuyến bệnh theo từng chuyên khoa..."
             state.update(await self.workflow.disease_router.process(state))
-            routed_diseases = state.get("routed_diseases", {})
-            total_diseases = sum(len(items) for items in routed_diseases.values())
-            yield "trace", f"Định tuyến bệnh: Tổng số bệnh định tuyến được: {total_diseases}"
-            if self.workflow.disease_route_logic(state) == "synthesis_node":
-                yield "trace", "Định tuyến bệnh: Không có bệnh phù hợp, chuyển sang tổng hợp."
-                async for chunk in self.workflow.synthesizer.stream_process(state):
-                    cleaned = emit_clean(chunk)
-                    if cleaned:
-                        yield "chunk", cleaned
-                tail = flush_clean()
-                if tail:
-                    yield "chunk", tail
-                return
+
+        routed_diseases = state.get("routed_diseases", {})
+        total_diseases = sum(len(items) for items in routed_diseases.values())
+        yield "trace", f"Định tuyến bệnh: Tổng số bệnh định tuyến được: {total_diseases}"
+        if not shortcut_active and self.workflow.disease_route_logic(state) == "synthesis_node":
+            yield "trace", "Định tuyến bệnh: Không có bệnh phù hợp, chuyển sang tổng hợp."
+            async for chunk in self.workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
 
         # 3) Active version filtering
         yield "trace", "Lọc phiên bản: Đang lọc phiên bản hướng dẫn còn hoạt động..."
@@ -268,31 +271,77 @@ class ChatbotApp:
         # 4) Retrieval + experts
         yield "trace", f"Truy xuất: Đang truy xuất trên {len(active_version_ids)} phiên bản đang hoạt động..."
         state.update(await self.workflow.retriever.process(state))
-        specialty_contexts = state.get("specialty_contexts", {})
 
-        # Single-specialty path previously bypassed synthesizer and returned one-shot text.
-        # Stream expert output directly here to achieve true streaming behavior.
-        if len(specialty_contexts) == 1:
-            domain_name, context = next(iter(specialty_contexts.items()))
-            transformer = CitationStreamTransformer()
-            async for chunk in self.workflow.experts.stream_single_report(state["query"], domain_name, context):
-                delta = transformer.feed(chunk)
-                if delta:
-                    cleaned = emit_clean(delta)
-                    if cleaned:
-                        yield "chunk", cleaned
-            tail = transformer.flush()
-            if tail:
-                cleaned = emit_clean(tail)
+        document_contexts = state.get("document_contexts", [])
+        context_count = len(document_contexts)
+        yield "trace", f"Truy xuất: Đã giữ lại {context_count} văn bản liên quan sau lọc retrieval."
+
+        if context_count == 0:
+            yield "trace", "Truy xuất: Không còn văn bản phù hợp, chuyển sang tổng hợp."
+            async for chunk in self.workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
-            final_tail = flush_clean()
-            if final_tail:
-                yield "chunk", final_tail
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
             return
 
         yield "trace", "Chuyên gia: Đang tạo báo cáo cho nhiều chuyên khoa..."
         state.update(await self.workflow.experts.process(state))
+
+        document_reports = state.get("document_reports", [])
+        yield "trace", f"Chuyên gia: Đã tạo {len(document_reports)} báo cáo theo văn bản."
+
+        if len(document_reports) == 1:
+            yield "trace", (
+                "Hard-bypass: Chỉ có 1 văn bản sau expert -> bỏ qua tổng hợp bệnh/chuyên khoa, "
+                "chuyển thẳng sang tổng hợp cuối."
+            )
+            async for chunk in self.workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
+
+        # 4.2) Disease aggregation
+        yield "trace", "Tổng hợp bệnh: Đang gộp báo cáo các văn bản theo từng bệnh..."
+        state.update(await self.workflow.disease_aggregator.process(state))
+
+        disease_reports = state.get("disease_reports", [])
+        yield "trace", f"Tổng hợp bệnh: Đã tạo {len(disease_reports)} báo cáo theo bệnh."
+
+        if not disease_reports:
+            yield "trace", "Tổng hợp bệnh: Không có báo cáo bệnh, chuyển sang tổng hợp cuối."
+            async for chunk in self.workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
+
+        # 4.3) Specialty aggregation
+        yield "trace", "Tổng hợp chuyên khoa: Đang gộp báo cáo bệnh theo từng chuyên khoa..."
+        state.update(await self.workflow.specialty_aggregator.process(state))
+
+        specialty_report_items = state.get("specialty_report_items", [])
+        yield "trace", f"Tổng hợp chuyên khoa: Đã tạo {len(specialty_report_items)} báo cáo chuyên khoa."
+
+        if not specialty_report_items:
+            yield "trace", "Tổng hợp chuyên khoa: Không có báo cáo chuyên khoa, chuyển sang tổng hợp cuối."
+            async for chunk in self.workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
 
         # 5) Final synthesis streaming
         yield "trace", "Tổng hợp: Đang tổng hợp báo cáo liên chuyên khoa..."

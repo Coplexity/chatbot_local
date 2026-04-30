@@ -25,11 +25,31 @@ class DomainExpertsNode:
             if chunk_text:
                 yield chunk_text
 
+    @staticmethod
+    def _fallback_document_contexts(state: RouterState):
+        contexts = state.get("specialty_contexts", {})
+        fallback_docs = []
+        for index, (name, context) in enumerate(contexts.items(), start=1):
+            fallback_docs.append(
+                {
+                    "document_id": f"legacy-{index}",
+                    "disease_name": "",
+                    "specialty": name,
+                    "doc_rank": index,
+                    "context": context,
+                }
+            )
+        return fallback_docs
+
     async def process(self, state: RouterState):
         query = state["query"]
-        contexts = state.get("specialty_contexts", {})
+        document_contexts = state.get("document_contexts", [])
+        if not document_contexts:
+            document_contexts = self._fallback_document_contexts(state)
 
-        async def generate_single_report(domain_name, context):
+        async def generate_single_report(doc):
+            domain_name = doc.get("specialty", "")
+            context = doc.get("context", "")
             prompt = EXPERT_PROMPT.format(
                 domain_name=domain_name.upper(),
                 context=context,
@@ -38,11 +58,23 @@ class DomainExpertsNode:
             )
 
             res = await self.llm.ainvoke(prompt)
-            return domain_name, res.content
+            return {
+                "document_id": doc.get("document_id", ""),
+                "disease_name": doc.get("disease_name", ""),
+                "specialty": domain_name,
+                "doc_rank": doc.get("doc_rank", 0),
+                "report": res.content,
+            }
 
-        tasks = [generate_single_report(name, ctx) for name, ctx in contexts.items()]
+        tasks = [generate_single_report(doc) for doc in document_contexts]
         results = await asyncio.gather(*tasks) if tasks else []
-        reports = {name: content for name, content in results}
+        reports = {
+            f"doc:{item['document_id']}:rank:{item['doc_rank']}": item["report"]
+            for item in results
+        }
 
         # CHỈ TRẢ VỀ REPORTS ĐỂ TRƯỞNG KHOA LÀM VIỆC TIẾP
-        return {"specialty_reports": reports}
+        return {
+            "specialty_reports": reports,
+            "document_reports": results,
+        }

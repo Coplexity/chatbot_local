@@ -2,6 +2,35 @@ from typing import TypedDict, List, Dict
 from pydantic import BaseModel, Field
 
 
+class DocumentContext(TypedDict):
+    document_id: str
+    disease_name: str
+    specialty: str
+    doc_rank: int
+    context: str
+
+
+class DocumentReport(TypedDict):
+    document_id: str
+    disease_name: str
+    specialty: str
+    doc_rank: int
+    report: str
+
+
+class DiseaseReport(TypedDict):
+    disease_name: str
+    specialty: str
+    report: str
+    source_document_ids: List[str]
+
+
+class SpecialtyReport(TypedDict):
+    specialty: str
+    report: str
+    disease_names: List[str]
+
+
 class RouterState(TypedDict):
     query: str
     role: str
@@ -12,7 +41,11 @@ class RouterState(TypedDict):
     active_version_ids: list
     hypothetical_document: str
     specialty_contexts: Dict[str, str]
+    document_contexts: List[DocumentContext]
     specialty_reports: Dict[str, str]
+    document_reports: List[DocumentReport]
+    disease_reports: List[DiseaseReport]
+    specialty_report_items: List[SpecialtyReport]
     response: str
     response_raw: str
 

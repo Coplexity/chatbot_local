@@ -1,4 +1,6 @@
 import asyncio
+from collections import defaultdict
+import math
 from langchain_openai import OpenAIEmbeddings
 from core import config
 from core.schemas import RouterState
@@ -10,7 +12,17 @@ class VectorRetrievalNode:
         print("⏳ [Retriever] Loading Embedding Model...")
         self.embedding_backend = "sentence_transformers"
         self.retrieval_top_k = 10
-        self.retrieval_candidate_k = 50
+        self.retrieval_candidate_k = 30
+        self.document_limit_per_specialty = 10
+        # Keep only chunks whose vector distance to query is good enough.
+        # Lower distance means more relevant.
+        self.max_chunk_semantic_distance = 0.65
+        # Keep top relative chunk set (per document) after rerank.
+        # Example: 0.7 means keep top 70% reranked chunks.
+        self.rerank_keep_percentile = 0.7
+        # Keep a small minimum from the already distance-filtered set
+        # so context is not too sparse for downstream reasoning.
+        self.rerank_min_keep = 2
         self.rerank_model_name = "namdp-ptit/ViRanker"
         self.reranker = None
 
@@ -41,25 +53,27 @@ class VectorRetrievalNode:
             return self.embed_model.embed_query(text)
         return self.embed_model.encode(text).tolist()
 
-    def _rerank_rows(self, query: str, rows, top_k: int):
+    def _rerank_rows(self, query: str, rows):
         if not rows:
             return []
         if self.reranker is None:
-            return rows[:top_k]
+            ranked = sorted(rows, key=lambda x: float(x[3]))
+            return [(row, 1.0 / (1.0 + max(0.0, float(row[3])))) for row in ranked]
 
         pairs = []
         for row in rows:
-            _, chunk_text, chunk_abstract = row
+            _, chunk_text, chunk_abstract, _ = row
             candidate_text = f"{chunk_abstract or ''}\n{chunk_text or ''}".strip()
             pairs.append([query, candidate_text[:3000]])
 
         try:
             scores = self.reranker.compute_score(pairs)
             ranked = sorted(zip(rows, scores), key=lambda x: float(x[1]), reverse=True)
-            return [row for row, _ in ranked[:top_k]]
+            return [(row, float(score)) for row, score in ranked]
         except Exception as e:
             print(f"⚠️ [Retriever] Rerank thất bại, fallback vector-only. Error: {e}")
-            return rows[:top_k]
+            ranked = sorted(rows, key=lambda x: float(x[3]))
+            return [(row, 1.0 / (1.0 + max(0.0, float(row[3])))) for row in ranked]
 
     async def process(self, state: RouterState):
         query = state.get("query", "")
@@ -72,6 +86,7 @@ class VectorRetrievalNode:
             print("⚠️ [Retriever] Không có active version để truy xuất.")
             return {
                 "specialty_contexts": {},
+                "document_contexts": [],
             }
 
         print(f"🔍 [Retriever] Đang truy xuất trên {len(active_version_ids)} version active...")
@@ -91,7 +106,6 @@ class VectorRetrievalNode:
         }
 
         def fetch_from_db(domain_name):
-            chunk_limit = self.retrieval_candidate_k
             disease_values = sorted(disease_filters.get(domain_name, set()))
 
             conn = None
@@ -103,39 +117,90 @@ class VectorRetrievalNode:
                 if disease_values:
                     cursor.execute(
                         """
+                        WITH ranked_chunks AS (
+                            SELECT
+                                c.chunk_id,
+                                c.text,
+                                c.text_abstract,
+                                gv.version_id,
+                                g.ten_benh,
+                                (c.embedding <=> %s::halfvec(3072)) AS semantic_distance,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY gv.version_id
+                                    ORDER BY c.embedding <=> %s::halfvec(3072)
+                                ) AS rank_in_document
+                            FROM chunks c
+                            JOIN guideline_versions gv ON gv.version_id = c.version_id
+                            JOIN guidelines g ON g.guideline_id = gv.guideline_id
+                            WHERE c.version_id = ANY(%s)
+                              AND g.chuyen_khoa = %s
+                              AND g.ten_benh = ANY(%s)
+                              AND c.embedding IS NOT NULL
+                        )
                         SELECT
-                            c.chunk_id,
-                            c.text,
-                            c.text_abstract
-                        FROM chunks c
-                        JOIN guideline_versions gv ON gv.version_id = c.version_id
-                        JOIN guidelines g ON g.guideline_id = gv.guideline_id
-                        WHERE c.version_id = ANY(%s)
-                          AND g.chuyen_khoa = %s
-                          AND g.ten_benh = ANY(%s)
-                          AND c.embedding IS NOT NULL
-                        ORDER BY c.embedding <=> %s::halfvec(3072)
+                            chunk_id,
+                            text,
+                            text_abstract,
+                            version_id,
+                            ten_benh,
+                            semantic_distance
+                        FROM ranked_chunks
+                        WHERE rank_in_document <= %s
+                        ORDER BY semantic_distance
                         LIMIT %s;
                         """,
-                        (active_version_ids, domain_name, disease_values, embedding_literal, chunk_limit),
+                        (
+                            embedding_literal,
+                            embedding_literal,
+                            active_version_ids,
+                            domain_name,
+                            disease_values,
+                            self.retrieval_candidate_k,
+                            self.document_limit_per_specialty * self.retrieval_candidate_k,
+                        ),
                     )
                 else:
                     cursor.execute(
                         """
+                        WITH ranked_chunks AS (
+                            SELECT
+                                c.chunk_id,
+                                c.text,
+                                c.text_abstract,
+                                gv.version_id,
+                                g.ten_benh,
+                                (c.embedding <=> %s::halfvec(3072)) AS semantic_distance,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY gv.version_id
+                                    ORDER BY c.embedding <=> %s::halfvec(3072)
+                                ) AS rank_in_document
+                            FROM chunks c
+                            JOIN guideline_versions gv ON gv.version_id = c.version_id
+                            JOIN guidelines g ON g.guideline_id = gv.guideline_id
+                            WHERE c.version_id = ANY(%s)
+                              AND g.chuyen_khoa = %s
+                              AND c.embedding IS NOT NULL
+                        )
                         SELECT
-                            c.chunk_id,
-                            c.text,
-                            c.text_abstract
-                        FROM chunks c
-                        JOIN guideline_versions gv ON gv.version_id = c.version_id
-                        JOIN guidelines g ON g.guideline_id = gv.guideline_id
-                        WHERE c.version_id = ANY(%s)
-                          AND g.chuyen_khoa = %s
-                          AND c.embedding IS NOT NULL
-                        ORDER BY c.embedding <=> %s::halfvec(3072)
+                            chunk_id,
+                            text,
+                            text_abstract,
+                            version_id,
+                            ten_benh,
+                            semantic_distance
+                        FROM ranked_chunks
+                        WHERE rank_in_document <= %s
+                        ORDER BY semantic_distance
                         LIMIT %s;
                         """,
-                        (active_version_ids, domain_name, embedding_literal, chunk_limit),
+                        (
+                            embedding_literal,
+                            embedding_literal,
+                            active_version_ids,
+                            domain_name,
+                            self.retrieval_candidate_k,
+                            self.document_limit_per_specialty * self.retrieval_candidate_k,
+                        ),
                     )
 
                 return domain_name, cursor.fetchall()
@@ -152,22 +217,81 @@ class VectorRetrievalNode:
         results = await asyncio.gather(*tasks) if tasks else []
 
         specialty_contexts = {}
+        document_contexts = []
         for domain_name, rows in results:
             if not rows:
                 continue
 
             rerank_query = (query or "").strip() or hyde_text
-            selected_rows = self._rerank_rows(rerank_query, rows, self.retrieval_top_k)
+            rows_by_document = defaultdict(list)
+            for row in rows:
+                chunk_id, chunk_text, chunk_abstract, version_id, disease_name, semantic_distance = row
+                rows_by_document[(version_id, disease_name)].append(
+                    (chunk_id, chunk_text, chunk_abstract, semantic_distance)
+                )
 
-            formatted_chunks = []
-            for row in selected_rows:
-                chunk_id, chunk_text, chunk_abstract = row
-                # Use stable chunk_id as citation reference so IDs are durable for audit.
-                ref_id = f"[{str(chunk_id)}]"
-                abstract_part = f"\nTÓM TẮT: {chunk_abstract}" if chunk_abstract else ""
-                formatted_chunks.append(f"{ref_id}{abstract_part}\nNỘI DUNG: {chunk_text}")
-            specialty_contexts[domain_name] = "\n\n".join(formatted_chunks)
+            ranked_documents = sorted(
+                rows_by_document.items(),
+                key=lambda item: min(chunk[-1] for chunk in item[1]),
+            )
+
+            for index, ((version_id, disease_name), document_rows) in enumerate(
+                ranked_documents[: self.document_limit_per_specialty],
+                start=1,
+            ):
+                # Step 1: hard filter by semantic distance to remove clearly irrelevant chunks.
+                distance_filtered_rows = [
+                    (chunk_id, chunk_text, chunk_abstract, semantic_distance)
+                    for chunk_id, chunk_text, chunk_abstract, semantic_distance in document_rows
+                    if float(semantic_distance) <= self.max_chunk_semantic_distance
+                ]
+                if not distance_filtered_rows:
+                    continue
+
+                rerank_input = [
+                    (chunk_id, chunk_text, chunk_abstract, semantic_distance)
+                    for chunk_id, chunk_text, chunk_abstract, semantic_distance in distance_filtered_rows
+                ]
+                # Step 2: rerank within the filtered set.
+                ranked_rows_with_scores = self._rerank_rows(rerank_query, rerank_input)
+                if not ranked_rows_with_scores:
+                    continue
+
+                # Step 3: keep top relative set by percentile (no min_keep forcing).
+                keep_count = int(math.ceil(len(ranked_rows_with_scores) * self.rerank_keep_percentile))
+                keep_count = max(self.rerank_min_keep, keep_count)
+                keep_count = min(keep_count, len(ranked_rows_with_scores))
+                if keep_count <= 0:
+                    continue
+                percentile_rows = [row for row, _ in ranked_rows_with_scores[:keep_count]]
+
+                # Final cap to control context size.
+                final_rows = percentile_rows[: self.retrieval_top_k]
+                if not final_rows:
+                    continue
+
+                formatted_chunks = []
+                for chunk_id, chunk_text, chunk_abstract, _ in final_rows:
+                    # Use stable chunk_id as citation reference so IDs are durable for audit.
+                    ref_id = f"[{str(chunk_id)}]"
+                    abstract_part = f"\nTÓM TẮT: {chunk_abstract}" if chunk_abstract else ""
+                    formatted_chunks.append(f"{ref_id}{abstract_part}\nNỘI DUNG: {chunk_text}")
+
+                context_text = "\n\n".join(formatted_chunks)
+                document_id = str(version_id)
+                context_key = f"doc:{document_id}:rank:{index}"
+                specialty_contexts[context_key] = context_text
+                document_contexts.append(
+                    {
+                        "document_id": document_id,
+                        "disease_name": disease_name or "",
+                        "specialty": domain_name,
+                        "doc_rank": index,
+                        "context": context_text,
+                    }
+                )
 
         return {
             "specialty_contexts": specialty_contexts,
+            "document_contexts": document_contexts,
         }

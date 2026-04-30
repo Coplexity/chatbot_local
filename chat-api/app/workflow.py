@@ -8,6 +8,8 @@ from nodes.routing.disease_routing import DiseaseRoutingNode
 from nodes.routing.active_version_filter import ActiveVersionFilterNode
 from nodes.retrieval.vector_retrieval import VectorRetrievalNode
 from nodes.reasoning.domain_experts import DomainExpertsNode
+from nodes.reasoning.disease_aggregator import DiseaseAggregatorNode
+from nodes.reasoning.specialty_aggregator import SpecialtyAggregatorNode
 from nodes.reasoning.global_synthesizer import GlobalSynthesizerNode
 
 
@@ -19,6 +21,8 @@ class MedicalWorkflow:
         self.version_filter = ActiveVersionFilterNode()
         self.retriever = VectorRetrievalNode()
         self.experts = DomainExpertsNode()
+        self.disease_aggregator = DiseaseAggregatorNode()
+        self.specialty_aggregator = SpecialtyAggregatorNode()
         self.synthesizer = GlobalSynthesizerNode()
 
         self.memory = MemorySaver()
@@ -43,6 +47,29 @@ class MedicalWorkflow:
         """Route to intent analyzer (cli.py already filters greeting/off_topic before workflow)"""
         return "intent_analyzer"
 
+    def retrieval_logic(self, state: RouterState) -> str:
+        if not state.get("document_contexts"):
+            return "synthesis_node"
+        return "domain_experts_node"
+
+    def expert_bypass_logic(self, state: RouterState) -> str:
+        document_reports = state.get("document_reports", [])
+        if len(document_reports) == 1:
+            return "synthesis_node"
+        if not document_reports:
+            return "synthesis_node"
+        return "disease_aggregator_node"
+
+    def disease_aggregation_logic(self, state: RouterState) -> str:
+        if not state.get("disease_reports"):
+            return "synthesis_node"
+        return "specialty_aggregator_node"
+
+    def specialty_aggregation_logic(self, state: RouterState) -> str:
+        if not state.get("specialty_report_items"):
+            return "synthesis_node"
+        return "synthesis_node"
+
     def _build_graph(self):
         builder = StateGraph(RouterState)
 
@@ -52,6 +79,8 @@ class MedicalWorkflow:
         builder.add_node("active_version_filter", self.version_filter.process)
         builder.add_node("vector_retrieval", self.retriever.process)
         builder.add_node("domain_experts", self.experts.process)
+        builder.add_node("disease_aggregator", self.disease_aggregator.process)
+        builder.add_node("specialty_aggregator", self.specialty_aggregator.process)
         builder.add_node("global_synthesizer", self.synthesizer.process)
 
         builder.add_edge(START, "question_validator")
@@ -68,8 +97,25 @@ class MedicalWorkflow:
             "active_version_filter", self.version_filter_logic,
             {"vector_retrieval_node": "vector_retrieval", "synthesis_node": "global_synthesizer"}
         )
-        builder.add_edge("vector_retrieval", "domain_experts")
-        builder.add_edge("domain_experts", "global_synthesizer")
+        builder.add_conditional_edges(
+            "vector_retrieval", self.retrieval_logic,
+            {"domain_experts_node": "domain_experts", "synthesis_node": "global_synthesizer"}
+        )
+        builder.add_conditional_edges(
+            "domain_experts", self.expert_bypass_logic,
+            {
+                "disease_aggregator_node": "disease_aggregator",
+                "synthesis_node": "global_synthesizer",
+            }
+        )
+        builder.add_conditional_edges(
+            "disease_aggregator", self.disease_aggregation_logic,
+            {"specialty_aggregator_node": "specialty_aggregator", "synthesis_node": "global_synthesizer"}
+        )
+        builder.add_conditional_edges(
+            "specialty_aggregator", self.specialty_aggregation_logic,
+            {"synthesis_node": "global_synthesizer"}
+        )
         builder.add_edge("global_synthesizer", END)
 
         return builder.compile(checkpointer=self.memory)
