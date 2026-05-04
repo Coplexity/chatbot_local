@@ -18,7 +18,7 @@ services:
     profiles:
       - disabled
     networks:
-      - default 
+      - default
 
   redis:
     image: redis:7-alpine
@@ -48,7 +48,7 @@ services:
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
       JWT_SECRET: ${JWT_SECRET}
-      CHAT_API_URL: http://chat-api:8000
+      CHAT_API_URL: ${CHAT_API_URL:-http://medical-chatbot-chat-api-1:8000}
     depends_on:
       # - postgres
       - chat-api
@@ -81,7 +81,7 @@ services:
       context: ../chat-frontend
       dockerfile: Dockerfile
       args:
-        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://chat-backend:3000}
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://medical-chatbot-chat-backend-1:3000}
         VITE_DOCUMENT_FILE_URL_TEMPLATE: ${VITE_DOCUMENT_FILE_URL_TEMPLATE} # example: https://your-domain/api/v1/documents/{documentId}/file
         VITE_MAINTENANCE_MESSAGE: ${VITE_MAINTENANCE_MESSAGE}
     restart: unless-stopped
