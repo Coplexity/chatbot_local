@@ -3,6 +3,8 @@ import re
 import unicodedata
 
 from app.workflow import MedicalWorkflow
+from basic_mode.workflow import BasicMedicalWorkflow
+from basic_mode.nodes.reasoning.citation_transformer import CitationStreamTransformer
 
 
 class MarkdownStreamSanitizer:
@@ -126,14 +128,22 @@ class MarkdownStreamFormatter:
 class ChatbotApp:
     def __init__(self):
         # Khởi tạo toàn bộ luồng từ file workflow
-        self.workflow = MedicalWorkflow()
-        self.app = self.workflow.app
+        self.deep_workflow = MedicalWorkflow()
+        self.basic_workflow = BasicMedicalWorkflow()
+        self.app = self.deep_workflow.app
 
     @staticmethod
     def _stream_tokens(text):
         """Stream text word-by-word"""
         tokens = re.findall(r"\S+\s*", text or "")
         return tokens if tokens else [text or ""]
+
+    @staticmethod
+    def _normalize_mode(mode: str | None) -> str:
+        value = (mode or "").strip().lower()
+        if value in {"basic", "deep"}:
+            return value
+        return "basic"
 
     @staticmethod
     def _is_tram_y_te_shortcut(role: str | None) -> bool:
@@ -149,14 +159,15 @@ class ChatbotApp:
 
     def _resolve_tram_y_te_specialty_name(self) -> str:
         tram_y_te_alias = "tram_y_te"
-        valid_domains = self.workflow.router._load_valid_domains()
+        valid_domains = self.deep_workflow.router._load_valid_domains()
         for domain in valid_domains:
             if self._normalize_specialty_alias(domain) == tram_y_te_alias:
                 return domain
         return tram_y_te_alias
 
-    async def stream_answer_events(self, query: str, role: str | None = None):
+    async def _stream_answer_events_basic(self, query: str, role: str | None = None):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
+        workflow = self.basic_workflow
         state = {"query": query, "role": role or ""}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()
@@ -175,13 +186,159 @@ class ChatbotApp:
 
         # 0) Validate question
         yield "trace", "Xác nhận: Đang kiểm tra câu hỏi..."
-        state.update(self.workflow.validator.process(state))
+        state.update(workflow.validator.process(state))
+        validation_category = state.get("validation_category", "medical")
+
+        # Handle greeting
+        if validation_category == "greeting":
+            yield "trace", "Xác nhận: Đây là lời chào hỏi 👋"
+            greeting_response = workflow._greeting_response(state)
+            response_text = greeting_response.get("response", "")
+            for chunk in self._stream_tokens(response_text):
+                yield "chunk", chunk
+            return
+
+        # Handle off-topic
+        if validation_category == "off_topic":
+            yield "trace", "Xác nhận: Câu hỏi không liên quan y tế"
+            off_topic_response = workflow._off_topic_response(state)
+            response_text = off_topic_response.get("response", "")
+            for chunk in self._stream_tokens(response_text):
+                yield "chunk", chunk
+            return
+
+        yield "trace", "Xác nhận: Câu hỏi liên quan y tế ✓"
+
+        # 1) Intent routing
+        yield "trace", "Định tuyến: Đang phân tích ý định và chuyên khoa liên quan"
+        state.update(workflow.router.process(state))
+
+        routed_specialties = [item.get("name") for item in state.get("analyzed_specialties", []) if item.get("name")]
+        formatted_specialties = ", ".join(routed_specialties) if routed_specialties else "không có"
+        yield "trace", f"Định tuyến: Điều phối đến các chuyên khoa: {formatted_specialties}"
+        if workflow.route_logic(state) == "synthesis_node":
+            yield "trace", "Định tuyến: Không xác định được chuyên khoa, chuyển thẳng sang tổng hợp."
+            async for chunk in workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
+
+        # 2) Disease routing
+        yield "trace", "Định tuyến bệnh: Đang định tuyến bệnh theo từng chuyên khoa..."
+        state.update(await workflow.disease_router.process(state))
+
+        routed_diseases = state.get("routed_diseases", {})
+        total_diseases = sum(len(items) for items in routed_diseases.values())
+        yield "trace", f"Định tuyến bệnh: Tổng số bệnh định tuyến được: {total_diseases}"
+        if workflow.disease_route_logic(state) == "synthesis_node":
+            yield "trace", "Định tuyến bệnh: Không có bệnh phù hợp, chuyển sang tổng hợp."
+            async for chunk in workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
+
+        # 3) Active version filtering
+        yield "trace", "Lọc phiên bản: Đang lọc phiên bản hướng dẫn còn hoạt động..."
+        state.update(workflow.version_filter.process(state))
+        active_version_ids = state.get("active_version_ids", [])
+        yield "trace", f"Lọc phiên bản: Tên các phiên bản đang hoạt động: {active_version_ids}"
+        if workflow.version_filter_logic(state) == "synthesis_node":
+            yield "trace", "Lọc phiên bản: Không có phiên bản đang hoạt động phù hợp, chuyển sang tổng hợp."
+            async for chunk in workflow.synthesizer.stream_process(state):
+                cleaned = emit_clean(chunk)
+                if cleaned:
+                    yield "chunk", cleaned
+            tail = flush_clean()
+            if tail:
+                yield "chunk", tail
+            return
+
+        # 4) Retrieval + experts
+        yield "trace", f"Truy xuất: Đang truy xuất trên {len(active_version_ids)} phiên bản đang hoạt động..."
+        state.update(await workflow.retriever.process(state))
+        specialty_contexts = state.get("specialty_contexts", {})
+
+        # Single-specialty path previously bypassed synthesizer and returned one-shot text.
+        # Stream expert output directly here to achieve true streaming behavior.
+        if len(specialty_contexts) == 1:
+            domain_name, context = next(iter(specialty_contexts.items()))
+            transformer = CitationStreamTransformer()
+            async for chunk in workflow.experts.stream_single_report(state["query"], domain_name, context):
+                delta = transformer.feed(chunk)
+                if delta:
+                    cleaned = emit_clean(delta)
+                    if cleaned:
+                        yield "chunk", cleaned
+            tail = transformer.flush()
+            if tail:
+                cleaned = emit_clean(tail)
+                if cleaned:
+                    yield "chunk", cleaned
+            final_tail = flush_clean()
+            if final_tail:
+                yield "chunk", final_tail
+            return
+
+        yield "trace", "Chuyên gia: Đang tạo báo cáo cho nhiều chuyên khoa..."
+        state.update(await workflow.experts.process(state))
+
+        # 5) Final synthesis streaming
+        yield "trace", "Tổng hợp: Đang tổng hợp báo cáo liên chuyên khoa..."
+        async for chunk in workflow.synthesizer.stream_process(state):
+            cleaned = emit_clean(chunk)
+            if cleaned:
+                yield "chunk", cleaned
+
+        final_tail = flush_clean()
+        if final_tail:
+            yield "chunk", final_tail
+
+    async def stream_answer_events(self, query: str, role: str | None = None, mode: str | None = None):
+        selected_mode = self._normalize_mode(mode)
+        if selected_mode == "deep":
+            async for event, payload in self._stream_answer_events_deep(query, role):
+                yield event, payload
+            return
+
+        async for event, payload in self._stream_answer_events_basic(query, role):
+            yield event, payload
+
+    async def _stream_answer_events_deep(self, query: str, role: str | None = None):
+        """Run one query and yield typed events: ('trace'|'chunk', payload)."""
+        workflow = self.deep_workflow
+        state = {"query": query, "role": role or ""}
+        markdown_sanitizer = MarkdownStreamSanitizer()
+        markdown_formatter = MarkdownStreamFormatter()
+
+        def emit_clean(chunk_text: str):
+            cleaned = markdown_sanitizer.feed(chunk_text)
+            if not cleaned:
+                return ""
+            return markdown_formatter.feed(cleaned)
+
+        def flush_clean():
+            sanitized_tail = markdown_sanitizer.flush()
+            formatted_from_sanitized = markdown_formatter.feed(sanitized_tail) if sanitized_tail else ""
+            formatted_tail = markdown_formatter.flush()
+            return (formatted_from_sanitized or "") + (formatted_tail or "")
+
+        # 0) Validate question
+        yield "trace", "Xác nhận: Đang kiểm tra câu hỏi..."
+        state.update(workflow.validator.process(state))
         validation_category = state.get("validation_category", "medical")
         
         # Handle greeting
         if validation_category == "greeting":
             yield "trace", "Xác nhận: Đây là lời chào hỏi 👋"
-            greeting_response = self.workflow._greeting_response(state)
+            greeting_response = workflow._greeting_response(state)
             response_text = greeting_response.get("response", "")
             for chunk in self._stream_tokens(response_text):
                 yield "chunk", chunk
@@ -190,7 +347,7 @@ class ChatbotApp:
         # Handle off-topic
         if validation_category == "off_topic":
             yield "trace", "Xác nhận: Câu hỏi không liên quan y tế"
-            off_topic_response = self.workflow._off_topic_response(state)
+            off_topic_response = workflow._off_topic_response(state)
             response_text = off_topic_response.get("response", "")
             for chunk in self._stream_tokens(response_text):
                 yield "chunk", chunk
@@ -201,7 +358,7 @@ class ChatbotApp:
         shortcut_active = self._is_tram_y_te_shortcut(role)
         if shortcut_active:
             tram_y_te_specialty = self._resolve_tram_y_te_specialty_name()
-            tram_y_te_diseases = self.workflow.disease_router._load_disease_candidates(tram_y_te_specialty)
+            tram_y_te_diseases = workflow.disease_router._load_disease_candidates(tram_y_te_specialty)
             # Shortcut for tram y te doctors: skip intent routing and force one specialty.
             state.update(
                 {
@@ -217,14 +374,14 @@ class ChatbotApp:
         else:
             # 1) Intent routing
             yield "trace", "Định tuyến: Đang phân tích ý định và chuyên khoa liên quan"
-            state.update(self.workflow.router.process(state))
+            state.update(workflow.router.process(state))
 
         routed_specialties = [item.get("name") for item in state.get("analyzed_specialties", []) if item.get("name")]
         formatted_specialties = ", ".join(routed_specialties) if routed_specialties else "không có"
         yield "trace", f"Định tuyến: Điều phối đến các chuyên khoa: {formatted_specialties}"
-        if self.workflow.route_logic(state) == "synthesis_node":
+        if workflow.route_logic(state) == "synthesis_node":
             yield "trace", "Định tuyến: Không xác định được chuyên khoa, chuyển thẳng sang tổng hợp."
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -236,14 +393,14 @@ class ChatbotApp:
         # 2) Disease routing
         if not shortcut_active:
             yield "trace", "Định tuyến bệnh: Đang định tuyến bệnh theo từng chuyên khoa..."
-            state.update(await self.workflow.disease_router.process(state))
+            state.update(await workflow.disease_router.process(state))
 
         routed_diseases = state.get("routed_diseases", {})
         total_diseases = sum(len(items) for items in routed_diseases.values())
         yield "trace", f"Định tuyến bệnh: Tổng số bệnh định tuyến được: {total_diseases}"
-        if not shortcut_active and self.workflow.disease_route_logic(state) == "synthesis_node":
+        if not shortcut_active and workflow.disease_route_logic(state) == "synthesis_node":
             yield "trace", "Định tuyến bệnh: Không có bệnh phù hợp, chuyển sang tổng hợp."
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -254,12 +411,12 @@ class ChatbotApp:
 
         # 3) Active version filtering
         yield "trace", "Lọc phiên bản: Đang lọc phiên bản hướng dẫn còn hoạt động..."
-        state.update(self.workflow.version_filter.process(state))
+        state.update(workflow.version_filter.process(state))
         active_version_ids = state.get("active_version_ids", [])
         yield "trace", f"Lọc phiên bản: Tên các phiên bản đang hoạt động: {active_version_ids}"
-        if self.workflow.version_filter_logic(state) == "synthesis_node":
+        if workflow.version_filter_logic(state) == "synthesis_node":
             yield "trace", "Lọc phiên bản: Không có phiên bản đang hoạt động phù hợp, chuyển sang tổng hợp."
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -270,7 +427,7 @@ class ChatbotApp:
 
         # 4) Retrieval + experts
         yield "trace", f"Truy xuất: Đang truy xuất trên {len(active_version_ids)} phiên bản đang hoạt động..."
-        state.update(await self.workflow.retriever.process(state))
+        state.update(await workflow.retriever.process(state))
 
         document_contexts = state.get("document_contexts", [])
         context_count = len(document_contexts)
@@ -278,7 +435,7 @@ class ChatbotApp:
 
         if context_count == 0:
             yield "trace", "Truy xuất: Không còn văn bản phù hợp, chuyển sang tổng hợp."
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -288,7 +445,7 @@ class ChatbotApp:
             return
 
         yield "trace", "Chuyên gia: Đang tạo báo cáo cho nhiều chuyên khoa..."
-        state.update(await self.workflow.experts.process(state))
+        state.update(await workflow.experts.process(state))
 
         document_reports = state.get("document_reports", [])
         yield "trace", f"Chuyên gia: Đã tạo {len(document_reports)} báo cáo theo văn bản."
@@ -298,7 +455,7 @@ class ChatbotApp:
                 "Hard-bypass: Chỉ có 1 văn bản sau expert -> bỏ qua tổng hợp bệnh/chuyên khoa, "
                 "chuyển thẳng sang tổng hợp cuối."
             )
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -309,14 +466,14 @@ class ChatbotApp:
 
         # 4.2) Disease aggregation
         yield "trace", "Tổng hợp bệnh: Đang gộp báo cáo các văn bản theo từng bệnh..."
-        state.update(await self.workflow.disease_aggregator.process(state))
+        state.update(await workflow.disease_aggregator.process(state))
 
         disease_reports = state.get("disease_reports", [])
         yield "trace", f"Tổng hợp bệnh: Đã tạo {len(disease_reports)} báo cáo theo bệnh."
 
         if not disease_reports:
             yield "trace", "Tổng hợp bệnh: Không có báo cáo bệnh, chuyển sang tổng hợp cuối."
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -327,14 +484,14 @@ class ChatbotApp:
 
         # 4.3) Specialty aggregation
         yield "trace", "Tổng hợp chuyên khoa: Đang gộp báo cáo bệnh theo từng chuyên khoa..."
-        state.update(await self.workflow.specialty_aggregator.process(state))
+        state.update(await workflow.specialty_aggregator.process(state))
 
         specialty_report_items = state.get("specialty_report_items", [])
         yield "trace", f"Tổng hợp chuyên khoa: Đã tạo {len(specialty_report_items)} báo cáo chuyên khoa."
 
         if not specialty_report_items:
             yield "trace", "Tổng hợp chuyên khoa: Không có báo cáo chuyên khoa, chuyển sang tổng hợp cuối."
-            async for chunk in self.workflow.synthesizer.stream_process(state):
+            async for chunk in workflow.synthesizer.stream_process(state):
                 cleaned = emit_clean(chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -345,7 +502,7 @@ class ChatbotApp:
 
         # 5) Final synthesis streaming
         yield "trace", "Tổng hợp: Đang tổng hợp báo cáo liên chuyên khoa..."
-        async for chunk in self.workflow.synthesizer.stream_process(state):
+        async for chunk in workflow.synthesizer.stream_process(state):
             cleaned = emit_clean(chunk)
             if cleaned:
                 yield "chunk", cleaned
@@ -354,9 +511,9 @@ class ChatbotApp:
         if final_tail:
             yield "chunk", final_tail
 
-    async def stream_answer(self, query: str, role: str | None = None):
+    async def stream_answer(self, query: str, role: str | None = None, mode: str | None = None):
         """Backward-compatible text-only stream for existing consumers."""
-        async for event, payload in self.stream_answer_events(query, role):
+        async for event, payload in self.stream_answer_events(query, role, mode):
             if event == "chunk":
                 yield payload
 
