@@ -6,7 +6,7 @@ import {
   ValidationPipe,
   Sse,
 } from "@nestjs/common";
-import { ApiTags, ApiOperation, ApiProperty } from "@nestjs/swagger";
+import { ApiTags, ApiOperation, ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Observable, from, map } from "rxjs";
 import { ChatApiService } from "../services/chat-api.service";
 import { SendMessageDto } from "../dtos/send-message.dto";
@@ -35,12 +35,22 @@ class GuestChatWithContextDto {
   @MaxLength(5000)
   content: string;
 
-  @ApiProperty({ description: "Previous messages for context", type: [ContextMessageDto] })
+  @ApiPropertyOptional({ description: "Previous messages for context", type: [ContextMessageDto] })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ContextMessageDto)
   context: ContextMessageDto[] = [];
+
+  @ApiPropertyOptional({ description: "Chat mode: 'basic' or 'deep'", enum: ["basic", "deep"], default: "basic" })
+  @IsOptional()
+  @IsIn(["basic", "deep"])
+  mode?: "basic" | "deep";
+
+  @ApiPropertyOptional({ description: "User role for context-aware responses" })
+  @IsOptional()
+  @IsString()
+  role?: string;
 }
 
 @ApiTags("Guest Chat")
@@ -69,6 +79,8 @@ export class GuestChatController {
     const aiResponse = (await this.chatApiService.generateResponse(
       messages,
       true,
+      dto.role ?? "",
+      dto.mode ?? "basic",
     )) as ChatApiStreamResponse;
 
     const stream = aiResponse.stream;
@@ -105,6 +117,8 @@ export class GuestChatController {
     const aiResponse = (await this.chatApiService.generateResponse(
       messages,
       true,
+      dto.role ?? "",
+      dto.mode ?? "basic",
     )) as ChatApiStreamResponse;
 
     const stream = aiResponse.stream;

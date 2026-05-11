@@ -3,4 +3,6 @@ export { DISCLAIMER_TEXT } from "./constants";
 export { Disclaimer } from "./disclaimer";
 export { MessageBubble } from "./message-bubble";
 export { ThinkingPanel } from "./thinking-panel";
+export { ModeSelector } from "./mode-selector";
+export { RoleSelect } from "./role-select";
 export { TypingIndicator } from "./typing-indicator";

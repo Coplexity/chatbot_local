@@ -6,6 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatInput, MessageBubble } from "@/components/chat";
 import { ReferencePanel } from "@/components/reference-panel/reference-panel";
 import { useGuestChat } from "@/hooks/useGuestChat";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserRole } from "@/types/api-types";
 import type { Citation, Message } from "@/types/api-types";
 import { MessageRole } from "@/types/api-types";
 import { Reference } from "@/types/chat-types";
@@ -97,6 +99,7 @@ export function ChatPage() {
   const queryClient = useQueryClient();
   const { message: antMessage } = App.useApp();
   const { isGuest, getMessages, sendMessageStream, startConversationStream } = useGuestChat();
+  const { user } = useAuth();
 
   const [input, setInput] = useState("");
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
@@ -106,13 +109,27 @@ export function ChatPage() {
   const [emptyStateHeadline] = useState(
     () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
   );
+  const [mode, setMode] = useState<"basic" | "deep">("basic");
+  const [selectedRole, setSelectedRole] = useState<UserRole>(() => user?.role ?? UserRole.NONE);
+  const [queryHistory, setQueryHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [draftWhileStreaming, setDraftWhileStreaming] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const pendingMessagesRef = useRef<RenderedMessage[]>([]);
+  const draftWhileStreamingRef = useRef("");
 
   useEffect(() => {
     pendingMessagesRef.current = pendingMessages;
   }, [pendingMessages]);
+
+  useEffect(() => {
+    draftWhileStreamingRef.current = draftWhileStreaming;
+  }, [draftWhileStreaming]);
+
+  useEffect(() => {
+    setSelectedRole((currentRole) => currentRole || user?.role || UserRole.NONE);
+  }, [user?.role]);
 
   const updateShouldAutoScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -276,6 +293,12 @@ export function ChatPage() {
 
     const userInput = input;
     setInput("");
+    setHistoryIndex(-1);
+
+    setQueryHistory((prev) => {
+      const next = [userInput, ...prev].slice(0, 50);
+      return next;
+    });
 
     const userMessage = createLocalMessage(chatId, {
       id: `temp-${Date.now()}`,
@@ -305,7 +328,7 @@ export function ChatPage() {
         let newConversationId: string | null = null;
         let rawStreamingText = "";
 
-        for await (const chunk of startConversationStream(userInput)) {
+        for await (const chunk of startConversationStream(userInput, mode, selectedRole)) {
           if ("type" in chunk && chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if ("type" in chunk && chunk.type === "trace") {
@@ -339,7 +362,7 @@ export function ChatPage() {
       } else {
         let rawStreamingText = "";
 
-        for await (const chunk of sendMessageStream(chatId as string, userInput)) {
+        for await (const chunk of sendMessageStream(chatId as string, userInput, mode, selectedRole)) {
           if ("type" in chunk && chunk.type === "trace") {
             appendStreamingTrace(assistantPlaceholderId, chunk.trace);
           } else if (
@@ -381,6 +404,11 @@ export function ChatPage() {
       });
     } finally {
       setIsStreaming(false);
+      if (draftWhileStreamingRef.current) {
+        setInput(draftWhileStreamingRef.current);
+        setDraftWhileStreaming("");
+        draftWhileStreamingRef.current = "";
+      }
     }
   }, [
     input,
@@ -388,6 +416,8 @@ export function ChatPage() {
     chatId,
     isGuest,
     isNewChat,
+    mode,
+    selectedRole,
     antMessage,
     navigate,
     queryClient,
@@ -396,6 +426,39 @@ export function ChatPage() {
     sendMessageStream,
     startConversationStream,
   ]);
+
+  const handleInputChange = useCallback(
+    (next: string) => {
+      if (isStreaming) {
+        setDraftWhileStreaming(next);
+      } else {
+        setDraftWhileStreaming("");
+      }
+      setInput(next);
+      setHistoryIndex(-1);
+    },
+    [isStreaming]
+  );
+
+  const handleHistoryNavigate = useCallback((nextIndex: number) => {
+    setHistoryIndex(nextIndex);
+  }, []);
+
+  const handleRoleChange = useCallback((role: UserRole) => {
+    setSelectedRole(role);
+  }, []);
+
+  const handleSendDraft = useCallback(() => {
+    if (draftWhileStreaming.trim()) {
+      setInput(draftWhileStreaming);
+      setDraftWhileStreaming("");
+      setTimeout(() => handleSend(), 0);
+    }
+  }, [draftWhileStreaming, handleSend]);
+
+  const handleDiscardDraft = useCallback(() => {
+    setDraftWhileStreaming("");
+  }, []);
 
   if (isLoading && !isNewChat) {
     return (
@@ -449,9 +512,20 @@ export function ChatPage() {
 
         <ChatInput
           value={input}
-          onChange={setInput}
+          onChange={handleInputChange}
           onSend={handleSend}
           disabled={isStreaming}
+          mode={mode}
+          onModeChange={setMode}
+          selectedRole={selectedRole}
+          onRoleChange={handleRoleChange}
+          queryHistory={queryHistory}
+          historyIndex={historyIndex}
+          onHistoryNavigate={handleHistoryNavigate}
+          isStreaming={isStreaming}
+          hasDraft={!!draftWhileStreaming}
+          onSendDraft={handleSendDraft}
+          onDiscardDraft={handleDiscardDraft}
         />
       </div>
 

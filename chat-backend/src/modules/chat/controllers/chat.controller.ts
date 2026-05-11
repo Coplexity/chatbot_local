@@ -130,7 +130,12 @@ export class ChatController {
     userMessage: MessageDto;
     assistantMessage: MessageDto;
   }> {
-    const result = await this.messageService.sendFirstMessage(userId, dto.content, user.role ?? "");
+    const result = await this.messageService.sendFirstMessage(
+      userId,
+      dto.content,
+      user.role ?? "",
+      dto.mode ?? "basic",
+    );
     return {
       conversation: plainToInstance(ConversationDto, result.conversation),
       userMessage: plainToInstance(MessageDto, result.userMessage),
@@ -150,6 +155,7 @@ export class ChatController {
       userId,
       dto.content,
       user.role ?? "",
+      dto.mode ?? "basic",
     );
 
     // First, emit the conversation ID so client knows the new conversation
@@ -205,6 +211,7 @@ export class ChatController {
       userId,
       dto,
       user.role ?? "",
+      dto.mode ?? "basic",
     );
 
     return {
@@ -228,6 +235,7 @@ export class ChatController {
       userId,
       dto,
       user.role ?? "",
+      dto.mode ?? "basic",
     );
 
     return from(

@@ -124,6 +124,13 @@ vi.mock("@/hooks/useGuestChat", () => ({
   }),
 }));
 
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    user: null,
+    isAuthenticated: false,
+  }),
+}));
+
 vi.mock("@/utils/citation-parser", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/utils/citation-parser")>();
 
@@ -139,10 +146,26 @@ vi.mock("@/utils/citation-parser", async (importOriginal) => {
 });
 
 vi.mock("@/components/chat", () => ({
-  ChatInput: ({ onSend, onChange }: { onSend: () => void; onChange: (value: string) => void }) => (
+  ChatInput: (props: {
+    onSend: () => void;
+    onChange: (value: string) => void;
+    value: string;
+    disabled: boolean;
+    mode: "basic" | "deep";
+    onModeChange: (mode: "basic" | "deep") => void;
+    selectedRole: unknown;
+    onRoleChange: (role: unknown) => void;
+    queryHistory: string[];
+    historyIndex: number;
+    onHistoryNavigate: (index: number) => void;
+    isStreaming: boolean;
+    hasDraft: boolean;
+    onSendDraft: () => void;
+    onDiscardDraft: () => void;
+  }) => (
     <div>
-      <button type="button" data-testid="fill-input" onClick={() => onChange("Question")}>Fill</button>
-      <button type="button" data-testid="chat-input" onClick={onSend}>Send</button>
+      <button type="button" data-testid="fill-input" onClick={() => props.onChange("Question")}>Fill</button>
+      <button type="button" data-testid="chat-input" onClick={props.onSend}>Send</button>
     </div>
   ),
   MessageBubble: (props: unknown) => {

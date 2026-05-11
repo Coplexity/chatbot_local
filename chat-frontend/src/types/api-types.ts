@@ -85,6 +85,8 @@ export interface CreateConversationRequest {
 
 export interface SendMessageRequest {
   content: string;
+  mode?: "basic" | "deep";
+  role?: UserRole;
 }
 
 export interface SendMessageResponse {

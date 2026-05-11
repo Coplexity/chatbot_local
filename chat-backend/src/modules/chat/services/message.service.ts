@@ -39,6 +39,7 @@ export class MessageService {
     userId: string,
     dto: SendMessageDto,
     role = "",
+    mode: "basic" | "deep" = "basic",
   ): Promise<{ userMessage: MessageEntity; assistantMessage: MessageEntity }> {
     // Verify conversation exists and belongs to user
     const conversation = await this.chatService.getConversationById(
@@ -68,6 +69,7 @@ export class MessageService {
       contextMessages,
       false,
       role,
+      dto.mode ?? mode,
     )) as ChatApiResponse;
 
     // Create assistant message
@@ -94,6 +96,7 @@ export class MessageService {
     userId: string,
     dto: SendMessageDto,
     role = "",
+    mode: "basic" | "deep" = "basic",
   ): Promise<{
     userMessage: MessageEntity;
     stream: AsyncIterable<ChatApiStreamChunk>;
@@ -126,6 +129,7 @@ export class MessageService {
       contextMessages,
       true,
       role,
+      dto.mode ?? mode,
     )) as ChatApiStreamResponse;
 
     // We'll save the complete assistant message after streaming completes
@@ -213,6 +217,7 @@ export class MessageService {
     userId: string,
     content: string,
     role = "",
+    mode: "basic" | "deep" = "basic",
   ): Promise<{
     conversation: import("../entities/conversation.entity").ConversationEntity;
     userMessage: MessageEntity;
@@ -242,6 +247,7 @@ export class MessageService {
       contextMessages,
       false,
       role,
+      mode,
     )) as ChatApiResponse;
 
     // Create assistant message
@@ -271,6 +277,7 @@ export class MessageService {
     userId: string,
     content: string,
     role = "",
+    mode: "basic" | "deep" = "basic",
   ): Promise<{
     conversation: import("../entities/conversation.entity").ConversationEntity;
     userMessage: MessageEntity;
@@ -300,6 +307,7 @@ export class MessageService {
       contextMessages,
       true,
       role,
+      mode,
     )) as ChatApiStreamResponse;
 
     return {

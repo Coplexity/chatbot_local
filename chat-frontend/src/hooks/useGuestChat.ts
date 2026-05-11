@@ -140,7 +140,9 @@ export function useGuestChat() {
   // Guest streaming - calls API directly without auth, stores locally
   async function* sendMessageStreamGuest(
     conversationId: string,
-    content: string
+    content: string,
+    mode?: "basic" | "deep",
+    role?: string
   ): AsyncGenerator<StreamChunk> {
     // Get existing messages for context
     const existingMessages = guestStorageService.getMessages(conversationId);
@@ -156,6 +158,8 @@ export function useGuestChat() {
     const response = await api.fetchStream("/chat/guest/stream/with-context", {
       content,
       context,
+      mode,
+      role,
     });
 
     let fullResponse = "";
@@ -208,7 +212,9 @@ export function useGuestChat() {
 
   // Guest start conversation streaming
   async function* startConversationStreamGuest(
-    content: string
+    content: string,
+    mode?: "basic" | "deep",
+    role?: string
   ): AsyncGenerator<GuestStartConversationChunk> {
     // Create local conversation first
     const conversation = guestStorageService.createConversation();
@@ -220,7 +226,7 @@ export function useGuestChat() {
     yield { type: "conversation", conversationId: conversation.id };
 
     // Call API for AI response
-    const response = await api.fetchStream("/chat/guest/stream", { content });
+    const response = await api.fetchStream("/chat/guest/stream", { content, mode, role });
 
     let fullResponse = "";
     const thinkingSteps: string[] = [];
@@ -286,18 +292,23 @@ export function useGuestChat() {
     }
   }
 
-  const sendMessageStream = (conversationId: string, content: string) => {
+  const sendMessageStream = (
+    conversationId: string,
+    content: string,
+    mode?: "basic" | "deep",
+    role?: string
+  ) => {
     if (isGuest) {
-      return sendMessageStreamGuest(conversationId, content);
+      return sendMessageStreamGuest(conversationId, content, mode, role);
     }
-    return chatService.sendMessageStream(conversationId, content);
+    return chatService.sendMessageStream(conversationId, content, mode, role);
   };
 
-  const startConversationStream = (content: string) => {
+  const startConversationStream = (content: string, mode?: "basic" | "deep", role?: string) => {
     if (isGuest) {
-      return startConversationStreamGuest(content);
+      return startConversationStreamGuest(content, mode, role);
     }
-    return chatService.startConversationStream(content);
+    return chatService.startConversationStream(content, mode, role);
   };
 
   const getReferenceMetadata = async (chunkIds: number[]): Promise<ReferenceMetadata[]> => {

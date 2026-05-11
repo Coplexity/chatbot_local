@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsString, MaxLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsNotEmpty, IsString, MaxLength, IsIn, IsOptional } from "class-validator";
 
 export class SendMessageDto {
   @ApiProperty({
@@ -11,4 +11,21 @@ export class SendMessageDto {
   @IsString()
   @MaxLength(5000)
   content: string;
+
+  @ApiPropertyOptional({
+    description: "Chat mode: 'basic' for quick answers, 'deep' for detailed reasoning",
+    enum: ["basic", "deep"],
+    default: "basic",
+  })
+  @IsOptional()
+  @IsIn(["basic", "deep"])
+  mode?: "basic" | "deep";
+
+  @ApiPropertyOptional({
+    description: "User role for context-aware responses",
+    example: "bac_si_tram_y_te",
+  })
+  @IsOptional()
+  @IsString()
+  role?: string;
 }
