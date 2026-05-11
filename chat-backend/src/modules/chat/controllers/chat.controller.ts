@@ -52,6 +52,10 @@ export class ChatController {
     private readonly messageService: MessageService,
   ) { }
 
+  private resolveRequestRole(dto: SendMessageDto, user: UserEntity): string {
+    return dto.role?.trim() || user.role || "";
+  }
+
   // ==================== Conversation Management ====================
 
   @Post("conversations")
@@ -133,7 +137,7 @@ export class ChatController {
     const result = await this.messageService.sendFirstMessage(
       userId,
       dto.content,
-      user.role ?? "",
+      this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
     );
     return {
@@ -154,7 +158,7 @@ export class ChatController {
     const result = await this.messageService.sendFirstMessageStreaming(
       userId,
       dto.content,
-      user.role ?? "",
+      this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
     );
 
@@ -210,7 +214,7 @@ export class ChatController {
       conversationId,
       userId,
       dto,
-      user.role ?? "",
+      this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
     );
 
@@ -234,7 +238,7 @@ export class ChatController {
       conversationId,
       userId,
       dto,
-      user.role ?? "",
+      this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
     );
 
