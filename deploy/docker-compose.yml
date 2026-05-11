@@ -47,6 +47,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE}
       JWT_SECRET: ${JWT_SECRET}
       CHAT_API_URL: ${CHAT_API_URL:-http://medical-chatbot-chat-api-1:8000}
     depends_on:
