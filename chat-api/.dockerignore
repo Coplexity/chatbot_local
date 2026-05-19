@@ -21,7 +21,6 @@ build/
 # Local config/secrets
 .env
 .env.*
-config.py
 
 # Git/IDE/OS files
 .git/
