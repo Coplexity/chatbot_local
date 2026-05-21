@@ -25,12 +25,13 @@ export class ChatApiProviderService {
     streaming = false,
     role = "",
     mode: "basic" | "deep" = "basic",
+    userId: string | null = null,
   ): Promise<ChatApiResponse | ChatApiStreamResponse> {
     if (streaming) {
-      return this.generateStreamingResponse(messages, role, mode);
+      return this.generateStreamingResponse(messages, role, mode, userId);
     }
 
-    return this.generateNonStreamingResponse(messages, role, mode);
+    return this.generateNonStreamingResponse(messages, role, mode, userId);
   }
 
   private readChunkBuffer(buffer: string): {
@@ -150,6 +151,7 @@ export class ChatApiProviderService {
     messages: ChatApiMessage[],
     role = "",
     mode: "basic" | "deep" = "basic",
+    userId: string | null = null,
   ): Promise<ChatApiResponse> {
     try {
       // Get the last user message as the question
@@ -167,6 +169,7 @@ export class ChatApiProviderService {
           query: lastUserMessage.content,
           role: ROLE_MAPPING[role] || role,
           mode,
+          user_id: userId,
         }),
       });
 
@@ -249,6 +252,7 @@ export class ChatApiProviderService {
     messages: ChatApiMessage[],
     role = "",
     mode: "basic" | "deep" = "basic",
+    userId: string | null = null,
   ): Promise<ChatApiStreamResponse> {
     try {
       // Get the last user message as the question
@@ -266,6 +270,7 @@ export class ChatApiProviderService {
           query: lastUserMessage.content,
           role: ROLE_MAPPING[role] || role,
           mode,
+          user_id: userId,
         }),
       });
 

@@ -10,8 +10,9 @@ export class ChatApiService {
     streaming = false,
     role = "",
     mode: "basic" | "deep" = "basic",
+    userId: string | null = null,
   ) {
-    return this.chatApiProvider.generateResponse(messages, streaming, role, mode);
+    return this.chatApiProvider.generateResponse(messages, streaming, role, mode, userId);
   }
 
   countTokens(text: string): number {
