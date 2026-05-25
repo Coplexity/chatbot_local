@@ -37,7 +37,12 @@ async def chat_stream(request: ChatStreamRequest):
 
     async def event_generator():
         try:
-            async for event, payload in chatbot.stream_answer_events(request.query, request.role, request.mode):
+            async for event, payload in chatbot.stream_answer_events(
+                request.query,
+                request.role,
+                request.mode,
+                request.user_id,
+            ):
                 if not payload:
                     continue
                 # Wrap payload into structured JSON so frontend receives

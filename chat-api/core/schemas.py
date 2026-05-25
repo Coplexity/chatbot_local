@@ -33,9 +33,12 @@ class SpecialtyReport(TypedDict):
 
 class RouterState(TypedDict):
     query: str
+    user_id: int | None
     role: str
     is_medical_related: bool
     validation_category: str  # "greeting", "medical", "off_topic"
+    filtered_guideline_ids: list
+    filtered_specialties: list
     analyzed_specialties: list
     routed_diseases: Dict[str, List[str]]
     active_version_ids: list

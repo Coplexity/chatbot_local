@@ -3,6 +3,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from basic_mode.core.schemas import RouterState
 
 from basic_mode.nodes.reasoning.question_validator import QuestionValidatorNode
+from basic_mode.nodes.routing.guideline_owner_filter import GuidelineOwnerFilterNode
 from basic_mode.nodes.routing.specialty_routing import SpecialtyRoutingNode
 from basic_mode.nodes.routing.disease_routing import DiseaseRoutingNode
 from basic_mode.nodes.routing.active_version_filter import ActiveVersionFilterNode
@@ -14,6 +15,7 @@ from basic_mode.nodes.reasoning.global_synthesizer import GlobalSynthesizerNode
 class BasicMedicalWorkflow:
     def __init__(self):
         self.validator = QuestionValidatorNode()
+        self.guideline_filter = GuidelineOwnerFilterNode()
         self.router = SpecialtyRoutingNode()
         self.disease_router = DiseaseRoutingNode()
         self.version_filter = ActiveVersionFilterNode()
@@ -47,6 +49,7 @@ class BasicMedicalWorkflow:
         builder = StateGraph(RouterState)
 
         builder.add_node("question_validator", self.validator.process)
+        builder.add_node("guideline_owner_filter", self.guideline_filter.process)
         builder.add_node("intent_analyzer", self.router.process)
         builder.add_node("disease_router", self.disease_router.process)
         builder.add_node("active_version_filter", self.version_filter.process)
@@ -55,7 +58,8 @@ class BasicMedicalWorkflow:
         builder.add_node("global_synthesizer", self.synthesizer.process)
 
         builder.add_edge(START, "question_validator")
-        builder.add_edge("question_validator", "intent_analyzer")
+        builder.add_edge("question_validator", "guideline_owner_filter")
+        builder.add_edge("guideline_owner_filter", "intent_analyzer")
         builder.add_conditional_edges(
             "intent_analyzer", self.route_logic,
             {"disease_router_node": "disease_router", "synthesis_node": "global_synthesizer"}

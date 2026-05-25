@@ -1,0 +1,98 @@
+name: medical-chatbot
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - disabled
+    networks:
+      - default 
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - disabled
+    networks:
+      - default
+
+  chat-backend:
+    build:
+      context: ../chat-backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE}
+      JWT_SECRET: ${JWT_SECRET}
+      CHAT_API_URL: ${CHAT_API_URL}
+    depends_on:
+      # - postgres
+      - chat-api
+    networks:
+      - default
+
+  chat-api:
+    build:
+      context: ../chat-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+    # depends_on:
+    #   - postgres
+    networks:
+      - default
+
+  chat-frontend:
+    build:
+      context: ../chat-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://chat-backend:3000}
+        VITE_DOCUMENT_FILE_URL_TEMPLATE: ${VITE_DOCUMENT_FILE_URL_TEMPLATE} # example: https://your-domain/api/v1/documents/{documentId}/file
+        VITE_MAINTENANCE_MESSAGE: ${VITE_MAINTENANCE_MESSAGE}
+    restart: unless-stopped
+    depends_on:
+      - chat-backend
+    ports:
+      - "${FRONTEND_PORT:-8400}:80"
+    networks:
+      - default
+
+volumes:
+  postgres_data:
+  redis_data:
+
+    

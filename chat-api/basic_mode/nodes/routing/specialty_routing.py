@@ -6,28 +6,35 @@ from core.database import DatabaseManager
 
 
 class SpecialtyRoutingNode:
-    """Class đảm nhiệm việc phân tích ý định và định tuyến (Routing)"""
+    """Class đảm nhiệm việc phân tích ý định và định tuyến (Routing)."""
 
     def __init__(self):
         print("⏳ [Router] Initializing Intent Analyzer...")
         self.llm = ChatOpenAI(model=config.LLM_MODEL, api_key=config.OPENAI_API_KEY, temperature=0)
         self.db_manager = DatabaseManager()
 
-    def _load_valid_domains(self):
-        """Lấy danh sách chuyên khoa từ bảng guidelines."""
+    def _load_valid_domains(self, guideline_ids=None):
+        """Lấy danh sách chuyên khoa từ bảng guidelines, có thể giới hạn theo guideline_ids."""
+        if guideline_ids is not None and not guideline_ids:
+            return []
+
         conn = None
         cursor = None
         try:
             conn = self.db_manager.get_connection()
             cursor = conn.cursor()
+            guideline_filter_sql = "AND guideline_id = ANY(%s)" if guideline_ids is not None else ""
+            params = (guideline_ids,) if guideline_ids is not None else ()
             cursor.execute(
-                """
+                f"""
                 SELECT DISTINCT chuyen_khoa
                 FROM guidelines
                 WHERE chuyen_khoa IS NOT NULL
                   AND btrim(chuyen_khoa) <> ''
+                  {guideline_filter_sql}
                 ORDER BY chuyen_khoa;
-                """
+                """,
+                params,
             )
             rows = cursor.fetchall()
             return [row[0] for row in rows]
@@ -44,10 +51,12 @@ class SpecialtyRoutingNode:
         query = state["query"]
         structured_llm = self.llm.with_structured_output(RouteDecision)
 
-        valid_domains = self._load_valid_domains()
+        valid_domains = state.get("filtered_specialties")
+        if valid_domains is None:
+            valid_domains = self._load_valid_domains(state.get("filtered_guideline_ids"))
 
         if not valid_domains:
-            print("⚠️ [Router] Không tìm thấy chuyên khoa hợp lệ trong bảng guidelines.")
+            print("⚠️ [Router] Không tìm thấy chuyên khoa hợp lệ trong guidelines đã lọc.")
             return {"analyzed_specialties": [], "hypothetical_document": ""}
 
         # Biến danh sách trên thành một chuỗi văn bản (VD: "tim_mach, ho_hap, ...")
@@ -56,13 +65,16 @@ class SpecialtyRoutingNode:
         # GỌI PROMPT TỪ FILE MỚI VÀ TRUYỀN BIẾN VÀO
         prompt = ROUTER_PROMPT.format(
             domains_string=domains_string,
-            query=query
+            query=query,
         )
 
         decision = structured_llm.invoke(prompt)
 
-        filtered_domains = [{"name": s.name}
-                            for s in decision.analyzed_specialties if s.name in valid_domains]
+        filtered_domains = [
+            {"name": s.name}
+            for s in decision.analyzed_specialties
+            if s.name in valid_domains
+        ]
 
         print(f"🧭 [Router] Điều phối đến các domain: {[s['name'] for s in filtered_domains]}")
         return {"analyzed_specialties": filtered_domains, "hypothetical_document": decision.hypothetical_document}

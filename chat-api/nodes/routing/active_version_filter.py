@@ -12,6 +12,11 @@ class ActiveVersionFilterNode:
     def process(self, state: RouterState):
         routed_diseases = state.get("routed_diseases", {})
         analyzed_specialties = state.get("analyzed_specialties", [])
+        filtered_guideline_ids = state.get("filtered_guideline_ids")
+
+        if filtered_guideline_ids is not None and not filtered_guideline_ids:
+            print("⚠️ [Version Filter] Không có guideline nào sau lọc owner_user_id.")
+            return {"active_version_ids": []}
 
         specialty_values = [item["name"] for item in analyzed_specialties if item.get("name")]
 
@@ -34,12 +39,15 @@ class ActiveVersionFilterNode:
         try:
             conn = self.db_manager.get_connection()
             cursor = conn.cursor()
+            guideline_filter_sql = "AND g.guideline_id = ANY(%s)" if filtered_guideline_ids is not None else ""
 
             if candidate_pairs:
                 pair_conditions = " OR ".join(
                     ["(g.chuyen_khoa = %s AND g.ten_benh = %s)"] * len(candidate_pairs)
                 )
                 params = [value for pair in candidate_pairs for value in pair]
+                if filtered_guideline_ids is not None:
+                    params.append(filtered_guideline_ids)
                 cursor.execute(
                     f"""
                     SELECT DISTINCT gv.version_id
@@ -47,21 +55,26 @@ class ActiveVersionFilterNode:
                     JOIN guidelines g ON g.guideline_id = gv.guideline_id
                     WHERE gv.status = 'active'
                       AND ({pair_conditions})
+                      {guideline_filter_sql}
                     ORDER BY gv.version_id;
                     """,
                     tuple(params),
                 )
             else:
+                params = [specialty_values]
+                if filtered_guideline_ids is not None:
+                    params.append(filtered_guideline_ids)
                 cursor.execute(
-                    """
-                                        SELECT DISTINCT gv.version_id
+                    f"""
+                    SELECT DISTINCT gv.version_id
                     FROM guideline_versions gv
                     JOIN guidelines g ON g.guideline_id = gv.guideline_id
                     WHERE gv.status = 'active'
                       AND g.chuyen_khoa = ANY(%s)
+                      {guideline_filter_sql}
                     ORDER BY gv.version_id;
                     """,
-                    (specialty_values,),
+                    tuple(params),
                 )
 
             rows = cursor.fetchall()

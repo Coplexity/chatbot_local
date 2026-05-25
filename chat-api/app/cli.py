@@ -157,18 +157,18 @@ class ChatbotApp:
         normalized = re.sub(r"_+", "_", normalized)
         return normalized
 
-    def _resolve_tram_y_te_specialty_name(self) -> str:
+    def _resolve_tram_y_te_specialty_name(self, valid_domains=None) -> str:
         tram_y_te_alias = "tram_y_te"
-        valid_domains = self.deep_workflow.router._load_valid_domains()
+        valid_domains = valid_domains if valid_domains is not None else self.deep_workflow.router._load_valid_domains()
         for domain in valid_domains:
             if self._normalize_specialty_alias(domain) == tram_y_te_alias:
                 return domain
         return tram_y_te_alias
 
-    async def _stream_answer_events_basic(self, query: str, role: str | None = None):
+    async def _stream_answer_events_basic(self, query: str, role: str | None = None, user_id: int | None = None):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
         workflow = self.basic_workflow
-        state = {"query": query, "role": role or ""}
+        state = {"query": query, "role": role or "", "user_id": user_id}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()
 
@@ -208,6 +208,10 @@ class ChatbotApp:
             return
 
         yield "trace", "Xác nhận: Câu hỏi liên quan y tế ✓"
+
+        yield "trace", "Lọc guidelines: Đang lọc guideline theo user_id..."
+        state.update(workflow.guideline_filter.process(state))
+        yield "trace", f"Lọc guidelines: Tìm thấy {len(state.get('filtered_guideline_ids', []))} guideline phù hợp."
 
         # 1) Intent routing
         yield "trace", "Định tuyến: Đang phân tích ý định và chuyên khoa liên quan"
@@ -301,20 +305,26 @@ class ChatbotApp:
         if final_tail:
             yield "chunk", final_tail
 
-    async def stream_answer_events(self, query: str, role: str | None = None, mode: str | None = None):
+    async def stream_answer_events(
+        self,
+        query: str,
+        role: str | None = None,
+        mode: str | None = None,
+        user_id: int | None = None,
+    ):
         selected_mode = self._normalize_mode(mode)
         if selected_mode == "deep":
-            async for event, payload in self._stream_answer_events_deep(query, role):
+            async for event, payload in self._stream_answer_events_deep(query, role, user_id):
                 yield event, payload
             return
 
-        async for event, payload in self._stream_answer_events_basic(query, role):
+        async for event, payload in self._stream_answer_events_basic(query, role, user_id):
             yield event, payload
 
-    async def _stream_answer_events_deep(self, query: str, role: str | None = None):
+    async def _stream_answer_events_deep(self, query: str, role: str | None = None, user_id: int | None = None):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
         workflow = self.deep_workflow
-        state = {"query": query, "role": role or ""}
+        state = {"query": query, "role": role or "", "user_id": user_id}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()
 
@@ -355,10 +365,17 @@ class ChatbotApp:
 
         yield "trace", "Xác nhận: Câu hỏi liên quan y tế ✓"
 
+        yield "trace", "Lọc guidelines: Đang lọc guideline theo user_id..."
+        state.update(workflow.guideline_filter.process(state))
+        yield "trace", f"Lọc guidelines: Tìm thấy {len(state.get('filtered_guideline_ids', []))} guideline phù hợp."
+
         shortcut_active = self._is_tram_y_te_shortcut(role)
         if shortcut_active:
-            tram_y_te_specialty = self._resolve_tram_y_te_specialty_name()
-            tram_y_te_diseases = workflow.disease_router._load_disease_candidates(tram_y_te_specialty)
+            tram_y_te_specialty = self._resolve_tram_y_te_specialty_name(state.get("filtered_specialties"))
+            tram_y_te_diseases = workflow.disease_router._load_disease_candidates(
+                tram_y_te_specialty,
+                state.get("filtered_guideline_ids"),
+            )
             # Shortcut for tram y te doctors: skip intent routing and force one specialty.
             state.update(
                 {
@@ -511,9 +528,15 @@ class ChatbotApp:
         if final_tail:
             yield "chunk", final_tail
 
-    async def stream_answer(self, query: str, role: str | None = None, mode: str | None = None):
+    async def stream_answer(
+        self,
+        query: str,
+        role: str | None = None,
+        mode: str | None = None,
+        user_id: int | None = None,
+    ):
         """Backward-compatible text-only stream for existing consumers."""
-        async for event, payload in self.stream_answer_events(query, role, mode):
+        async for event, payload in self.stream_answer_events(query, role, mode, user_id):
             if event == "chunk":
                 yield payload
 

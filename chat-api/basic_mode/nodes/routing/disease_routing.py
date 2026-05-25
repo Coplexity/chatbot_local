@@ -14,25 +14,32 @@ class DiseaseRoutingNode:
         self.llm = ChatOpenAI(model=config.LLM_MODEL, api_key=config.OPENAI_API_KEY, temperature=0)
         self.db_manager = DatabaseManager()
 
-    def _load_disease_candidates(self, specialty_name: str):
+    def _load_disease_candidates(self, specialty_name: str, guideline_ids=None):
         conn = None
         cursor = None
         try:
             if not specialty_name:
                 return []
+            if guideline_ids is not None and not guideline_ids:
+                return []
 
             conn = self.db_manager.get_connection()
             cursor = conn.cursor()
+            guideline_filter_sql = "AND guideline_id = ANY(%s)" if guideline_ids is not None else ""
+            params = [specialty_name]
+            if guideline_ids is not None:
+                params.append(guideline_ids)
             cursor.execute(
-                """
+                f"""
                 SELECT DISTINCT ten_benh
                 FROM guidelines
                 WHERE chuyen_khoa = %s
                   AND ten_benh IS NOT NULL
                   AND btrim(ten_benh) <> ''
+                  {guideline_filter_sql}
                 ORDER BY ten_benh;
                 """,
-                (specialty_name,),
+                tuple(params),
             )
             rows = cursor.fetchall()
             return [row[0] for row in rows]
@@ -48,6 +55,7 @@ class DiseaseRoutingNode:
     async def process(self, state: RouterState):
         query = state.get("query", "")
         analyzed_specialties = state.get("analyzed_specialties", [])
+        filtered_guideline_ids = state.get("filtered_guideline_ids")
 
         specialty_names = [item.get("name") for item in analyzed_specialties if item.get("name")]
         specialty_names = list(dict.fromkeys(specialty_names))
@@ -58,7 +66,7 @@ class DiseaseRoutingNode:
             }
 
         async def route_single_specialty(specialty_name: str):
-            candidates = self._load_disease_candidates(specialty_name)
+            candidates = self._load_disease_candidates(specialty_name, filtered_guideline_ids)
             if not candidates:
                 print(f"⚠️ [Disease Router] Không có ứng viên bệnh cho khoa {specialty_name}.")
                 return specialty_name, []
