@@ -110,7 +110,23 @@ export function ChatPage() {
     () => EMPTY_STATE_HEADLINES[Math.floor(Math.random() * EMPTY_STATE_HEADLINES.length)]
   );
   const [mode, setMode] = useState<"basic" | "deep">("basic");
-  const [selectedRole, setSelectedRole] = useState<UserRole>(() => user?.role ?? UserRole.NONE);
+  const safeUserIds = (ids: string[]) => ids.filter(Boolean);
+
+  const effectiveUserIds = () => {
+    const base = selectedUserIds;
+    const currentId = user?.documentUserId;
+    if (!currentId) return base;
+    return base.includes(currentId) ? base : [...base, currentId];
+  };
+
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("query_scope_user_ids");
+      return saved ? safeUserIds(JSON.parse(saved)) : [];
+    } catch {
+      return [];
+    }
+  });
   const [queryHistory, setQueryHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [draftWhileStreaming, setDraftWhileStreaming] = useState("");
@@ -128,8 +144,10 @@ export function ChatPage() {
   }, [draftWhileStreaming]);
 
   useEffect(() => {
-    setSelectedRole((currentRole) => currentRole || user?.role || UserRole.NONE);
-  }, [user?.role]);
+    shouldAutoScrollRef.current = true;
+    setSelectedReference(null);
+    setPendingMessages([]);
+  }, [chatId]);
 
   const updateShouldAutoScroll = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -140,21 +158,11 @@ export function ChatPage() {
     }
 
     const distanceFromBottom =
-      container.scrollHeight - container.clientHeight - container.scrollTop;
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const threshold = isStreaming ? STREAM_LOCK_THRESHOLD_PX : AUTO_SCROLL_THRESHOLD_PX;
 
-    if (isStreaming) {
-      shouldAutoScrollRef.current = distanceFromBottom <= STREAM_LOCK_THRESHOLD_PX;
-      return;
-    }
-
-    shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+    shouldAutoScrollRef.current = distanceFromBottom <= threshold;
   }, [isStreaming]);
-
-  useEffect(() => {
-    shouldAutoScrollRef.current = true;
-    setSelectedReference(null);
-    setPendingMessages([]);
-  }, [chatId]);
 
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["messages", chatId, isGuest],
@@ -328,7 +336,7 @@ export function ChatPage() {
         let newConversationId: string | null = null;
         let rawStreamingText = "";
 
-        for await (const chunk of startConversationStream(userInput, mode, selectedRole)) {
+        for await (const chunk of startConversationStream(userInput, mode, user?.role ?? UserRole.NONE, effectiveUserIds())) {
           if ("type" in chunk && chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if ("type" in chunk && chunk.type === "trace") {
@@ -362,7 +370,7 @@ export function ChatPage() {
       } else {
         let rawStreamingText = "";
 
-        for await (const chunk of sendMessageStream(chatId as string, userInput, mode, selectedRole)) {
+        for await (const chunk of sendMessageStream(chatId as string, userInput, mode, user?.role ?? UserRole.NONE, effectiveUserIds())) {
           if ("type" in chunk && chunk.type === "trace") {
             appendStreamingTrace(assistantPlaceholderId, chunk.trace);
           } else if (
@@ -417,7 +425,7 @@ export function ChatPage() {
     isGuest,
     isNewChat,
     mode,
-    selectedRole,
+    selectedUserIds,
     antMessage,
     navigate,
     queryClient,
@@ -442,10 +450,6 @@ export function ChatPage() {
 
   const handleHistoryNavigate = useCallback((nextIndex: number) => {
     setHistoryIndex(nextIndex);
-  }, []);
-
-  const handleRoleChange = useCallback((role: UserRole) => {
-    setSelectedRole(role);
   }, []);
 
   const handleSendDraft = useCallback(() => {
@@ -517,8 +521,8 @@ export function ChatPage() {
           disabled={isStreaming}
           mode={mode}
           onModeChange={setMode}
-          selectedRole={selectedRole}
-          onRoleChange={handleRoleChange}
+          selectedUserIds={selectedUserIds}
+          onUserIdsChange={(ids) => setSelectedUserIds(safeUserIds(ids))}
           queryHistory={queryHistory}
           historyIndex={historyIndex}
           onHistoryNavigate={handleHistoryNavigate}

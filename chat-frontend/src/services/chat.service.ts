@@ -158,11 +158,12 @@ export const chatService = {
     conversationId: string,
     content: string,
     mode?: "basic" | "deep",
-    role?: string
+    role?: string,
+    user_ids?: string[],
   ): AsyncGenerator<StreamChunk> {
     const response = await api.fetchStream(
       `/chat/conversations/${conversationId}/messages/stream`,
-      { content, mode, role }
+      { content, mode, role, user_ids }
     );
 
     for await (const chunk of readSseStream<StreamChunk>(response, (event) => {
@@ -203,11 +204,12 @@ export const chatService = {
   async *startConversationStream(
     content: string,
     mode?: "basic" | "deep",
-    role?: string
+    role?: string,
+    user_ids?: string[],
   ): AsyncGenerator<StartConversationChunk> {
     const response = await api.fetchStream(
       "/chat/conversations/start/stream",
-      { content, mode, role }
+      { content, mode, role, user_ids }
     );
 
     for await (const chunk of readSseStream<StartConversationChunk>(response, (event) => {
