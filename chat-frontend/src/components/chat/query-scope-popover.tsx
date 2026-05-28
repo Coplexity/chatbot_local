@@ -82,7 +82,7 @@ export function QueryScopePopover({
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next.filter(Boolean)));
   };
 
-  const currentUserId = user?.id ?? "";
+  const currentUserId = user?.documentUserId ?? "";
   const currentUserDisplay =
     user?.fullName || user?.email || "Tài khoản hiện tại";
   const hasAncestors = ancestors.length > 0;
@@ -159,22 +159,13 @@ export function QueryScopePopover({
             ) : (
               <div>
                 {currentUserId && (
-                  <div className="flex items-start gap-3 px-4 py-3 border-b border-slate-100 bg-white">
-                    <div className="mt-1 h-4 w-4 rounded border-slate-300 bg-[#4c82e8]/10 flex items-center justify-center flex-shrink-0">
-                      <svg
-                        className="w-3 h-3 text-[#4c82e8]"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        strokeWidth={3}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </div>
+                  <label className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100">
+                    <input
+                      type="checkbox"
+                      checked={selectedUserIds.includes(currentUserId)}
+                      onChange={() => handleToggleAncestor(currentUserId)}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-[#4c82e8] focus:ring-[#4c82e8]/30 cursor-pointer accent-[#4c82e8] flex-shrink-0"
+                    />
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-medium text-slate-700 truncate">
                         Tài khoản hiện tại
@@ -183,7 +174,7 @@ export function QueryScopePopover({
                         {currentUserDisplay}
                       </span>
                     </div>
-                  </div>
+                  </label>
                 )}
 
                 {ancestors.map((ancestor) => {

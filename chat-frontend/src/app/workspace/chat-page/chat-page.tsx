@@ -112,13 +112,6 @@ export function ChatPage() {
   const [mode, setMode] = useState<"basic" | "deep">("basic");
   const safeUserIds = (ids: string[]) => ids.filter(Boolean);
 
-  const effectiveUserIds = () => {
-    const base = selectedUserIds;
-    const currentId = user?.documentUserId;
-    if (!currentId) return base;
-    return base.includes(currentId) ? base : [...base, currentId];
-  };
-
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("query_scope_user_ids");
@@ -336,7 +329,7 @@ export function ChatPage() {
         let newConversationId: string | null = null;
         let rawStreamingText = "";
 
-        for await (const chunk of startConversationStream(userInput, mode, user?.role ?? UserRole.NONE, effectiveUserIds())) {
+        for await (const chunk of startConversationStream(userInput, mode, user?.role ?? UserRole.NONE, selectedUserIds)) {
           if ("type" in chunk && chunk.type === "conversation") {
             newConversationId = chunk.conversationId;
           } else if ("type" in chunk && chunk.type === "trace") {
@@ -370,7 +363,7 @@ export function ChatPage() {
       } else {
         let rawStreamingText = "";
 
-        for await (const chunk of sendMessageStream(chatId as string, userInput, mode, user?.role ?? UserRole.NONE, effectiveUserIds())) {
+        for await (const chunk of sendMessageStream(chatId as string, userInput, mode, user?.role ?? UserRole.NONE, selectedUserIds)) {
           if ("type" in chunk && chunk.type === "trace") {
             appendStreamingTrace(assistantPlaceholderId, chunk.trace);
           } else if (
