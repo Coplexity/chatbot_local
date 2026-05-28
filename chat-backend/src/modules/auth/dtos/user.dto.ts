@@ -6,10 +6,6 @@ import { UserRole } from "../entities/user.entity";
 export class UserDto extends BaseEntityDto {
   @ApiProperty()
   @Expose()
-  id: string;
-
-  @ApiProperty()
-  @Expose()
   documentUserId: string | null;
 
   @ApiProperty({ nullable: true })
