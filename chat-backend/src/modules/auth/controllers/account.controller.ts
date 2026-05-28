@@ -1,5 +1,6 @@
 import { BadRequestException, Body, ClassSerializerInterceptor, Controller, Get, HttpCode, Logger, Patch, Post, Req, Res, UnauthorizedException, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { plainToInstance } from "class-transformer";
 import { IsEnum } from "class-validator";
 import { Request, Response } from "express";
 import { ApiHttpException } from "../../../common/decorators/api-http-exception.decorator";
@@ -79,6 +80,19 @@ export class AccountController {
   @HttpCode(200)
   async updateUserRole(@GetUserId() userId: string, @Body() dto: UpdateChatRoleDto) {
     return this.accountService.updateUserRole(userId, dto.role);
+  }
+
+  @Get("users/ancestors")
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOkResponse({ type: UserDto, isArray: true })
+  @ApiHttpException(() => [])
+  @HttpCode(200)
+  async getAncestors(@GetUserId() userId: string): Promise<UserDto[]> {
+    const user = await this.accountService.getUser(userId);
+    if (!user?.documentUserId) return [];
+    const ancestors = await this.accountService.getAncestors(user.documentUserId);
+    return plainToInstance(UserDto, ancestors);
   }
 
   // ==================== Password Management Endpoints ====================

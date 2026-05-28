@@ -133,6 +133,10 @@ export class AccountService {
     return user;
   }
 
+  async getAncestors(documentUserId: string) {
+    return this.documentUserRepo.findAncestors(documentUserId);
+  }
+
   async getPassword(userId: string) {
     const systemUser = await this.userRepo.findOne({ where: { id: userId } });
 
