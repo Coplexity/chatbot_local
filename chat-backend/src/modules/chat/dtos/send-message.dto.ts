@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNotEmpty, IsString, MaxLength, IsIn, IsOptional } from "class-validator";
+import { IsNotEmpty, IsString, MaxLength, IsIn, IsOptional, IsArray } from "class-validator";
 
 export class SendMessageDto {
   @ApiProperty({
@@ -28,4 +28,10 @@ export class SendMessageDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @ApiPropertyOptional({ description: "Selected user IDs for query scope filtering", type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  user_ids?: string[];
 }

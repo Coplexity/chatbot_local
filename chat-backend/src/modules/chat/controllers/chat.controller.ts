@@ -140,6 +140,7 @@ export class ChatController {
       this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
       user.documentUserId,
+      dto.user_ids,
     );
     return {
       conversation: plainToInstance(ConversationDto, result.conversation),
@@ -162,6 +163,7 @@ export class ChatController {
       this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
       user.documentUserId,
+      dto.user_ids,
     );
 
     // First, emit the conversation ID so client knows the new conversation
@@ -219,6 +221,7 @@ export class ChatController {
       this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
       user.documentUserId,
+      dto.user_ids,
     );
 
     return {
@@ -244,6 +247,7 @@ export class ChatController {
       this.resolveRequestRole(dto, user),
       dto.mode ?? "basic",
       user.documentUserId,
+      dto.user_ids,
     );
 
     return from(

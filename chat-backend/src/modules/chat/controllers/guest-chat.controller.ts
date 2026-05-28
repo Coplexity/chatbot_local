@@ -51,6 +51,12 @@ class GuestChatWithContextDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @ApiPropertyOptional({ description: "Selected user IDs for query scope", type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  user_ids?: string[];
 }
 
 @ApiTags("Guest Chat")
@@ -81,6 +87,8 @@ export class GuestChatController {
       true,
       dto.role ?? "",
       dto.mode ?? "basic",
+      null,
+      dto.user_ids,
     )) as ChatApiStreamResponse;
 
     const stream = aiResponse.stream;
@@ -119,6 +127,8 @@ export class GuestChatController {
       true,
       dto.role ?? "",
       dto.mode ?? "basic",
+      null,
+      dto.user_ids,
     )) as ChatApiStreamResponse;
 
     const stream = aiResponse.stream;
