@@ -1,5 +1,5 @@
 import { Exclude } from "class-transformer";
-import { Check, Column, CreateDateColumn, Entity, Index, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Check, Column, CreateDateColumn, Entity, Index, ManyToOne, OneToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { UserEntity } from "./user.entity";
 
 export enum DocumentUserRole {
@@ -27,6 +27,15 @@ export class DocumentUserEntity {
 
   @Column({ type: "varchar", length: 20, default: DocumentUserRole.VIEWER })
   role: DocumentUserRole;
+
+  @Column({ name: "parent_id", type: "bigint", nullable: true })
+  parentId: string | null;
+
+  @ManyToOne(() => DocumentUserEntity, (user) => user.children, { nullable: true })
+  parent: DocumentUserEntity | null;
+
+  @OneToMany(() => DocumentUserEntity, (user) => user.parent)
+  children: DocumentUserEntity[];
 
   @Column({ name: "is_active", type: "boolean", default: true })
   isActive: boolean;
