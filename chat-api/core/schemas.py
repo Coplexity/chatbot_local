@@ -33,7 +33,7 @@ class SpecialtyReport(TypedDict):
 
 class RouterState(TypedDict):
     query: str
-    user_id: int | None
+    user_ids: int | str | None
     role: str
     is_medical_related: bool
     validation_category: str  # "greeting", "medical", "off_topic"

@@ -165,10 +165,15 @@ class ChatbotApp:
                 return domain
         return tram_y_te_alias
 
-    async def _stream_answer_events_basic(self, query: str, role: str | None = None, user_id: int | None = None):
+    async def _stream_answer_events_basic(
+        self,
+        query: str,
+        role: str | None = None,
+        user_ids: int | str | None = None,
+    ):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
         workflow = self.basic_workflow
-        state = {"query": query, "role": role or "", "user_id": user_id}
+        state = {"query": query, "role": role or "", "user_ids": user_ids}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()
 
@@ -310,21 +315,26 @@ class ChatbotApp:
         query: str,
         role: str | None = None,
         mode: str | None = None,
-        user_id: int | None = None,
+        user_ids: int | str | None = None,
     ):
         selected_mode = self._normalize_mode(mode)
         if selected_mode == "deep":
-            async for event, payload in self._stream_answer_events_deep(query, role, user_id):
+            async for event, payload in self._stream_answer_events_deep(query, role, user_ids):
                 yield event, payload
             return
 
-        async for event, payload in self._stream_answer_events_basic(query, role, user_id):
+        async for event, payload in self._stream_answer_events_basic(query, role, user_ids):
             yield event, payload
 
-    async def _stream_answer_events_deep(self, query: str, role: str | None = None, user_id: int | None = None):
+    async def _stream_answer_events_deep(
+        self,
+        query: str,
+        role: str | None = None,
+        user_ids: int | str | None = None,
+    ):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
         workflow = self.deep_workflow
-        state = {"query": query, "role": role or "", "user_id": user_id}
+        state = {"query": query, "role": role or "", "user_ids": user_ids}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()
 
@@ -533,10 +543,10 @@ class ChatbotApp:
         query: str,
         role: str | None = None,
         mode: str | None = None,
-        user_id: int | None = None,
+        user_ids: int | str | None = None,
     ):
         """Backward-compatible text-only stream for existing consumers."""
-        async for event, payload in self.stream_answer_events(query, role, mode, user_id):
+        async for event, payload in self.stream_answer_events(query, role, mode, user_ids):
             if event == "chunk":
                 yield payload
 

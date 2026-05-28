@@ -10,19 +10,28 @@ class GuidelineOwnerFilterNode:
         self.db_manager = DatabaseManager()
 
     @staticmethod
-    def _normalize_user_id(user_id):
+    def _normalize_user_ids(user_id):
         if user_id is None or user_id == "":
             return None
-        try:
-            return int(user_id)
-        except (TypeError, ValueError):
-            print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
-            return None
+        if isinstance(user_id, int):
+            return [user_id]
+        if isinstance(user_id, str):
+            raw_parts = [part.strip() for part in user_id.split(",")]
+            parts = [part for part in raw_parts if part]
+            if not parts:
+                return None
+            try:
+                return [int(part) for part in parts]
+            except ValueError:
+                print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
+                return None
+        print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
+        return None
 
     def process(self, state: RouterState):
-        raw_user_id = state.get("user_id")
-        user_id = self._normalize_user_id(raw_user_id)
-        if raw_user_id not in (None, "") and user_id is None:
+        raw_user_ids = state.get("user_ids")
+        user_ids = self._normalize_user_ids(raw_user_ids)
+        if raw_user_ids not in (None, "") and user_ids is None:
             return {"filtered_guideline_ids": [], "filtered_specialties": []}
 
         conn = None
@@ -34,11 +43,11 @@ class GuidelineOwnerFilterNode:
 
             owner_filter_sql = ""
             params = []
-            if user_id is not None:
-                owner_filter_sql = "AND owner_user_id = %s"
-                params.append(user_id)
+            if user_ids is not None:
+                owner_filter_sql = "AND owner_user_id = ANY(%s)"
+                params.append(user_ids)
             else:
-                print("ℹ️ [Guideline Owner Filter] Không có user_id, dùng toàn bộ guidelines.")
+                print("ℹ️ [Guideline Owner Filter] Không có user_ids, dùng toàn bộ guidelines.")
 
             cursor.execute(
                 f"""
@@ -56,9 +65,9 @@ class GuidelineOwnerFilterNode:
             guideline_ids = [row[0] for row in rows]
             specialties = list(dict.fromkeys(row[1] for row in rows if row[1]))
 
-            if user_id is not None:
+            if user_ids is not None:
                 print(
-                    f"🧩 [Guideline Owner Filter] user_id={user_id}: "
+                    f"🧩 [Guideline Owner Filter] user_ids={user_ids}: "
                     f"lọc được {len(guideline_ids)} guideline(s), {len(specialties)} chuyên khoa."
                 )
 

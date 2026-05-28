@@ -3,9 +3,12 @@ from pydantic import BaseModel, Field
 
 class ChatStreamRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Cau hoi y khoa cua nguoi dung")
-    user_id: int | None = Field(
+    user_ids: int | str | None = Field(
         default=None,
-        description="ID nguoi dung de loc guidelines theo guidelines.owner_user_id.",
+        description=(
+            "Danh sach ID nguoi dung de loc guidelines theo guidelines.owner_user_id. "
+            "Co the la so (vd: 1) hoac chuoi phan tach dau phay (vd: '1,2,3')."
+        ),
     )
     role: str = Field(
         default="",

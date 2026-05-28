@@ -41,7 +41,7 @@ async def chat_stream(request: ChatStreamRequest):
                 request.query,
                 request.role,
                 request.mode,
-                request.user_id,
+                request.user_ids,
             ):
                 if not payload:
                     continue
