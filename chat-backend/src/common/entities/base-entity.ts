@@ -3,7 +3,7 @@ import { CreateDateColumn, PrimaryColumn, BaseEntity as TypeOrmBaseEntity, Updat
 export abstract class BaseEntity extends TypeOrmBaseEntity {
   @PrimaryColumn("uuid", {
     primary: true,
-    default: () => "uuidv7()", // Requires PostgreSQL 18+
+    default: () => "gen_random_uuid()", // Built-in since PostgreSQL 13
   })
   id: string;
 
