@@ -9,6 +9,7 @@ export enum UserRole {
 
 export interface User {
   id: string;
+  documentUserId: string | null;
   fullName: string | null;
   email: string;
   role: UserRole;
@@ -87,6 +88,15 @@ export interface SendMessageRequest {
   content: string;
   mode?: "basic" | "deep";
   role?: UserRole;
+  user_ids?: string[];
+}
+
+export interface UserAncestor {
+  id: string;
+  fullName: string | null;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
 }
 
 export interface SendMessageResponse {
