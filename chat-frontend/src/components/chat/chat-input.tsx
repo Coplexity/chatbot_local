@@ -1,9 +1,8 @@
 import { useRef, useCallback, useEffect } from "react";
 
 import { ModeSelector } from "./mode-selector";
-import { RoleSelect } from "./role-select";
+import { QueryScopePopover } from "./query-scope-popover";
 import Icons from "@/components/icons/icons";
-import { UserRole } from "@/types/api-types";
 
 interface ChatInputProps {
   value: string;
@@ -12,8 +11,8 @@ interface ChatInputProps {
   disabled: boolean;
   mode: "basic" | "deep";
   onModeChange: (mode: "basic" | "deep") => void;
-  selectedRole: UserRole;
-  onRoleChange: (role: UserRole) => void;
+  selectedUserIds: string[];
+  onUserIdsChange: (userIds: string[]) => void;
   queryHistory: string[];
   historyIndex: number;
   onHistoryNavigate: (index: number) => void;
@@ -32,8 +31,8 @@ export function ChatInput({
   disabled,
   mode = "basic",
   onModeChange,
-  selectedRole,
-  onRoleChange,
+  selectedUserIds,
+  onUserIdsChange,
   queryHistory,
   historyIndex,
   onHistoryNavigate,
@@ -180,9 +179,9 @@ export function ChatInput({
               onChange={onModeChange}
               disabled={false}
             />
-            <RoleSelect
-              value={selectedRole}
-              onChange={onRoleChange}
+            <QueryScopePopover
+              selectedUserIds={selectedUserIds}
+              onChange={onUserIdsChange}
               disabled={false}
             />
           </div>

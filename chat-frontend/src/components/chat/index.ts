@@ -5,4 +5,5 @@ export { MessageBubble } from "./message-bubble";
 export { ThinkingPanel } from "./thinking-panel";
 export { ModeSelector } from "./mode-selector";
 export { RoleSelect } from "./role-select";
+export { QueryScopePopover } from "./query-scope-popover";
 export { TypingIndicator } from "./typing-indicator";
