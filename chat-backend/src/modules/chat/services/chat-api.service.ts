@@ -11,8 +11,9 @@ export class ChatApiService {
     role = "",
     mode: "basic" | "deep" = "basic",
     userId: string | null = null,
+    user_ids?: string[],
   ) {
-    return this.chatApiProvider.generateResponse(messages, streaming, role, mode, userId);
+    return this.chatApiProvider.generateResponse(messages, streaming, role, mode, userId, user_ids);
   }
 
   countTokens(text: string): number {

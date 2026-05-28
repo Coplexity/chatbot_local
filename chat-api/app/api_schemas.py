@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -17,6 +19,10 @@ class ChatStreamRequest(BaseModel):
     mode: str = Field(
         default="basic",
         description="Che do tra loi: 'basic' hoac 'deep'. Mac dinh la 'basic'.",
+    )
+    user_ids: str | None = Field(
+        default=None,
+        description="Comma-separated list of user IDs for query scope filtering.",
     )
 
 

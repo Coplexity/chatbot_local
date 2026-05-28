@@ -26,12 +26,13 @@ export class ChatApiProviderService {
     role = "",
     mode: "basic" | "deep" = "basic",
     userId: string | null = null,
+    user_ids?: string[],
   ): Promise<ChatApiResponse | ChatApiStreamResponse> {
     if (streaming) {
-      return this.generateStreamingResponse(messages, role, mode, userId);
+      return this.generateStreamingResponse(messages, role, mode, userId, user_ids);
     }
 
-    return this.generateNonStreamingResponse(messages, role, mode, userId);
+    return this.generateNonStreamingResponse(messages, role, mode, userId, user_ids);
   }
 
   private readChunkBuffer(buffer: string): {
@@ -152,6 +153,7 @@ export class ChatApiProviderService {
     role = "",
     mode: "basic" | "deep" = "basic",
     userId: string | null = null,
+    user_ids?: string[],
   ): Promise<ChatApiResponse> {
     try {
       // Get the last user message as the question
@@ -160,17 +162,21 @@ export class ChatApiProviderService {
         throw new Error("No user message found");
       }
 
+      const requestBody = {
+        query: lastUserMessage.content,
+        role: ROLE_MAPPING[role] || role,
+        mode,
+        user_id: userId,
+        ...(user_ids && user_ids.length > 0 ? { user_ids: user_ids.join(",") } : {}),
+      };
+      this.logger.debug(`[ChatApiProvider] POST ${this.apiUrl}/api/chat/stream — body: ${JSON.stringify(requestBody)}`);
+
       const response = await fetch(`${this.apiUrl}/api/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          query: lastUserMessage.content,
-          role: ROLE_MAPPING[role] || role,
-          mode,
-          user_id: userId,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -253,6 +259,7 @@ export class ChatApiProviderService {
     role = "",
     mode: "basic" | "deep" = "basic",
     userId: string | null = null,
+    user_ids?: string[],
   ): Promise<ChatApiStreamResponse> {
     try {
       // Get the last user message as the question
@@ -261,17 +268,21 @@ export class ChatApiProviderService {
         throw new Error("No user message found");
       }
 
+      const requestBody = {
+        query: lastUserMessage.content,
+        role: ROLE_MAPPING[role] || role,
+        mode,
+        user_id: userId,
+        ...(user_ids && user_ids.length > 0 ? { user_ids: user_ids.join(",") } : {}),
+      };
+      this.logger.debug(`[ChatApiProvider] POST ${this.apiUrl}/api/chat/stream — body: ${JSON.stringify(requestBody)}`);
+
       const response = await fetch(`${this.apiUrl}/api/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          query: lastUserMessage.content,
-          role: ROLE_MAPPING[role] || role,
-          mode,
-          user_id: userId,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
