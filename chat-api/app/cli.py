@@ -146,6 +146,15 @@ class ChatbotApp:
         return "basic"
 
     @staticmethod
+    def _default_user_ids(user_ids: int | str | None) -> int | str:
+        """Fallback to user_id=1 when backend/request does not provide user_ids."""
+        if user_ids is None:
+            return 1
+        if isinstance(user_ids, str) and not user_ids.strip():
+            return 1
+        return user_ids
+
+    @staticmethod
     def _is_tram_y_te_shortcut(role: str | None) -> bool:
         return (role or "").strip().lower() == "bac_si_tramyte"
 
@@ -173,6 +182,7 @@ class ChatbotApp:
     ):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
         workflow = self.basic_workflow
+        user_ids = self._default_user_ids(user_ids)
         state = {"query": query, "role": role or "", "user_ids": user_ids}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()
@@ -318,6 +328,7 @@ class ChatbotApp:
         user_ids: int | str | None = None,
     ):
         selected_mode = self._normalize_mode(mode)
+        user_ids = self._default_user_ids(user_ids)
         if selected_mode == "deep":
             async for event, payload in self._stream_answer_events_deep(query, role, user_ids):
                 yield event, payload
@@ -334,6 +345,7 @@ class ChatbotApp:
     ):
         """Run one query and yield typed events: ('trace'|'chunk', payload)."""
         workflow = self.deep_workflow
+        user_ids = self._default_user_ids(user_ids)
         state = {"query": query, "role": role or "", "user_ids": user_ids}
         markdown_sanitizer = MarkdownStreamSanitizer()
         markdown_formatter = MarkdownStreamFormatter()

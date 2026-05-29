@@ -12,14 +12,14 @@ class GuidelineOwnerFilterNode:
     @staticmethod
     def _normalize_user_ids(user_id):
         if user_id is None or user_id == "":
-            return None
+            return [1]
         if isinstance(user_id, int):
             return [user_id]
         if isinstance(user_id, str):
             raw_parts = [part.strip() for part in user_id.split(",")]
             parts = [part for part in raw_parts if part]
             if not parts:
-                return None
+                return [1]
             try:
                 return [int(part) for part in parts]
             except ValueError:
