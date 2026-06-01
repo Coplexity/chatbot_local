@@ -3,21 +3,24 @@ from pydantic import BaseModel, Field, validator
 
 class ChatStreamRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Cau hoi y khoa cua nguoi dung")
-    user_ids: int | str | None = Field(
+    user_ids: int | str | list[int | str] | None = Field(
         default=1,
         description=(
             "Danh sach ID nguoi dung de loc guidelines theo guidelines.owner_user_id. "
-            "Neu backend khong truyen gia tri hoac truyen chuoi rong thi mac dinh user_ids=1. "
-            "Co the la so (vd: 1) hoac chuoi phan tach dau phay (vd: '1,2,3')."
+            "Neu backend khong truyen gia tri, truyen chuoi rong hoac mang rong thi mac dinh user_ids=1. "
+            "Co the la so (vd: 1), chuoi phan tach dau phay (vd: '1,2,3') hoac mang ID."
         ),
     )
 
     @validator("user_ids", pre=True, always=True)
-    def default_empty_user_ids(cls, value: int | str | None) -> int | str:
+    def default_empty_user_ids(cls, value: int | str | list[int | str] | None) -> int | str:
         if value is None:
             return 1
         if isinstance(value, str) and not value.strip():
             return 1
+        if isinstance(value, list):
+            user_ids = [str(user_id).strip() for user_id in value if str(user_id).strip()]
+            return ",".join(user_ids) if user_ids else 1
         return value
 
     role: str = Field(

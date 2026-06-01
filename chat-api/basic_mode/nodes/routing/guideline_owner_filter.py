@@ -15,6 +15,15 @@ class GuidelineOwnerFilterNode:
             return [1]
         if isinstance(user_id, int):
             return [user_id]
+        if isinstance(user_id, (list, tuple, set)):
+            parts = [str(part).strip() for part in user_id if str(part).strip()]
+            if not parts:
+                return [1]
+            try:
+                return [int(part) for part in parts]
+            except ValueError:
+                print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
+                return None
         if isinstance(user_id, str):
             raw_parts = [part.strip() for part in user_id.split(",")]
             parts = [part for part in raw_parts if part]
