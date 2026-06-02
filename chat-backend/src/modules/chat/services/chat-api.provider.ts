@@ -62,6 +62,10 @@ export class ChatApiProviderService {
     return message ? [message] : [];
   }
 
+  private formatUserIds(user_ids?: string[]): string {
+    return user_ids?.join(",") ?? "";
+  }
+
   private parseSseMessage(rawMessage: string): ParsedSseMessage | null {
     const lines = rawMessage.split("\n");
     let event: string | undefined;
@@ -167,7 +171,7 @@ export class ChatApiProviderService {
         role: ROLE_MAPPING[role] || role,
         mode,
         user_id: userId,
-        ...(user_ids && user_ids.length > 0 ? { user_ids: user_ids.join(",") } : {}),
+        user_ids: this.formatUserIds(user_ids),
       };
       this.logger.debug(`[ChatApiProvider] POST ${this.apiUrl}/api/chat/stream — body: ${JSON.stringify(requestBody)}`);
 
@@ -273,7 +277,7 @@ export class ChatApiProviderService {
         role: ROLE_MAPPING[role] || role,
         mode,
         user_id: userId,
-        ...(user_ids && user_ids.length > 0 ? { user_ids: user_ids.join(",") } : {}),
+        user_ids: this.formatUserIds(user_ids),
       };
       this.logger.debug(`[ChatApiProvider] POST ${this.apiUrl}/api/chat/stream — body: ${JSON.stringify(requestBody)}`);
 

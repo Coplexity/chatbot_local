@@ -63,6 +63,53 @@ describe("chatApiProviderService", () => {
     expect("content" in result && result.content).toBe("Xin chao");
   });
 
+  it("always sends user_ids as a string in non-streaming requests", async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      createStreamResponse([
+        "data: {\"text\":\"Xin chao\"}",
+      ]) as unknown as Response,
+    );
+
+    const provider = createProvider();
+
+    await provider.generateResponse([
+      { role: "user", content: "Hi" },
+    ], false, "", "basic", null, []);
+
+    const request = (globalThis.fetch as jest.Mock).mock.calls[0][1];
+    expect(JSON.parse(request.body)).toMatchObject({
+      user_ids: "",
+    });
+  });
+
+  it("always sends user_ids as a string in streaming requests", async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      createStreamResponse([
+        "data: {\"type\":\"text\",\"text\":\"Xin chao\"}\n\n",
+      ]) as unknown as Response,
+    );
+
+    const provider = createProvider();
+
+    const result = await provider.generateResponse([
+      { role: "user", content: "Hi" },
+    ], true, "", "basic", null, ["1", "2"]);
+
+    if (!("stream" in result)) {
+      throw new Error("Expected streaming response");
+    }
+
+    const chunks: unknown[] = [];
+    for await (const chunk of result.stream) {
+      chunks.push(chunk);
+    }
+
+    const request = (globalThis.fetch as jest.Mock).mock.calls[0][1];
+    expect(JSON.parse(request.body)).toMatchObject({
+      user_ids: "1,2",
+    });
+  });
+
   it("ignores trace events and joins multi-line answer data in non-streaming mode", async () => {
     globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
