@@ -1,4 +1,5 @@
 import { ChatApiConfig } from "../../../configs/root-config";
+import { AdminUserIdsService } from "./admin-user-ids.service";
 import { ChatApiProviderService } from "./chat-api.provider";
 
 function createStreamResponse(chunks: string[]) {
@@ -21,8 +22,17 @@ function createStreamResponse(chunks: string[]) {
 describe("chatApiProviderService", () => {
   const originalFetch = globalThis.fetch;
 
+  function createAdminUserIdsService(adminUserIds: string[] = ["99"]): Pick<AdminUserIdsService, "getAdminUserIds"> {
+    return {
+      getAdminUserIds: jest.fn().mockResolvedValue(adminUserIds),
+    };
+  }
+
   function createProvider(url = "http://example.test") {
-    return new ChatApiProviderService({ url } as ChatApiConfig);
+    return new ChatApiProviderService(
+      { url } as ChatApiConfig,
+      createAdminUserIdsService() as AdminUserIdsService,
+    );
   }
 
   async function collectStreamTexts(provider: ChatApiProviderService) {
@@ -63,14 +73,18 @@ describe("chatApiProviderService", () => {
     expect("content" in result && result.content).toBe("Xin chao");
   });
 
-  it("always sends user_ids as a string in non-streaming requests", async () => {
+  it("fills empty user_ids with cached admin user_ids in non-streaming requests", async () => {
     globalThis.fetch = jest.fn().mockResolvedValue(
       createStreamResponse([
         "data: {\"text\":\"Xin chao\"}",
       ]) as unknown as Response,
     );
 
-    const provider = createProvider();
+    const adminUserIdsService = createAdminUserIdsService(["10", "20"]);
+    const provider = new ChatApiProviderService(
+      { url: "http://example.test" } as ChatApiConfig,
+      adminUserIdsService as AdminUserIdsService,
+    );
 
     await provider.generateResponse([
       { role: "user", content: "Hi" },
@@ -78,8 +92,33 @@ describe("chatApiProviderService", () => {
 
     const request = (globalThis.fetch as jest.Mock).mock.calls[0][1];
     expect(JSON.parse(request.body)).toMatchObject({
-      user_ids: "",
+      user_ids: "10,20",
     });
+    expect(adminUserIdsService.getAdminUserIds).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps explicit user_ids and does not query admin user_ids", async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      createStreamResponse([
+        "data: {\"text\":\"Xin chao\"}",
+      ]) as unknown as Response,
+    );
+
+    const adminUserIdsService = createAdminUserIdsService(["10", "20"]);
+    const provider = new ChatApiProviderService(
+      { url: "http://example.test" } as ChatApiConfig,
+      adminUserIdsService as AdminUserIdsService,
+    );
+
+    await provider.generateResponse([
+      { role: "user", content: "Hi" },
+    ], false, "", "basic", null, ["1", "2"]);
+
+    const request = (globalThis.fetch as jest.Mock).mock.calls[0][1];
+    expect(JSON.parse(request.body)).toMatchObject({
+      user_ids: "1,2",
+    });
+    expect(adminUserIdsService.getAdminUserIds).not.toHaveBeenCalled();
   });
 
   it("always sends user_ids as a string in streaming requests", async () => {

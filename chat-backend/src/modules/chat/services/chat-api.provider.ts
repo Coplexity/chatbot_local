@@ -6,6 +6,7 @@ import {
   ChatApiStreamResponse,
   ChatApiStreamChunk,
 } from "./chat-api.interface";
+import { AdminUserIdsService } from "./admin-user-ids.service";
 
 const ROLE_MAPPING = {
   bac_si_tram_y_te: "bac_si_tramyte",
@@ -16,7 +17,10 @@ export class ChatApiProviderService {
   private readonly logger = new Logger(ChatApiProviderService.name);
   private readonly apiUrl: string;
 
-  constructor(private readonly chatApiConfig: ChatApiConfig) {
+  constructor(
+    private readonly chatApiConfig: ChatApiConfig,
+    private readonly adminUserIdsService: AdminUserIdsService,
+  ) {
     this.apiUrl = this.chatApiConfig.url || "http://localhost:8000";
   }
 
@@ -63,7 +67,19 @@ export class ChatApiProviderService {
   }
 
   private formatUserIds(user_ids?: string[]): string {
-    return user_ids?.join(",") ?? "";
+    return user_ids?.map(userId => userId.trim()).filter(Boolean).join(",") ?? "";
+  }
+
+  private hasUserIds(user_ids?: string[]): boolean {
+    return Boolean(user_ids?.some(userId => userId.trim()));
+  }
+
+  private async resolvePayloadUserIds(user_ids?: string[]): Promise<string[]> {
+    if (this.hasUserIds(user_ids)) {
+      return user_ids ?? [];
+    }
+
+    return this.adminUserIdsService.getAdminUserIds();
   }
 
   private parseSseMessage(rawMessage: string): ParsedSseMessage | null {
@@ -105,6 +121,26 @@ export class ChatApiProviderService {
     chunks: ChatApiStreamChunk[];
     fullText: string;
   } {
+    if (message.event === "done" || message.data === "[DONE]") {
+      return {
+        shouldStop: true,
+        chunks: [],
+        fullText: "",
+      };
+    }
+
+    if (message.event === "trace") {
+      const trace = message.data.trim();
+
+      return {
+        shouldStop: false,
+        chunks: options.includeTrace && trace
+          ? [{ type: "trace", trace }]
+          : [],
+        fullText: "",
+      };
+    }
+
     const payload = this.parseStreamPayload(message.data);
 
     if (payload?.type === "trace") {
@@ -166,12 +202,13 @@ export class ChatApiProviderService {
         throw new Error("No user message found");
       }
 
+      const payloadUserIds = await this.resolvePayloadUserIds(user_ids);
       const requestBody = {
         query: lastUserMessage.content,
         role: ROLE_MAPPING[role] || role,
         mode,
         user_id: userId,
-        user_ids: this.formatUserIds(user_ids),
+        user_ids: this.formatUserIds(payloadUserIds),
       };
       this.logger.debug(`[ChatApiProvider] POST ${this.apiUrl}/api/chat/stream — body: ${JSON.stringify(requestBody)}`);
 
@@ -272,12 +309,13 @@ export class ChatApiProviderService {
         throw new Error("No user message found");
       }
 
+      const payloadUserIds = await this.resolvePayloadUserIds(user_ids);
       const requestBody = {
         query: lastUserMessage.content,
         role: ROLE_MAPPING[role] || role,
         mode,
         user_id: userId,
-        user_ids: this.formatUserIds(user_ids),
+        user_ids: this.formatUserIds(payloadUserIds),
       };
       this.logger.debug(`[ChatApiProvider] POST ${this.apiUrl}/api/chat/stream — body: ${JSON.stringify(requestBody)}`);
 
