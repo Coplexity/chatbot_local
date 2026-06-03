@@ -14,6 +14,7 @@ import { ConversationRepository } from "./repositories/conversation.repository";
 import { MessageRepository } from "./repositories/message.repository";
 import { ChatApiProviderService } from "./services/chat-api.provider";
 import { ChatApiService } from "./services/chat-api.service";
+import { AdminUserIdsService } from "./services/admin-user-ids.service";
 import { ChatService } from "./services/chat.service";
 import { MessageService } from "./services/message.service";
 import { ReferenceMetadataService } from "./services/reference-metadata.service";
@@ -33,6 +34,7 @@ import { ReferenceMetadataService } from "./services/reference-metadata.service"
   providers: [
     ConversationRepository,
     MessageRepository,
+    AdminUserIdsService,
     ChatApiProviderService,
     ChatApiService,
     ChatService,
