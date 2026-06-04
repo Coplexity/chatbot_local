@@ -20,7 +20,7 @@ import {
   faClose,
 } from "@fortawesome/free-solid-svg-icons";
 
-import BotChatIcon from "@/assets/icons/botchat.png";
+import BotChatIcon from "@/assets/icons/medibot.svg?react";
 import ClockIcon from "@/assets/icons/clock.svg?react";
 import CopyIcon from "@/assets/icons/copy.svg?react";
 import DownloadIcon from "@/assets/icons/download.svg?react";
@@ -69,7 +69,7 @@ const Icons = {
   Eye: (props: any) => <FontAwesomeIcon icon={faEye} {...props} />,
   Close: (props: any) => <FontAwesomeIcon icon={faClose} {...props} />,
 
-  BotChat: (props: any) => <img src={BotChatIcon} alt="Bot Chat" className="w-12 h-12" {...props} />,
+  BotChat: (props: any) => <BotChatIcon {...props} />,
   Clock: (props: any) => <ClockIcon {...props} />,
   Copy: (props: any) => <CopyIcon {...props} />,
   DownloadIcon: (props: any) => <DownloadIcon {...props} />,

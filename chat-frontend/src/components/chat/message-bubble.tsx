@@ -68,7 +68,7 @@ export const MessageBubble = memo(function MessageBubble({
         }`}
       >
         {isAssistant && (
-          <Icons.BotChat className="w-10 h-10 lg:w-12 lg:h-12 shrink-0 rounded-full border border-design-border bg-white p-1.5" />
+          <Icons.BotChat className="w-10 h-10 lg:w-12 lg:h-12 shrink-0 rounded-full border border-design-border bg-white " />
         )}
         <div
           className={`px-4 lg:px-5 py-3 lg:py-4 rounded-[1.35rem] text-sm lg:text-base ${
