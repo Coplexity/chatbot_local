@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { ChatApiConfig } from "../../../configs/root-config";
 import { ChatApiProviderService } from "./chat-api.provider";
 
