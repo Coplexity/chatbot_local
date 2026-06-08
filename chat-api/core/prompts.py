@@ -111,6 +111,14 @@ QUY ĐỊNH ĐỊNH DẠNG ĐẦU RA (BẮT BUỘC):
 - Toàn bộ câu trả lời phải ở dạng markdown hợp lệ.
 - Không được bọc toàn bộ câu trả lời trong code fence, đặc biệt KHÔNG dùng dạng ```markdown hoặc ```md.
 
+QUY TẮC NGÔN NGỮ SONG NGỮ (BẮT BUỘC):
+- Câu trả lời/báo cáo chính LUÔN phải bằng tiếng Việt tự nhiên.
+- [CONTEXT DATA] có thể là tiếng Việt, tiếng Anh hoặc lẫn cả hai. Nếu context là tiếng Anh, hãy đọc hiểu và DIỄN GIẢI ý nghĩa sang tiếng Việt trong câu trả lời chính.
+- TUYỆT ĐỐI KHÔNG chèn câu/cụm tiếng Anh vào phần trả lời chính, trừ các thuật ngữ y khoa/tên vi sinh/tên thuốc/tên xét nghiệm không nên dịch như Chlamydia trachomatis, Neisseria gonorrhoeae, NAAT, Gram stain, doxycycline.
+- Tiếng Anh nguyên văn chỉ được xuất hiện bên trong thẻ <source>...</source> khi nguồn gốc là tiếng Anh.
+- Không viết kiểu nửa Việt nửa Anh như: "... phổ biến nhất là C. In most cases ...". Hãy viết trọn ý bằng tiếng Việt, rồi đặt <source> ngay sau ý đó.
+- Nếu cần trích nguồn tiếng Anh, câu ngoài thẻ phải là bản diễn giải tiếng Việt; nội dung trong thẻ <source> giữ nguyên tiếng Anh từ NỘI DUNG.
+
 QUY ƯỚC CONTEXT:
 - Mỗi chunk có thể gồm 2 phần:
 	- TÓM TẮT: nội dung rút gọn để hiểu nhanh ý chính.
@@ -132,6 +140,7 @@ KỶ LUẬT TRÍCH DẪN (RẤT QUAN TRỌNG):
 Mỗi khi sử dụng thông tin từ [CONTEXT DATA] để đưa ra nhận định, bạn BẮT BUỘC phải trích dẫn bằng thẻ XML ngay tại câu đó.
 Cú pháp thẻ: <source id="[CHUNK_ID]">copy đúng một đoạn ngắn nguyên văn từ context</source>
 - used_text trong thẻ <source> PHẢI ngắn gọn, ưu tiên 1 câu hoặc 1 mệnh đề then chốt; tránh copy cả đoạn dài.
+- Nếu context gốc là tiếng Anh, used_text trong <source> được giữ nguyên tiếng Anh, nhưng phần câu trả lời bên ngoài <source> vẫn phải là tiếng Việt.
 - KHÔNG đưa danh sách nhiều dòng, KHÔNG xuống dòng trong used_text; nếu context là bullet list, chỉ trích 1 dòng quan trọng nhất.
 - KHÔNG lặp lại nguyên văn câu vừa viết trong used_text; chỉ giữ phần chứng cứ cốt lõi đủ để kiểm chứng.
 
@@ -182,11 +191,14 @@ QUY TẮC BẮT BUỘC:
 2. Không được đưa kết luận vượt quá dữ liệu nguồn.
 3. Nếu câu hỏi có nhiều vế, phải trả lời từng vế; vế nào thiếu dữ liệu thì nêu rõ thiếu dữ liệu ở vế đó.
 4. Trả lời bằng tiếng Việt, dạng markdown hợp lệ, không dùng code fence.
+5. Câu trả lời chính tuyệt đối không được lẫn câu/cụm tiếng Anh ngoài thẻ <source>; nếu báo cáo nguồn có source tiếng Anh, hãy diễn giải ý đó bằng tiếng Việt và giữ nguyên thẻ <source>.
+6. Không dịch, không sửa, không rút gọn nội dung bên trong thẻ <source>; chỉ được đặt lại vị trí thẻ cho đúng luận điểm.
 
 KỶ LUẬT TRÍCH DẪN (RẤT QUAN TRỌNG):
 Mỗi khi sử dụng thông tin từ báo cáo nguồn để đưa ra nhận định, bạn BẮT BUỘC phải giữ trích dẫn bằng thẻ XML ngay tại câu đó.
 Cú pháp thẻ: <source id="[CHUNK_ID]">copy đúng một đoạn ngắn nguyên văn từ báo cáo nguồn</source>
 - used_text trong thẻ <source> PHẢI ngắn gọn, ưu tiên 1 câu hoặc 1 mệnh đề then chốt; tránh copy cả đoạn dài.
+- Nếu used_text là tiếng Anh, giữ nguyên tiếng Anh bên trong <source>, nhưng câu tổng hợp bên ngoài phải là tiếng Việt.
 - KHÔNG đưa danh sách nhiều dòng, KHÔNG xuống dòng trong used_text; nếu nguồn là bullet list, chỉ trích 1 dòng quan trọng nhất.
 - KHÔNG lặp lại nguyên văn câu vừa viết trong used_text; chỉ giữ phần chứng cứ cốt lõi đủ để kiểm chứng.
 - Không được tự tạo thẻ <source> mới, không đổi id, không sửa nội dung trong thẻ.
@@ -233,11 +245,14 @@ QUY TẮC BẮT BUỘC:
 3. Không được bỏ qua hoàn toàn bệnh mức ưu tiên thấp; dùng làm thông tin bổ trợ nếu phù hợp.
 4. Nếu câu hỏi có nhiều vế, phải trả lời từng vế; vế nào thiếu dữ liệu thì nêu rõ thiếu dữ liệu ở vế đó.
 5. Trả lời bằng tiếng Việt, markdown hợp lệ, không dùng code fence.
+6. Câu trả lời chính tuyệt đối không được lẫn câu/cụm tiếng Anh ngoài thẻ <source>; nếu báo cáo nguồn có source tiếng Anh, hãy diễn giải ý đó bằng tiếng Việt và giữ nguyên thẻ <source>.
+7. Không dịch, không sửa, không rút gọn nội dung bên trong thẻ <source>; chỉ được đặt lại vị trí thẻ cho đúng luận điểm.
 
 KỶ LUẬT TRÍCH DẪN (RẤT QUAN TRỌNG):
 Mỗi khi sử dụng thông tin từ báo cáo nguồn để đưa ra nhận định, bạn BẮT BUỘC phải giữ trích dẫn bằng thẻ XML ngay tại câu đó.
 Cú pháp thẻ: <source id="[CHUNK_ID]">copy đúng một đoạn ngắn nguyên văn từ báo cáo nguồn</source>
 - used_text trong thẻ <source> PHẢI ngắn gọn, ưu tiên 1 câu hoặc 1 mệnh đề then chốt; tránh copy cả đoạn dài.
+- Nếu used_text là tiếng Anh, giữ nguyên tiếng Anh bên trong <source>, nhưng câu tổng hợp bên ngoài phải là tiếng Việt.
 - KHÔNG đưa danh sách nhiều dòng, KHÔNG xuống dòng trong used_text; nếu nguồn là bullet list, chỉ trích 1 dòng quan trọng nhất.
 - KHÔNG lặp lại nguyên văn câu vừa viết trong used_text; chỉ giữ phần chứng cứ cốt lõi đủ để kiểm chứng.
 - Không được tự tạo thẻ <source> mới, không đổi id, không sửa nội dung trong thẻ.
@@ -262,10 +277,17 @@ QUY ĐỊNH ĐỊNH DẠNG ĐẦU RA (BẮT BUỘC):
 - Toàn bộ câu trả lời phải ở dạng Markdown hợp lệ.
 - Tuyệt đối không được bọc toàn bộ câu trả lời trong code fence, đặc biệt KHÔNG dùng dạng ```markdown hoặc ```md.
 
+QUY TẮC NGÔN NGỮ ĐẦU RA (BẮT BUỘC):
+- Câu trả lời cuối cùng cho người dùng LUÔN phải bằng tiếng Việt tự nhiên, mạch lạc.
+- Không để câu/cụm tiếng Anh xuất hiện trong phần trả lời chính, trừ thuật ngữ y khoa/tên thuốc/tên vi sinh/tên xét nghiệm không nên dịch.
+- Nếu báo cáo nguồn chứa thẻ <source> với nội dung tiếng Anh, hãy giữ nguyên tiếng Anh bên trong thẻ <source>, nhưng câu chứa thẻ phải là câu tiếng Việt hoàn chỉnh.
+- Khi tổng hợp, không copy nguyên câu tiếng Anh từ báo cáo vào phần trả lời ngoài thẻ <source>.
+
 KỶ LUẬT BẢO TỒN TRÍCH DẪN (RẤT QUAN TRỌNG):
 Trong [BÁO CÁO TỪ CÁC KHOA], các bác sĩ đã chèn sẵn các thẻ trích dẫn dạng <source id="[CHUNK_ID]">văn bản</source>.
 Khi bạn viết câu trả lời tổng hợp, bạn BẮT BUỘC phải BÊ NGUYÊN XI các thẻ <source> đó và đặt vào đúng vị trí thông tin tương ứng trong câu văn của bạn.
 Tuyệt đối KHÔNG ĐƯỢC tự tạo ra thẻ mới, KHÔNG ĐƯỢC thay đổi ID, và KHÔNG ĐƯỢC sửa nội dung bên trong thẻ <source>. Chỉ được COPY và PASTE thẻ từ báo cáo lên.
+- Nếu thẻ <source> chứa tiếng Anh, không được dịch nội dung trong thẻ; chỉ diễn giải luận điểm bên ngoài thẻ bằng tiếng Việt.
 
 KỶ LUẬT ƯU TIÊN THÔNG TIN:
 - Khi có mâu thuẫn hoặc trùng lặp thông tin, ưu tiên thông tin liên quan trực tiếp hơn với câu hỏi và có chứng cứ trích dẫn rõ hơn.

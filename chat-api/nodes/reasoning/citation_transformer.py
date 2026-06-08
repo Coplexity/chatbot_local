@@ -81,6 +81,18 @@ class CitationStreamTransformer:
         return first
 
     @staticmethod
+    def _has_vietnamese(text: str) -> bool:
+        return bool(
+            re.search(
+                r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩ"
+                r"òóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ"
+                r"ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨ"
+                r"ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]",
+                text or "",
+            )
+        )
+
+    @staticmethod
     def _is_list_like_text(text: str) -> bool:
         raw = (text or "").replace("\r\n", "\n").replace("\r", "\n")
         if "\n" not in raw:
@@ -154,7 +166,13 @@ class CitationStreamTransformer:
 
         is_list_like = self._is_list_like_text(used_text)
         display_text = "" if is_list_like else self._short_display_text(used_text)
+        # If the cited quote is English, do not render it inline in the main
+        # Vietnamese answer. Keep it only inside the citation JSON for the UI.
+        if display_text and not self._has_vietnamese(display_text):
+            display_text = ""
         if self._is_duplicate_suffix(prev_chunk, used_text) or self._is_recent_duplicate(display_text):
+            return f" {inline_json}"
+        if not display_text:
             return f" {inline_json}"
         return f"{prefix}{display_text} {inline_json}"
 
