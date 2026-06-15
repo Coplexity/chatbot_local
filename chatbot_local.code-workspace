@@ -1,0 +1,19 @@
+{
+  "folders": [
+    {
+      "name": "ai_documents_management",
+      "path": "ai_documents_management"
+    },
+    {
+      "name": "medical-chatbot",
+      "path": "medical-chatbot"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/.venv": true
+    }
+  }
+}

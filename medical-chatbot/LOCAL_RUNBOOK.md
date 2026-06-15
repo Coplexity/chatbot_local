@@ -1,33 +1,59 @@
-# Local Runbook - Medical Chatbot + Guideline DB
+# Local Runbook - Chatbot Local
 
-Tai lieu nay huong dan chay local he thong gom:
+Tai lieu nay huong dan chay local repo `chatbot_local` gom 2 phan:
 
 - `ai_documents_management`: PostgreSQL/pgvector database va guideline/document backend.
 - `medical-chatbot`: frontend, NestJS backend, FastAPI chat-api.
 
-Thu muc tren may local nen dat canh nhau nhu sau:
+Sau khi clone repo, cau truc can thay la:
 
 ```text
-/Users/macbook/Documents/Database/
+chatbot_local/
 ├── ai_documents_management/
 └── medical-chatbot/
+    ├── chat-api/
+    ├── chat-backend/
+    ├── chat-frontend/
+    └── deploy/
 ```
 
-## 1. Yeu Cau
+## 1. Clone Va Mo Workspace
+
+Clone repo:
+
+```bash
+git clone https://github.com/Coplexity/chatbot_local.git
+cd chatbot_local
+```
+
+Neu dung VS Code, nen mo file workspace o root repo:
+
+```bash
+code chatbot_local.code-workspace
+```
+
+Hoac trong VS Code: `File > Open Workspace from File...` va chon `chatbot_local.code-workspace`.
+
+Khi mo bang workspace file nay, Explorer se hien 2 folder chinh:
+
+```text
+ai_documents_management
+medical-chatbot
+```
+
+## 2. Yeu Cau
 
 - Docker Desktop dang chay.
 - Docker Compose v2.
-- Da clone 2 repo:
-  - `ai_documents_management`
-  - `medical-chatbot`
-- Co OpenAI API key neu muon test luong chat AI that.
+- Git.
+- OpenAI API key neu muon test luong chat AI that.
 
-## 2. Chay Database
+## 3. Chay Database
 
-Database nam trong repo `ai_documents_management`.
+Tu root repo `chatbot_local`:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 cp .env.example .env
 docker compose up -d db
 docker compose ps
@@ -55,16 +81,22 @@ DB can o trang thai tuong tu:
 guideline-db   Up ... (healthy)   0.0.0.0:5436->5432/tcp
 ```
 
-## 3. Cau Hinh Medical Chatbot
-
-Tao file env cho `medical-chatbot`:
+Quay lai root repo:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot
+cd ..
+```
+
+## 4. Cau Hinh Medical Chatbot
+
+Tu root repo `chatbot_local`:
+
+```bash
+cd medical-chatbot
 cp deploy/.env.example deploy/.env
 ```
 
-Mo file `deploy/.env` va cau hinh cac bien chinh:
+Mo file `medical-chatbot/deploy/.env` va cau hinh cac bien chinh:
 
 ```env
 FRONTEND_PORT=8400
@@ -91,14 +123,14 @@ EMBEDDING_MODEL=text-embedding-3-large
 Giai thich nhanh:
 
 - `host.docker.internal`: cho phep container Docker goi ve database dang expose tren may host.
-- `DB_PORT=5436`: port PostgreSQL cua repo `ai_documents_management`.
-- `VITE_BACKEND_URL=http://chat-backend:3000`: frontend nginx proxy den NestJS backend trong cung Docker network.
+- `DB_PORT=5436`: port PostgreSQL cua `ai_documents_management`.
+- `VITE_BACKEND_URL=http://chat-backend:3000`: frontend nginx proxy den NestJS backend trong Docker network.
 - `DB_SYNCHRONIZE=true`: dung cho local de backend tu tao schema/table can thiet. Khi deploy production nen dat `false`.
 - `OPENAI_API_KEY`: can key that neu muon test chat AI. Khong commit file `.env`.
 
-## 4. Tao Docker Network
+## 5. Tao Docker Network
 
-Repo `medical-chatbot` dung external network ten `chatbot-db`.
+Repo dung external network ten `chatbot-db`.
 
 Chay mot lan:
 
@@ -108,30 +140,33 @@ docker network create chatbot-db
 
 Neu bao network da ton tai thi bo qua.
 
-## 5. Chay Medical Chatbot
+## 6. Chay Medical Chatbot
+
+Tu root repo `chatbot_local`:
+
+```bash
+cd medical-chatbot/deploy
+```
 
 Lan dau, neu chua co image nao, co the build:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
 docker compose up -d --build
 ```
 
 Luu y: build `chat-api` co the rat lau vi cai Python dependencies nang. Neu may da co image san hoac chi can start lai he thong, dung lenh nhanh hon:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
 docker compose up -d --no-build chat-api chat-backend chat-frontend
 ```
 
 Neu vua sua `.env` va muon container an cau hinh moi:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
 docker compose up -d --no-build --force-recreate chat-api chat-backend chat-frontend
 ```
 
-## 6. Kiem Tra He Thong
+## 7. Kiem Tra He Thong
 
 Kiem tra container:
 
@@ -191,50 +226,56 @@ Mo ung dung:
 http://localhost:8400
 ```
 
-## 7. Xem Logs
+## 8. Xem Logs
 
-Xem log frontend:
+Tu root repo `chatbot_local`.
+
+Log frontend:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose logs -f chat-frontend
 ```
 
-Xem log backend:
+Log backend:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose logs -f chat-backend
 ```
 
-Xem log chat-api:
+Log chat-api:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose logs -f chat-api
 ```
 
-Xem log database:
+Log database:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 docker compose logs -f db
 ```
 
-## 8. Chay Guideline Backend Neu Can File Document
+## 9. Chay Guideline Backend Neu Can File Document
 
-Neu frontend can mo file tai lieu qua URL `http://localhost:8000/api/v1/documents/{documentId}/file`, can chay guideline backend trong repo `ai_documents_management`.
+Neu frontend can mo file tai lieu qua URL `http://localhost:8000/api/v1/documents/{documentId}/file`, can chay guideline backend trong `ai_documents_management`.
+
+Tu root repo `chatbot_local`:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
+python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 python -m app.main
 ```
 
-Hoac:
+Hoac neu da co `.venv` va dependencies:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -245,30 +286,30 @@ Swagger guideline backend:
 http://localhost:8000/docs
 ```
 
-## 9. Tat He Thong
+## 10. Tat He Thong
 
 Tat medical chatbot:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose down
 ```
 
 Tat database/guideline services:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 docker compose down
 ```
 
 Chi reset sach database local khi chac chan khong can du lieu cu:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 docker compose down -v
 ```
 
-## 10. Loi Thuong Gap
+## 11. Loi Thuong Gap
 
 ### Frontend restart voi loi `host not found in upstream`
 
@@ -278,7 +319,7 @@ Neu log frontend co loi:
 host not found in upstream "medical-chatbot-chat-backend-1"
 ```
 
-Sua `deploy/.env`:
+Sua `medical-chatbot/deploy/.env`:
 
 ```env
 VITE_BACKEND_URL=http://chat-backend:3000
@@ -287,7 +328,7 @@ VITE_BACKEND_URL=http://chat-backend:3000
 Sau do recreate:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose up -d --no-build --force-recreate chat-frontend chat-backend
 ```
 
@@ -295,7 +336,7 @@ docker compose up -d --no-build --force-recreate chat-frontend chat-backend
 
 Nguyen nhan: `DB_NAME` dang sai hoac container chua an `.env` moi.
 
-Sua `deploy/.env`:
+Sua `medical-chatbot/deploy/.env`:
 
 ```env
 DB_HOST=host.docker.internal
@@ -308,7 +349,7 @@ DB_PASS=postgres
 Sau do recreate:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose up -d --no-build --force-recreate chat-backend chat-api
 ```
 
@@ -319,7 +360,7 @@ Nguyen nhan thuong la `chat-api` dang cai Python dependencies nang.
 Neu container/image da co san va chi muon chay lai:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose up -d --no-build chat-api chat-backend chat-frontend
 ```
 
@@ -340,7 +381,7 @@ guideline-db   Up ... (healthy)   0.0.0.0:5436->5432/tcp
 Neu DB chua chay:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 docker compose up -d db
 ```
 
@@ -351,24 +392,28 @@ Kiem tra `OPENAI_API_KEY` trong `medical-chatbot/deploy/.env`.
 Sau khi sua key:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose up -d --no-build --force-recreate chat-api
 ```
 
-## 11. Lenh Nhanh Hang Ngay
+## 12. Lenh Nhanh Hang Ngay
+
+Tu root repo `chatbot_local`.
 
 Start database:
 
 ```bash
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 docker compose up -d db
+cd ..
 ```
 
 Start medical chatbot:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose up -d --no-build chat-api chat-backend chat-frontend
+cd ../..
 ```
 
 Check health:
@@ -387,9 +432,11 @@ http://localhost:8400
 Stop all:
 
 ```bash
-cd /Users/macbook/Documents/Database/medical-chatbot/deploy
+cd medical-chatbot/deploy
 docker compose down
+cd ../..
 
-cd /Users/macbook/Documents/Database/ai_documents_management
+cd ai_documents_management
 docker compose down
+cd ..
 ```
