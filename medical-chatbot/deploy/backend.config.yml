@@ -1,0 +1,50 @@
+app:
+  name: Medical Chatbot
+  port: 3000
+
+jwt:
+  algorithm: HS256
+  expiresIn: 2880m
+  secret: change_me
+  privateKeyPath: ""
+  publicKeyPath: ""
+
+cors:
+  allowCredentials: true
+  allowedOrigins: []
+
+db:
+  host: postgres
+  port: 5432
+  username: ai4life
+  password: change_me
+  database: medical-chatbot
+  synchronize: false
+  logging: false
+
+redis:
+  host: redis
+  port: 6379
+
+mailer:
+  host: ""
+  port:
+  secure: false
+  user: ""
+  pass: ""
+  from: ""
+
+chatApi:
+  url: http://localhost:8000
+
+google:
+  clientID: ""
+  clientSecret: ""
+  callbackURL: ""
+  scope: email profile
+
+github:
+  clientID: ""
+  clientSecret: ""
+  callbackURL: ""
+  scope: user:email

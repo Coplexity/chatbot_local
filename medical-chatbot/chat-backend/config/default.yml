@@ -1,0 +1,7 @@
+app:
+  name: Medical Chatbot
+  port: 3000
+
+jwt:
+  algorithm: HS256
+  expiresIn: 2880m
