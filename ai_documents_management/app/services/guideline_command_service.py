@@ -300,7 +300,9 @@ class GuidelineCommandService:
             return int(current_user.user_id)
         if owner_user_id is None:
             raise BadRequestException("Owner account is required when admin uploads a guideline.")
-            #return int(current_user.user_id) #Thay tạm bằng lệnh dưới để test, vẫn giữ lệnh trên
+        # Allow the admin to own documents explicitly marked as shared/common.
+        if int(owner_user_id) == int(current_user.user_id):
+            return int(current_user.user_id)
         owner = (
             await self.db.execute(
                 select(User).where(

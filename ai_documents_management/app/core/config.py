@@ -1,4 +1,6 @@
 from functools import lru_cache
+from urllib.parse import quote_plus
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,7 +63,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"postgresql+asyncpg://{quote_plus(self.DB_USER)}:{quote_plus(self.DB_PASSWORD)}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
@@ -69,7 +71,7 @@ class Settings(BaseSettings):
     def database_url_sync(self) -> str:
         """Sync URL (used for Alembic migrations)."""
         return (
-            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"postgresql+psycopg2://{quote_plus(self.DB_USER)}:{quote_plus(self.DB_PASSWORD)}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
