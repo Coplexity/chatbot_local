@@ -3,7 +3,7 @@ from core.schemas import RouterState
 
 
 class GuidelineOwnerFilterNode:
-    """Lá»c guidelines theo owner_user_id trÆ°á»›c khi Ä‘á»‹nh tuyáº¿n chuyÃªn khoa."""
+    """Filter scientific documents by the authorized guideline owner scope."""
 
     def __init__(self):
         print("â³ [Guideline Owner Filter] Initializing...")
@@ -53,7 +53,7 @@ class GuidelineOwnerFilterNode:
         raw_user_ids = state.get("user_ids")
         user_ids = self._normalize_user_ids(raw_user_ids)
         if user_ids == []:
-            return {"filtered_guideline_ids": [], "filtered_specialties": []}
+            return {"filtered_guideline_ids": [], "filtered_specialties": [], "filtered_topics": []}
 
         conn = None
         cursor = None
@@ -66,7 +66,7 @@ class GuidelineOwnerFilterNode:
                 user_ids = self._load_admin_user_ids(cursor)
                 if not user_ids:
                     print("âš ï¸ [Guideline Owner Filter] KhÃ´ng tÃ¬m tháº¥y user role='admin'.")
-                    return {"filtered_guideline_ids": [], "filtered_specialties": []}
+                    return {"filtered_guideline_ids": [], "filtered_specialties": [], "filtered_topics": []}
                 print(f"ðŸ§© [Guideline Owner Filter] KhÃ´ng cÃ³ user_ids, dÃ¹ng admin user_ids={user_ids}.")
 
             owner_filter_sql = ""
@@ -102,10 +102,11 @@ class GuidelineOwnerFilterNode:
             return {
                 "filtered_guideline_ids": guideline_ids,
                 "filtered_specialties": specialties,
+                "filtered_topics": specialties,
             }
         except Exception as e:
             print(f"âŒ [Guideline Owner Filter DB Error] {e}")
-            return {"filtered_guideline_ids": [], "filtered_specialties": []}
+            return {"filtered_guideline_ids": [], "filtered_specialties": [], "filtered_topics": []}
         finally:
             if cursor:
                 cursor.close()
