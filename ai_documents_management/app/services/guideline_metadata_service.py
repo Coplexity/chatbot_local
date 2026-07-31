@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
+from app.services.paper_author_service import PaperAuthorService
 
 
 class GuidelineMetadataService:
@@ -35,15 +36,23 @@ class GuidelineMetadataService:
                 field_name="title",
             )
         if "loai_van_ban" in patch:
-            guideline.loai_van_ban = self._normalize_document_level(patch["loai_van_ban"])
+            guideline.loai_van_ban = self._normalize_document_level(
+                patch["loai_van_ban"]
+            )
         if "don_vi_ban_hanh" in patch:
-            guideline.don_vi_ban_hanh = self._normalize_optional_text(patch["don_vi_ban_hanh"])
+            guideline.don_vi_ban_hanh = self._normalize_optional_text(
+                patch["don_vi_ban_hanh"]
+            )
         if "chu_de" in patch:
             guideline.chu_de = self._normalize_optional_text(patch["chu_de"])
         if "abstract" in patch:
             guideline.abstract = self._normalize_optional_text(patch["abstract"])
         if "authors" in patch:
             guideline.authors = self._normalize_authors(patch["authors"])
+            await PaperAuthorService(self.db).sync_guideline_authors(
+                guideline_id=guideline.guideline_id,
+                author_names=guideline.authors,
+            )
 
         await self.db.flush()
         return guideline
@@ -228,10 +237,10 @@ class GuidelineMetadataService:
         text = str(value).strip()
         return text or None
 
-    def _normalize_document_level(self, value: object | None) -> str | None:
+    def _normalize_document_level(self, value: object | None) -> str:
         text = self._normalize_optional_text(value)
         if text is None:
-            return None
+            return "Cấp cơ sở"
         aliases = {
             "cap co so": "Cấp cơ sở",
             "cấp cơ sở": "Cấp cơ sở",
@@ -240,7 +249,9 @@ class GuidelineMetadataService:
         }
         normalized = aliases.get(text.casefold())
         if normalized is None:
-            raise BadRequestException("loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'.")
+            raise BadRequestException(
+                "loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'."
+            )
         return normalized
 
     def _normalize_authors(self, value: object | None) -> list[str] | None:
@@ -248,7 +259,15 @@ class GuidelineMetadataService:
             return None
         if not isinstance(value, list):
             raise BadRequestException("authors must be a list of author names.")
-        names = list(dict.fromkeys(str(name).strip() for name in value if str(name).strip()))
+        names: list[str] = []
+        seen: set[str] = set()
+        for raw_name in value:
+            name = str(raw_name).strip()
+            key = name.casefold()
+            if not name or key in seen:
+                continue
+            seen.add(key)
+            names.append(name)
         return names or None
 
     def _coerce_date_or_none(self, value: object | None, *, field_name: str) -> date | None:

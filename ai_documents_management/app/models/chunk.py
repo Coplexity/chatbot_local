@@ -18,7 +18,7 @@ class Chunk(Base):
     )
     owner_user_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("author.user_id", ondelete="RESTRICT"),
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )

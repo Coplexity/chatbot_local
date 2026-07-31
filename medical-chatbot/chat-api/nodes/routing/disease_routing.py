@@ -1,42 +1,115 @@
 import asyncio
-
 from langchain_openai import ChatOpenAI
-
 from core import config
+from core.schemas import RouterState, SpecialtyDiseaseDecision
+from core.prompts import DISEASE_ROUTING_PROMPT
 from core.database import DatabaseManager
-from core.schemas import DocumentTypeRouteDecision, RouterState
 
 
-class DocumentTypeRoutingNode:
+class DiseaseRoutingNode:
+    """Node định tuyến bệnh theo ten_benh từ database."""
+
     def __init__(self):
+        print("⏳ [Disease Router] Initializing...")
         self.llm = ChatOpenAI(model=config.LLM_MODEL, api_key=config.OPENAI_API_KEY, temperature=0)
         self.db_manager = DatabaseManager()
 
-    def _candidates(self, topic: str, guideline_ids: list[int]) -> list[str]:
-        conn = cursor = None
+    def _load_disease_candidates(self, specialty_name: str, guideline_ids=None):
+        conn = None
+        cursor = None
         try:
-            conn = self.db_manager.get_connection(); cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT loai_van_ban FROM guidelines WHERE guideline_id = ANY(%s) AND chu_de = %s AND COALESCE(btrim(loai_van_ban), '') <> '' ORDER BY loai_van_ban", (guideline_ids, topic))
-            return [row[0] for row in cursor.fetchall()]
+            if not specialty_name:
+                return []
+            if guideline_ids is not None and not guideline_ids:
+                return []
+
+            conn = self.db_manager.get_connection()
+            cursor = conn.cursor()
+            guideline_filter_sql = "AND guideline_id = ANY(%s)" if guideline_ids is not None else ""
+            params = [specialty_name]
+            if guideline_ids is not None:
+                params.append(guideline_ids)
+            cursor.execute(
+                f"""
+                SELECT DISTINCT ten_benh
+                FROM guidelines
+                WHERE chuyen_khoa = %s
+                  AND ten_benh IS NOT NULL
+                  AND btrim(ten_benh) <> ''
+                  {guideline_filter_sql}
+                ORDER BY ten_benh;
+                """,
+                tuple(params),
+            )
+            rows = cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            print(f"❌ [Disease Router DB Error] {e}")
+            return []
         finally:
-            if cursor: cursor.close()
-            if conn: conn.close()
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
-    async def process(self, state: RouterState) -> dict:
-        ids = state.get("filtered_guideline_ids", [])
-        topics = [item["name"] for item in state.get("selected_topics", []) if item.get("name")]
-        async def choose(topic: str):
-            choices = await asyncio.to_thread(self._candidates, topic, ids)
-            if not choices: return topic, []
+    async def process(self, state: RouterState):
+        query = state.get("query", "")
+        analyzed_specialties = state.get("analyzed_specialties", [])
+        filtered_guideline_ids = state.get("filtered_guideline_ids")
+
+        specialty_names = [item.get("name") for item in analyzed_specialties if item.get("name")]
+        specialty_names = list(dict.fromkeys(specialty_names))
+
+        if not specialty_names:
+            return {
+                "routed_diseases": {},
+            }
+
+        async def route_single_specialty(specialty_name: str):
+            candidates = self._load_disease_candidates(specialty_name, filtered_guideline_ids)
+            if not candidates:
+                print(f"⚠️ [Disease Router] Không có ứng viên bệnh cho khoa {specialty_name}.")
+                return specialty_name, []
+
+            candidates_string = "\n".join([f"- {specialty_name}: {disease}" for disease in candidates])
+            prompt = DISEASE_ROUTING_PROMPT.format(
+                specialties_string=specialty_name,
+                candidates_string=candidates_string,
+                query=query,
+            )
+
+            structured_llm = self.llm.with_structured_output(SpecialtyDiseaseDecision)
             try:
-                result = await self.llm.with_structured_output(DocumentTypeRouteDecision).ainvoke(f"Choose matching document types only from: {choices}\nQuestion: {state.get('query', '')}")
-                selected = [value for value in result.loai_van_ban if value in choices]
-                return topic, list(dict.fromkeys(selected)) or choices
-            except Exception:
-                return topic, choices
-        pairs = await asyncio.gather(*(choose(topic) for topic in topics))
-        selected = {topic: types for topic, types in pairs if types}
-        return {"selected_document_types": selected, "routed_diseases": selected}
+                decision = await structured_llm.ainvoke(prompt)
+                valid_diseases = set(candidates)
+                selected = []
+                seen = set()
 
+                for disease_name in decision.ten_benh:
+                    if disease_name in valid_diseases and disease_name not in seen:
+                        seen.add(disease_name)
+                        selected.append(disease_name)
 
-DiseaseRoutingNode = DocumentTypeRoutingNode
+                if not selected:
+                    print(f"⚠️ [Disease Router] {specialty_name}: LLM không trả bệnh hợp lệ, fallback về candidates DB.")
+                    return specialty_name, candidates
+
+                return specialty_name, selected
+            except Exception as e:
+                print(f"❌ [Disease Router Error] {specialty_name}: {e}")
+                return specialty_name, candidates
+
+        tasks = [route_single_specialty(name) for name in specialty_names]
+        results = await asyncio.gather(*tasks) if tasks else []
+
+        grouped_diseases = {specialty: diseases for specialty, diseases in results if diseases}
+
+        if not grouped_diseases:
+            print("⚠️ [Disease Router] Không route được bệnh hợp lệ từ tất cả chuyên khoa.")
+            return {"routed_diseases": {}}
+
+        total_diseases = sum(len(diseases) for diseases in grouped_diseases.values())
+        print(f"🎯 [Disease Router] Tổng số bệnh route được: {total_diseases}")
+        return {
+            "routed_diseases": grouped_diseases,
+        }

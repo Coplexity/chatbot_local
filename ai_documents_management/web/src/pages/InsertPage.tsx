@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ChevronLeft, Save } from 'lucide-react'
 import { api } from '../lib/api'
+import { roleLabel } from '../lib/roles'
 import SelectOrCustomInputField from '../components/SelectOrCustomInputField'
 import useGuidelineFilterOptions from '../hooks/useGuidelineFilterOptions'
 import { useAuth } from '../store/auth'
@@ -56,11 +57,14 @@ export default function InsertPage() {
       if (donViBanHanh) formData.append('don_vi_ban_hanh', donViBanHanh)
       if (chuDe) formData.append('chu_de', chuDe)
       if (abstract) formData.append('abstract', abstract)
-      authors.split(',').map(name => name.trim()).filter(Boolean).forEach(name => formData.append('authors', name))
+      authors
+        .split(',')
+        .map(name => name.trim())
+        .filter(Boolean)
+        .forEach(name => formData.append('authors', name))
       if (versionLabel) formData.append('version_label', versionLabel)
       if (releaseDate) formData.append('release_date', releaseDate)
       if (user?.role === 'admin') {
-        //Đã Thêm && ownerChoice
         if (!ownerChoice) {
           setError('Vui lòng chọn tài khoản sở hữu tài liệu.')
           setLoading(false)
@@ -107,15 +111,13 @@ export default function InsertPage() {
                   <label className="form-label">Tài khoản sở hữu *</label>
                   <select
                     className="form-select"
-                    
                     value={ownerChoice}
                     onChange={e => setOwnerChoice(e.target.value)}
                   >
-                    
                     <option value={user.user_id}>Tài liệu chung</option>
                     {owners.map(owner => (
                       <option key={owner.user_id} value={owner.user_id}>
-                        {owner.full_name || owner.email} - {owner.role}
+                        {owner.full_name || owner.email} - {roleLabel(owner.role)}
                       </option>
                     ))}
                   </select>
@@ -157,7 +159,12 @@ export default function InsertPage() {
               />
               <div className="form-group span-full">
                 <label className="form-label">Tác giả (phân cách bằng dấu phẩy)</label>
-                <input className="form-input" value={authors} onChange={e => setAuthors(e.target.value)} placeholder="Nguyễn Văn A, Trần Thị B" />
+                <input
+                  className="form-input"
+                  value={authors}
+                  onChange={e => setAuthors(e.target.value)}
+                  placeholder="Nguyễn Văn A, Trần Thị B"
+                />
               </div>
               <div className="form-group span-full">
                 <label className="form-label">Tóm tắt</label>
@@ -215,4 +222,3 @@ export default function InsertPage() {
     </div>
   )
 }
-

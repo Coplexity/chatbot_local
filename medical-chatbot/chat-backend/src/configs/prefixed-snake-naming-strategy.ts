@@ -4,7 +4,7 @@ export class PrefixedSnakeNamingStrategy extends SnakeNamingStrategy {
   private readonly prefix = "chat_";
 
   // Define the tables name to exclude from prefixing
-  private readonly excludedTables = ["author"];
+  private readonly excludedTables = ["users"];
 
   override tableName(className: string, customName: string): string {
     const baseName = super.tableName(className, customName);

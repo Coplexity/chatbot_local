@@ -107,8 +107,6 @@ async def create_user(
         parent_name=payload.parent_name,
         parent_parent_id=payload.parent_parent_id,
         is_active=payload.is_active,
-        linh_vuc_nghien_cuu=payload.linh_vuc_nghien_cuu,
-        tom_tat_nghien_cuu=payload.tom_tat_nghien_cuu,
     )
     return UserResponse.model_validate(user)
 
@@ -132,7 +130,5 @@ async def update_user_role(
         parent_name=payload.parent_name,
         parent_parent_id=payload.parent_parent_id,
         is_active=payload.is_active,
-        linh_vuc_nghien_cuu=payload.linh_vuc_nghien_cuu,
-        tom_tat_nghien_cuu=payload.tom_tat_nghien_cuu,
     )
     return UserResponse.model_validate(user)

@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from langchain_openai import ChatOpenAI
 from core import config
 from basic_mode.core.schemas import RouterState, SpecialtyDiseaseDecision
@@ -7,10 +7,10 @@ from core.database import DatabaseManager
 
 
 class DiseaseRoutingNode:
-    """Node Ä‘á»‹nh tuyáº¿n bá»‡nh theo loai_van_ban tá»« database."""
+    """Node định tuyến bệnh theo ten_benh từ database."""
 
     def __init__(self):
-        print("â³ [Disease Router] Initializing...")
+        print("⏳ [Disease Router] Initializing...")
         self.llm = ChatOpenAI(model=config.LLM_MODEL, api_key=config.OPENAI_API_KEY, temperature=0)
         self.db_manager = DatabaseManager()
 
@@ -31,20 +31,20 @@ class DiseaseRoutingNode:
                 params.append(guideline_ids)
             cursor.execute(
                 f"""
-                SELECT DISTINCT loai_van_ban
+                SELECT DISTINCT ten_benh
                 FROM guidelines
-                WHERE chu_de = %s
-                  AND loai_van_ban IS NOT NULL
-                  AND btrim(loai_van_ban) <> ''
+                WHERE chuyen_khoa = %s
+                  AND ten_benh IS NOT NULL
+                  AND btrim(ten_benh) <> ''
                   {guideline_filter_sql}
-                ORDER BY loai_van_ban;
+                ORDER BY ten_benh;
                 """,
                 tuple(params),
             )
             rows = cursor.fetchall()
             return [row[0] for row in rows]
         except Exception as e:
-            print(f"âŒ [Disease Router DB Error] {e}")
+            print(f"❌ [Disease Router DB Error] {e}")
             return []
         finally:
             if cursor:
@@ -68,7 +68,7 @@ class DiseaseRoutingNode:
         async def route_single_specialty(specialty_name: str):
             candidates = self._load_disease_candidates(specialty_name, filtered_guideline_ids)
             if not candidates:
-                print(f"âš ï¸ [Disease Router] KhÃ´ng cÃ³ á»©ng viÃªn bá»‡nh cho khoa {specialty_name}.")
+                print(f"⚠️ [Disease Router] Không có ứng viên bệnh cho khoa {specialty_name}.")
                 return specialty_name, []
 
             candidates_string = "\n".join([f"- {specialty_name}: {disease}" for disease in candidates])
@@ -85,18 +85,18 @@ class DiseaseRoutingNode:
                 selected = []
                 seen = set()
 
-                for disease_name in decision.loai_van_ban:
+                for disease_name in decision.ten_benh:
                     if disease_name in valid_diseases and disease_name not in seen:
                         seen.add(disease_name)
                         selected.append(disease_name)
 
                 if not selected:
-                    print(f"âš ï¸ [Disease Router] {specialty_name}: LLM khÃ´ng tráº£ bá»‡nh há»£p lá»‡, fallback vá» candidates DB.")
+                    print(f"⚠️ [Disease Router] {specialty_name}: LLM không trả bệnh hợp lệ, fallback về candidates DB.")
                     return specialty_name, candidates
 
                 return specialty_name, selected
             except Exception as e:
-                print(f"âŒ [Disease Router Error] {specialty_name}: {e}")
+                print(f"❌ [Disease Router Error] {specialty_name}: {e}")
                 return specialty_name, candidates
 
         tasks = [route_single_specialty(name) for name in specialty_names]
@@ -105,12 +105,11 @@ class DiseaseRoutingNode:
         grouped_diseases = {specialty: diseases for specialty, diseases in results if diseases}
 
         if not grouped_diseases:
-            print("âš ï¸ [Disease Router] KhÃ´ng route Ä‘Æ°á»£c bá»‡nh há»£p lá»‡ tá»« táº¥t cáº£ chuyÃªn khoa.")
+            print("⚠️ [Disease Router] Không route được bệnh hợp lệ từ tất cả chuyên khoa.")
             return {"routed_diseases": {}}
 
         total_diseases = sum(len(diseases) for diseases in grouped_diseases.values())
-        print(f"ðŸŽ¯ [Disease Router] Tá»•ng sá»‘ bá»‡nh route Ä‘Æ°á»£c: {total_diseases}")
+        print(f"🎯 [Disease Router] Tổng số bệnh route được: {total_diseases}")
         return {
             "routed_diseases": grouped_diseases,
         }
-

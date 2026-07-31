@@ -38,7 +38,7 @@ export class DatabaseSchemaService implements OnApplicationBootstrap {
         created_at timestamptz NOT NULL DEFAULT now(),
         updated_at timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT fk_chat_users_document_user
-          FOREIGN KEY (document_user_id) REFERENCES author(user_id)
+          FOREIGN KEY (document_user_id) REFERENCES users(user_id)
       )
     `);
 

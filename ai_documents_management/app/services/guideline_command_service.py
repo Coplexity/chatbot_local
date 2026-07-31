@@ -21,6 +21,7 @@ from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
 from app.models.user import User
 from app.services.guideline_ingestion_job_service import GuidelineIngestionJobService
+from app.services.paper_author_service import PaperAuthorService
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class GuidelineCommandService:
         self,
         current_user: User,
         title: str,
-        loai_van_ban: str | None,
+        loai_van_ban: str,
         don_vi_ban_hanh: str | None,
         chu_de: str | None,
         abstract: str | None,
@@ -59,18 +60,23 @@ class GuidelineCommandService:
             owner_user_id=owner_user_id,
         )
 
+        normalized_authors = self._normalize_authors(authors)
         guideline = Guideline(
             title=title.strip(),
             loai_van_ban=self._normalize_document_level(loai_van_ban),
             don_vi_ban_hanh=don_vi_ban_hanh.strip() if don_vi_ban_hanh else None,
             chu_de=chu_de.strip() if chu_de else None,
             abstract=abstract.strip() if abstract else None,
-            authors=self._normalize_authors(authors),
+            authors=normalized_authors,
             owner_user_id=resolved_owner_user_id,
             created_by_user_id=int(current_user.user_id),
         )
         self.db.add(guideline)
         await self.db.flush()
+        await PaperAuthorService(self.db).sync_guideline_authors(
+            guideline_id=guideline.guideline_id,
+            author_names=normalized_authors,
+        )
 
         resolved_version_label = await self._resolve_version_label(
             guideline_id=guideline.guideline_id,
@@ -229,12 +235,20 @@ class GuidelineCommandService:
     def _normalize_authors(self, authors: list[str] | None) -> list[str] | None:
         if not authors:
             return None
-        normalized = list(dict.fromkeys(author.strip() for author in authors if author.strip()))
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for author in authors:
+            name = author.strip()
+            key = name.casefold()
+            if not name or key in seen:
+                continue
+            seen.add(key)
+            normalized.append(name)
         return normalized or None
 
-    def _normalize_document_level(self, value: str | None) -> str | None:
+    def _normalize_document_level(self, value: str | None) -> str:
         if not value or not value.strip():
-            return None
+            return "Cấp cơ sở"
         aliases = {
             "cap co so": "Cấp cơ sở",
             "cấp cơ sở": "Cấp cơ sở",
@@ -243,7 +257,9 @@ class GuidelineCommandService:
         }
         normalized = aliases.get(value.strip().casefold())
         if normalized is None:
-            raise BadRequestException("loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'.")
+            raise BadRequestException(
+                "loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'."
+            )
         return normalized
 
     def _validate_pdf_upload(self, upload_file: UploadFile | None) -> None:
@@ -307,7 +323,7 @@ class GuidelineCommandService:
             await self.db.execute(
                 select(User).where(
                     User.user_id == owner_user_id,
-                    User.role != "admin", #tạm ẩn
+                    User.role != "admin",
                     User.is_active.is_(True),
                 )
             )

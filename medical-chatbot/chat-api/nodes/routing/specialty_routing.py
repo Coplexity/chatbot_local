@@ -1,32 +1,80 @@
 from langchain_openai import ChatOpenAI
-
 from core import config
-from core.schemas import RouterState, TopicRouteDecision
+from core.schemas import RouterState, RouteDecision
+from core.prompts import ROUTER_PROMPT
+from core.database import DatabaseManager
 
 
-class TopicRoutingNode:
-    """Select allowed `guidelines.chu_de` values for an aggregate request."""
+class SpecialtyRoutingNode:
+    """Class đảm nhiệm việc phân tích ý định và định tuyến (Routing)."""
 
     def __init__(self):
+        print("⏳ [Router] Initializing Intent Analyzer...")
         self.llm = ChatOpenAI(model=config.LLM_MODEL, api_key=config.OPENAI_API_KEY, temperature=0)
+        self.db_manager = DatabaseManager()
 
-    def process(self, state: RouterState) -> dict:
-        topics = state.get("filtered_topics", [])
-        if not topics:
-            return {"selected_topics": [], "analyzed_specialties": [], "hypothetical_document": ""}
-        prompt = (
-            "Choose at most five scientific topics only from this whitelist. Return a short retrieval query.\n"
-            f"Topics: {topics}\nUser question: {state.get('query', '')}"
-        )
+    def _load_valid_domains(self, guideline_ids=None):
+        """Lấy danh sách chuyên khoa từ bảng guidelines, có thể giới hạn theo guideline_ids."""
+        if guideline_ids is not None and not guideline_ids:
+            return []
+
+        conn = None
+        cursor = None
         try:
-            result = self.llm.with_structured_output(TopicRouteDecision).invoke(prompt)
-            selected = [{"name": item.name} for item in result.selected_topics if item.name in topics]
-            hyde = result.hypothetical_document or state.get("query", "")
-        except Exception as exc:
-            print(f"[TopicRouting] fallback: {exc}")
-            selected, hyde = [{"name": topic} for topic in topics[:5]], state.get("query", "")
-        # analyzed_specialties is a compatibility mirror until the SSE traces are renamed.
-        return {"selected_topics": selected, "analyzed_specialties": selected, "hypothetical_document": hyde}
+            conn = self.db_manager.get_connection()
+            cursor = conn.cursor()
+            guideline_filter_sql = "AND guideline_id = ANY(%s)" if guideline_ids is not None else ""
+            params = (guideline_ids,) if guideline_ids is not None else ()
+            cursor.execute(
+                f"""
+                SELECT DISTINCT chuyen_khoa
+                FROM guidelines
+                WHERE chuyen_khoa IS NOT NULL
+                  AND btrim(chuyen_khoa) <> ''
+                  {guideline_filter_sql}
+                ORDER BY chuyen_khoa;
+                """,
+                params,
+            )
+            rows = cursor.fetchall()
+            return [row[0] for row in rows]
+        except Exception as e:
+            print(f"❌ [Router DB Error] Không tải được valid domains: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
+    def process(self, state: RouterState):
+        query = state["query"]
+        structured_llm = self.llm.with_structured_output(RouteDecision)
 
-SpecialtyRoutingNode = TopicRoutingNode
+        valid_domains = state.get("filtered_specialties")
+        if valid_domains is None:
+            valid_domains = self._load_valid_domains(state.get("filtered_guideline_ids"))
+
+        if not valid_domains:
+            print("⚠️ [Router] Không tìm thấy chuyên khoa hợp lệ trong guidelines đã lọc.")
+            return {"analyzed_specialties": [], "hypothetical_document": ""}
+
+        # Biến danh sách trên thành một chuỗi văn bản (VD: "tim_mach, ho_hap, ...")
+        domains_string = ", ".join(valid_domains)
+
+        # GỌI PROMPT TỪ FILE MỚI VÀ TRUYỀN BIẾN VÀO
+        prompt = ROUTER_PROMPT.format(
+            domains_string=domains_string,
+            query=query,
+        )
+
+        decision = structured_llm.invoke(prompt)
+
+        filtered_domains = [
+            {"name": s.name}
+            for s in decision.analyzed_specialties
+            if s.name in valid_domains
+        ]
+
+        print(f"🧭 [Router] Điều phối đến các domain: {[s['name'] for s in filtered_domains]}")
+        return {"analyzed_specialties": filtered_domains, "hypothetical_document": decision.hypothetical_document}

@@ -141,11 +141,10 @@ class GuidelineQueryService:
         self._append_normalized_contains_filter(filters=filters, column=Guideline.don_vi_ban_hanh, value=don_vi_ban_hanh)
         self._append_normalized_contains_filter(filters=filters, column=Guideline.chu_de, value=chu_de)
         if authors:
-            author_search = ", ".join(authors)
             self._append_normalized_contains_filter(
                 filters=filters,
                 column=cast(Guideline.authors, Text),
-                value=author_search,
+                value=", ".join(authors),
             )
 
         return filters

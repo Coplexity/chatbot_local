@@ -16,11 +16,11 @@ export class DocumentUserRepository extends Repository<DocumentUserEntity> {
     return this.query(`
       WITH RECURSIVE ancestors AS (
         SELECT user_id, full_name, email, role, is_active, parent_id
-        FROM author
+        FROM users
         WHERE user_id = $1
         UNION ALL
         SELECT u.user_id, u.full_name, u.email, u.role, u.is_active, u.parent_id
-        FROM author u
+        FROM users u
         INNER JOIN ancestors a ON u.user_id = a.parent_id
       )
       SELECT

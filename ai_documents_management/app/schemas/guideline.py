@@ -20,7 +20,7 @@ class GuidelineListItem(BaseModel):
 
     guideline_id: int
     title: str
-    loai_van_ban: str | None = None
+    loai_van_ban: str
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
@@ -117,7 +117,7 @@ class UpdateGuidelineMetadataResponse(BaseModel):
 
     guideline_id: int
     title: str
-    loai_van_ban: str | None = None
+    loai_van_ban: str
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
@@ -178,7 +178,7 @@ class WorkspaceGuidelineInfo(BaseModel):
 
     guideline_id: int
     title: str
-    loai_van_ban: str | None = None
+    loai_van_ban: str
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None

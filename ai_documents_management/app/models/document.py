@@ -17,13 +17,13 @@ class Document(Base):
     )
     owner_user_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("author.user_id", ondelete="RESTRICT"),
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
     created_by_user_id: Mapped[int | None] = mapped_column(
         BigInteger,
-        ForeignKey("author.user_id", ondelete="SET NULL"),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

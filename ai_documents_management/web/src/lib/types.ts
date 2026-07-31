@@ -1,4 +1,4 @@
-﻿// Auth
+// Auth
 export interface UserSummaryResponse {
   user_id: number
   email: string
@@ -6,8 +6,6 @@ export interface UserSummaryResponse {
   role: string
   parent_id: number | null
   is_active: boolean
-  linh_vuc_nghien_cuu: string | null
-  tom_tat_nghien_cuu: string | null
 }
 
 export interface UserResponse extends UserSummaryResponse {
@@ -47,8 +45,6 @@ export interface CreateUserRequest {
   parent_name?: string | null
   parent_parent_id?: number | null
   is_active: boolean
-  linh_vuc_nghien_cuu?: string | null
-  tom_tat_nghien_cuu?: string | null
 }
 
 export interface UpdateUserRoleRequest {
@@ -57,8 +53,6 @@ export interface UpdateUserRoleRequest {
   parent_name?: string | null
   parent_parent_id?: number | null
   is_active?: boolean | null
-  linh_vuc_nghien_cuu?: string | null
-  tom_tat_nghien_cuu?: string | null
 }
 
 // Guidelines
@@ -74,7 +68,7 @@ export interface GuidelineVersionSummary {
 export interface GuidelineListItem {
   guideline_id: number
   title: string
-  loai_van_ban: string | null
+  loai_van_ban: string
   don_vi_ban_hanh: string | null
   chu_de: string | null
   abstract: string | null
@@ -139,7 +133,7 @@ export interface VersionIngestionStatusResponse {
 export interface WorkspaceGuidelineInfo {
   guideline_id: number
   title: string
-  loai_van_ban: string | null
+  loai_van_ban: string
   don_vi_ban_hanh: string | null
   chu_de: string | null
   abstract: string | null
@@ -255,7 +249,7 @@ export interface UpdateGuidelineMetadataRequest {
 export interface UpdateGuidelineMetadataResponse {
   guideline_id: number
   title: string
-  loai_van_ban: string | null
+  loai_van_ban: string
   don_vi_ban_hanh: string | null
   chu_de: string | null
   abstract: string | null
@@ -327,4 +321,3 @@ export interface VersionChunkRebuildStatusResponse {
 export interface RebuildVersionChunksResponse extends VersionChunkRebuildStatusResponse {
   accepted: boolean
 }
-

@@ -112,7 +112,7 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
               selectPlaceholder="-- Chọn chủ đề --"
               customPlaceholder="Nhập chủ đề"
             />
-            <div className="form-group">
+            <div className="form-group span-full">
               <label className="form-label">Tác giả (phân cách bằng dấu phẩy)</label>
               <input className="form-input" value={authors} onChange={event => setAuthors(event.target.value)} disabled={submitting} />
             </div>
@@ -145,4 +145,3 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
     </div>
   )
 }
-

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { UserPlus } from 'lucide-react'
 import { api } from '../lib/api'
+import { roleLabel } from '../lib/roles'
 import { useAuth } from '../store/auth'
 import type {
   UserResponse,
@@ -11,18 +12,6 @@ import type {
 } from '../lib/types'
 
 const CUSTOM_PARENT_VALUE = '__custom_parent__'
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Admin',
-  health_department: 'Sở y tế',
-  hospital: 'Bệnh viện',
-  doctor: 'Bác sĩ',
-  author: 'Tác giả',
-}
-
-function roleLabel(role: string) {
-  return ROLE_LABELS[role] ?? role
-}
 
 function accountName(user: UserResponse | null | undefined) {
   if (!user) return '-'
@@ -49,8 +38,6 @@ export default function AdminUsersPage() {
     parent_name: null,
     parent_parent_id: null,
     is_active: true,
-    linh_vuc_nghien_cuu: null,
-    tom_tat_nghien_cuu: null,
   })
   const [parentChoice, setParentChoice] = useState('')
   const [customParentName, setCustomParentName] = useState('')
@@ -116,11 +103,6 @@ export default function AdminUsersPage() {
       is_active: form.is_active,
     }
 
-    if (form.role === 'author') {
-      payload.linh_vuc_nghien_cuu = form.linh_vuc_nghien_cuu?.trim() || null
-      payload.tom_tat_nghien_cuu = form.tom_tat_nghien_cuu?.trim() || null
-    }
-
     if (currentUser?.role !== 'admin') {
       return payload
     }
@@ -162,8 +144,6 @@ export default function AdminUsersPage() {
         parent_name: null,
         parent_parent_id: null,
         is_active: true,
-        linh_vuc_nghien_cuu: null,
-        tom_tat_nghien_cuu: null,
       })
       setCustomParentName('')
     } catch (err: any) {
@@ -228,7 +208,7 @@ export default function AdminUsersPage() {
                 <label className="form-label">Tên hiển thị *</label>
                 <input type="text" className="form-input" required value={form.full_name ?? ''}
                   onChange={e => setForm(f => ({ ...f, full_name: e.target.value || null }))}
-                  placeholder={form.role === 'author' ? 'Tên tác giả' : 'Tên sở, bệnh viện hoặc bác sĩ'} />
+                  placeholder={form.role === 'staff' ? 'Tên nhân viên' : 'Tên sở, bệnh viện hoặc bác sĩ'} />
               </div>
               <div className="form-group">
                 <label className="form-label">Mật khẩu * (tối thiểu 8 ký tự)</label>
@@ -244,31 +224,6 @@ export default function AdminUsersPage() {
                   ))}
                 </select>
               </div>
-
-              {form.role === 'author' && (
-                <>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Lĩnh vực nghiên cứu</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={form.linh_vuc_nghien_cuu ?? ''}
-                      onChange={e => setForm(f => ({ ...f, linh_vuc_nghien_cuu: e.target.value || null }))}
-                      placeholder="Ví dụ: Trí tuệ nhân tạo trong y tế, ký sinh trùng học..."
-                    />
-                  </div>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Tóm tắt nghiên cứu</label>
-                    <textarea
-                      className="form-input"
-                      rows={4}
-                      value={form.tom_tat_nghien_cuu ?? ''}
-                      onChange={e => setForm(f => ({ ...f, tom_tat_nghien_cuu: e.target.value || null }))}
-                      placeholder="Tóm tắt hướng nghiên cứu, chủ đề quan tâm và các đóng góp chính của tác giả"
-                    />
-                  </div>
-                </>
-              )}
 
               {currentUser?.role === 'admin' && form.role === 'hospital' && (
                 <div className="form-group">
@@ -367,12 +322,7 @@ export default function AdminUsersPage() {
               {users.map(u => (
                 <tr key={u.user_id}>
                   <td className="font-medium">{u.email}</td>
-                  <td>
-                    <div>{u.full_name || '-'}</div>
-                    {u.role === 'author' && u.linh_vuc_nghien_cuu && (
-                      <div className="text-sm text-muted">{u.linh_vuc_nghien_cuu}</div>
-                    )}
-                  </td>
+                  <td>{u.full_name || '-'}</td>
                   <td>
                     <span className="badge badge-default">{roleLabel(u.role)}</span>
                   </td>
@@ -406,4 +356,3 @@ export default function AdminUsersPage() {
     </div>
   )
 }
-

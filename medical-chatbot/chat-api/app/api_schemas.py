@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, validator
 
 
 class ChatStreamRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="Câu hỏi hoặc yêu cầu tìm kiếm tài liệu khoa học.")
+    query: str = Field(..., min_length=1, description="Cau hoi y khoa cua nguoi dung")
     user_ids: int | str | list[int | str] | None = Field(
         default=None,
         description=(
@@ -23,10 +23,13 @@ class ChatStreamRequest(BaseModel):
             return ",".join(user_ids) if user_ids else None
         return value
 
-    role: str = Field(default="", description="Vai trò người dùng do backend đã xác thực.")
+    role: str = Field(
+        default="",
+        description="Vai tro nguoi dung tu frontend. role='bac_si_tramyte' se bat shortcut luong tram_y_te.",
+    )
     mode: str = Field(
-        default="deep",
-        description="Trường tương thích tạm thời; API luôn dùng luồng scientific deep RAG.",
+        default="basic",
+        description="Che do tra loi: 'basic' hoac 'deep'. Mac dinh la 'basic'.",
     )
 
 

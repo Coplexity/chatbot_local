@@ -23,21 +23,21 @@ class AuthService:
     ROLE_HEALTH_DEPARTMENT = "health_department"
     ROLE_HOSPITAL = "hospital"
     ROLE_DOCTOR = "doctor"
-    ROLE_AUTHOR = "author"
+    ROLE_STAFF = "staff"
 
     ROLE_DESCRIPTIONS: dict[str, str] = {
         ROLE_ADMIN: "Full access to all accounts and documents.",
         ROLE_HEALTH_DEPARTMENT: "Cap so y te: manage own documents and create hospital accounts.",
         ROLE_HOSPITAL: "Cap benh vien: inherit parent documents, manage own documents, and create doctor accounts.",
         ROLE_DOCTOR: "Cap bac si: inherit hospital/department documents and manage own documents.",
-        ROLE_AUTHOR: "Tac gia nghien cuu khoa hoc, co linh vuc va tom tat nghien cuu.",
+        ROLE_STAFF: "Nhan vien noi bo: xem va quan ly tai lieu do minh so huu.",
     }
     ROLE_ORDER: tuple[str, ...] = (
         ROLE_ADMIN,
         ROLE_HEALTH_DEPARTMENT,
         ROLE_HOSPITAL,
         ROLE_DOCTOR,
-        ROLE_AUTHOR,
+        ROLE_STAFF,
     )
     CHILD_ROLE_BY_CREATOR: dict[str, str] = {
         ROLE_HEALTH_DEPARTMENT: ROLE_HOSPITAL,
@@ -78,7 +78,7 @@ class AuthService:
         normalized = legacy_role_map.get(normalized, normalized)
         if normalized not in cls.ROLE_DESCRIPTIONS:
             raise BadRequestException(
-                "Unknown role. Allowed values: admin, health_department, hospital, doctor, author."
+                "Unknown role. Allowed values: admin, health_department, hospital, doctor, staff."
             )
         return normalized
 
@@ -163,8 +163,6 @@ class AuthService:
         parent_name: str | None = None,
         parent_parent_id: int | None = None,
         is_active: bool = True,
-        linh_vuc_nghien_cuu: str | None = None,
-        tom_tat_nghien_cuu: str | None = None,
     ) -> User:
         normalized_email = self.normalize_email(email)
         if await self.get_user_by_email(normalized_email):
@@ -191,8 +189,6 @@ class AuthService:
             parent_id=resolved_parent_id,
             created_by_user_id=int(current_user.user_id),
             is_active=is_active,
-            linh_vuc_nghien_cuu=self._normalize_optional_text(linh_vuc_nghien_cuu),
-            tom_tat_nghien_cuu=self._normalize_optional_text(tom_tat_nghien_cuu),
         )
         self.db.add(user)
         await self.db.flush()
@@ -211,8 +207,6 @@ class AuthService:
         parent_name: str | None = None,
         parent_parent_id: int | None = None,
         is_active: bool | None = None,
-        linh_vuc_nghien_cuu: str | None = None,
-        tom_tat_nghien_cuu: str | None = None,
     ) -> User:
         user = await self.get_user_by_id(user_id)
         if user is None:
@@ -234,10 +228,6 @@ class AuthService:
         )
         if is_active is not None:
             user.is_active = bool(is_active)
-        if linh_vuc_nghien_cuu is not None:
-            user.linh_vuc_nghien_cuu = self._normalize_optional_text(linh_vuc_nghien_cuu)
-        if tom_tat_nghien_cuu is not None:
-            user.tom_tat_nghien_cuu = self._normalize_optional_text(tom_tat_nghien_cuu)
         await self.db.flush()
         updated_user = await self.get_user_by_id(user_id)
         if updated_user is None:
@@ -266,7 +256,7 @@ class AuthService:
         parent_name: str | None,
         parent_parent_id: int | None,
     ) -> int | None:
-        if role in (self.ROLE_ADMIN, self.ROLE_HEALTH_DEPARTMENT, self.ROLE_AUTHOR):
+        if role in (self.ROLE_ADMIN, self.ROLE_HEALTH_DEPARTMENT, self.ROLE_STAFF):
             return None
 
         expected_parent_role = self.PARENT_ROLE_BY_ROLE[role]
@@ -354,12 +344,7 @@ class AuthService:
             return value
         if role == self.ROLE_ADMIN:
             return None
-        raise BadRequestException("Display name is required for unit and doctor accounts.")
-
-    def _normalize_optional_text(self, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return value.strip() or None
+        raise BadRequestException("Display name is required for non-admin accounts.")
 
     def _collect_descendant_ids(self, users: list[User], root_user_id: int) -> set[int]:
         children_by_parent: dict[int, list[int]] = {}
