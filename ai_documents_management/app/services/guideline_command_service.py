@@ -21,6 +21,7 @@ from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
 from app.models.user import User
 from app.services.guideline_ingestion_job_service import GuidelineIngestionJobService
+from app.services.author_service import AuthorService
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,8 @@ class GuidelineCommandService:
         don_vi_ban_hanh: str | None,
         chu_de: str | None,
         abstract: str | None,
-        authors: list[str] | None,
+        authors_json: str | None,
+        doi_van_ban: str | None,
         owner_user_id: int | None,
         version_label: str | None,
         release_date: date | None,
@@ -65,12 +67,16 @@ class GuidelineCommandService:
             don_vi_ban_hanh=don_vi_ban_hanh.strip() if don_vi_ban_hanh else None,
             chu_de=chu_de.strip() if chu_de else None,
             abstract=abstract.strip() if abstract else None,
-            authors=self._normalize_authors(authors),
+            doi_van_ban=doi_van_ban.strip() if doi_van_ban else None,
             owner_user_id=resolved_owner_user_id,
             created_by_user_id=int(current_user.user_id),
         )
         self.db.add(guideline)
         await self.db.flush()
+
+        author_service = AuthorService(self.db)
+        parsed_authors = author_service.parse_authors_json(authors_json)
+        await author_service.sync_authors_to_guideline(guideline.guideline_id, parsed_authors)
 
         resolved_version_label = await self._resolve_version_label(
             guideline_id=guideline.guideline_id,
@@ -225,12 +231,6 @@ class GuidelineCommandService:
         if not title or not title.strip():
             raise BadRequestException("Guideline title is required.")
         self._validate_pdf_upload(upload_file)
-
-    def _normalize_authors(self, authors: list[str] | None) -> list[str] | None:
-        if not authors:
-            return None
-        normalized = list(dict.fromkeys(author.strip() for author in authors if author.strip()))
-        return normalized or None
 
     def _normalize_document_level(self, value: str | None) -> str | None:
         if not value or not value.strip():

@@ -71,7 +71,7 @@ async def get_me(current_user: ActiveUser) -> UserResponse:
 )
 async def list_roles(
     auth_service: AuthServiceDep,
-    current_user: Annotated[object, Depends(require_roles("admin", "health_department", "hospital"))],
+    current_user: Annotated[object, Depends(require_roles("admin"))],
 ) -> list[AvailableRoleResponse]:
     return [
         AvailableRoleResponse(**item)
@@ -82,7 +82,7 @@ async def list_roles(
 @router.get("/users", response_model=UserListResponse, summary="List Users")
 async def list_users(
     auth_service: AuthServiceDep,
-    current_user: Annotated[object, Depends(require_roles("admin", "health_department", "hospital"))],
+    current_user: Annotated[object, Depends(require_roles("admin"))],
 ) -> UserListResponse:
     users = await auth_service.list_users(current_user)
     return UserListResponse(
@@ -95,7 +95,7 @@ async def list_users(
 async def create_user(
     payload: CreateUserRequest,
     auth_service: AuthServiceDep,
-    current_user: Annotated[object, Depends(require_roles("admin", "health_department", "hospital"))],
+    current_user: Annotated[object, Depends(require_roles("admin"))],
 ) -> UserResponse:
     user = await auth_service.create_user(
         current_user=current_user,
@@ -103,12 +103,7 @@ async def create_user(
         password=payload.password,
         role=payload.role,
         full_name=payload.full_name,
-        parent_id=payload.parent_id,
-        parent_name=payload.parent_name,
-        parent_parent_id=payload.parent_parent_id,
         is_active=payload.is_active,
-        linh_vuc_nghien_cuu=payload.linh_vuc_nghien_cuu,
-        tom_tat_nghien_cuu=payload.tom_tat_nghien_cuu,
     )
     return UserResponse.model_validate(user)
 
@@ -122,17 +117,12 @@ async def update_user_role(
     user_id: int,
     payload: UpdateUserRoleRequest,
     auth_service: AuthServiceDep,
-    current_user: Annotated[object, Depends(require_roles("admin", "health_department", "hospital"))],
+    current_user: Annotated[object, Depends(require_roles("admin"))],
 ) -> UserResponse:
     user = await auth_service.update_user_role(
         current_user=current_user,
         user_id=user_id,
         role=payload.role,
-        parent_id=payload.parent_id,
-        parent_name=payload.parent_name,
-        parent_parent_id=payload.parent_parent_id,
         is_active=payload.is_active,
-        linh_vuc_nghien_cuu=payload.linh_vuc_nghien_cuu,
-        tom_tat_nghien_cuu=payload.tom_tat_nghien_cuu,
     )
     return UserResponse.model_validate(user)

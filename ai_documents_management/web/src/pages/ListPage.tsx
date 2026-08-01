@@ -246,7 +246,9 @@ export default function ListPage() {
                     <td className="font-medium">{item.title}</td>
                     <td>{item.loai_van_ban || '-'}</td>
                     <td>{item.don_vi_ban_hanh || '-'}</td>
-                    <td>{item.authors?.join(', ') || '-'}</td>
+                    <td>
+                      {item.authors?.map(a => a.full_name + (a.hoc_ham ? ` (${a.hoc_ham})` : '')).join(', ') || '-'}
+                    </td>
                     <td>
                       <div>{item.owner?.full_name || item.owner?.email || '-'}</div>
                       {item.access_scope === 'inherited' && <span className="badge badge-default">Kế thừa</span>}

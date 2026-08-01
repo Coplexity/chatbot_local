@@ -39,9 +39,8 @@ LANDMARK_OVERLAP         = 10
 
 # ── TOC schema ────────────────────────────────────────────────────────────────
 _METADATA_KEYS = [
-    "title", "publisher", "decision_number", "specialty",
-    "date", "isbn_electronic", "isbn_print", "total_pages",
-    "source_file", "chapters",
+    "title", "loai_van_ban", "don_vi_ban_hanh", "chu_de",
+    "abstract", "authors", "doi_van_ban", "source_file", "chapters",
 ]
 
 _DEPTH_CHILD_KEYS: dict[int, str] = {
@@ -60,14 +59,13 @@ _DEPTH_CHILD_KEYS: dict[int, str] = {
 _METADATA_SCHEMA = """\
 | Trường            | Nguồn                                                          |
 |-------------------|----------------------------------------------------------------|
-| title             | Tên đầy đủ tài liệu, thường ở trang bìa hoặc đầu file.        |
-| publisher         | Cơ quan ban hành (Bộ Y tế, Bệnh viện, Hội Y học…).            |
-| decision_number   | Số quyết định dạng "XXXX/QĐ-YYY" (ví dụ: "2855/QĐ-BYT").     |
-| specialty         | Chuyên khoa (Tim mạch, Nội tiết, Hô hấp, Truyền nhiễm…).      |
-| date              | Ngày ban hành ISO 8601: "YYYY-MM-DD".                          |
-| isbn_electronic   | ISBN điện tử nếu có, ngược lại null.                           |
-| isbn_print        | ISBN in nếu có, ngược lại null.                                |
-| total_pages       | Tổng số trang (số nguyên), tìm ở cuối file hoặc trang bìa.    |
+| title             | Tên đầy đủ báo cáo/đề tài, thường ở trang bìa hoặc đầu file.  |
+| loai_van_ban      | Loại đề tài. CHỈ điền "Cấp cơ sở" hoặc "Cấp trung ương".       |
+| don_vi_ban_hanh   | Đơn vị chủ trì/quản lý đề tài (Trường, Bộ, Viện...).           |
+| chu_de            | Chủ đề, lĩnh vực nghiên cứu của đề tài.                        |
+| abstract          | Tóm tắt đề tài (thường nằm ở đầu báo cáo).                     |
+| authors           | Mảng chứa tên các tác giả, nhóm nghiên cứu. VD: ["Nguyễn Văn A", "Trần B"] |
+| doi_van_ban       | Mã DOI của bài báo/đề tài nếu có, ngược lại null.              |
 | source_file       | Tên file Markdown (đã cung cấp, điền vào đây).                |"""
 
 _STRUCTURE_RULES = """\
@@ -75,26 +73,25 @@ CẤU TRÚC PHÂN CẤP (lồng nhau):
   chapters → sections → subsections → subsubsections → subsubsubsections
   Mỗi node chỉ có "title" và key mảng con tương ứng. Mảng con rỗng thì để [].
 
-NHẬN DIỆN TIÊU ĐỀ (Tiếng Việt):
-  - Cấp 1 (chapters): "Phần X", "Chương X", các mục lớn không có cha.
-  - Cấp 2 (sections): "Bước X", "Mục X", "I, II, III", tiêu đề in đậm dưới chapter.
-  - Cấp 3+ (subsections…): đánh số thập phân (2.1, 2.1.1…).
+NHẬN DIỆN TIÊU ĐỀ (Báo cáo Nghiên cứu khoa học):
+  - Cấp 1 (chapters): Các phần chính (VD: ĐẶT VẤN ĐỀ, TỔNG QUAN, PHƯƠNG PHÁP, KẾT QUẢ, BÀN LUẬN, KẾT LUẬN), Chương X, hoặc chữ La Mã (I, II).
+  - Cấp 2 (sections): Đánh số 1, 2, 3 hoặc thập phân 1.1, 1.2 dưới phần chính.
+  - Cấp 3+ (subsections…): Đánh số thập phân chi tiết (1.1.1, 1.1.2…).
   - Phụ lục có số → lồng dưới chapter tương ứng. Phụ lục không số → chapter riêng.
   - Loại bỏ: số trang, dòng chân trang, tên tác giả, đoạn văn bản nội dung."""
 
 PROMPT_PHASE1 = f"""\
-Bạn là hệ thống trích xuất cấu trúc tài liệu y tế. Trả về DUY NHẤT một JSON hợp lệ, không markdown, không giải thích.
+Bạn là hệ thống trích xuất cấu trúc báo cáo đề tài nghiên cứu khoa học. Trả về DUY NHẤT một JSON hợp lệ, không markdown, không giải thích.
 
 OUTPUT SCHEMA:
 {{
   "title": "...",
-  "publisher": "...",
-  "decision_number": "...",
-  "specialty": "...",
-  "date": "YYYY-MM-DD",
-  "isbn_electronic": null,
-  "isbn_print": null,
-  "total_pages": 0,
+  "loai_van_ban": "...",
+  "don_vi_ban_hanh": "...",
+  "chu_de": "...",
+  "abstract": "...",
+  "authors": [],
+  "doi_van_ban": null,
   "source_file": "...",
   "chapters": [
     {{
@@ -176,15 +173,15 @@ FORMAT OCR (Landing AI) — LƯU Ý TRƯỚC KHI ĐỌC
 ══════════════════════════════════════════════
 BƯỚC 1: XÁC ĐỊNH CẤP BẬC TỪNG HEADING (LINH HOẠT THEO TÀI LIỆU)
 ══════════════════════════════════════════════
-Tài liệu y tế có nhiều định dạng (Hướng dẫn lâm sàng, Quyết định, Sách chuyên khảo). Phân cấp như sau:
+Tài liệu báo cáo đề tài nghiên cứu khoa học thường tuân theo cấu trúc học thuật (IMRAD). Phân cấp như sau:
 
-CẤP 1 — chapters (Phần lớn nhất của tài liệu):
-  Từ khoá: "PHẦN X", "CHƯƠNG X", hoặc các tiêu đề ALL CAPS cực lớn, độc lập không phụ thuộc ai.
-  Ví dụ: "LỜI GIỚI THIỆU", "QUYẾT ĐỊNH", "PHỤ LỤC" (nếu là phụ lục độc lập, không gắn với Phần nào).
+CẤU TRÚC 1 — chapters (Phần lớn nhất của tài liệu):
+  Từ khoá: "PHẦN X", "CHƯƠNG X", "ĐẶT VẤN ĐỀ", "TỔNG QUAN", "PHƯƠNG PHÁP", "KẾT QUẢ", hoặc các tiêu đề ALL CAPS cực lớn, độc lập không phụ thuộc ai.
+  Ví dụ: "LỜI MỞ ĐẦU", "KẾT LUẬN VÀ KIẾN NGHỊ", "PHỤ LỤC" (nếu là phụ lục độc lập, không gắn với Phần nào).
 
-CẤP 2 — sections (Chia nhỏ Chapter):
-  Từ khoá: "MỤC X", "BƯỚC X", Số La Mã (I, II, III...), hoặc tiêu đề in đậm/ALL CAPS là chủ đề con của Cấp 1.
-  Ví dụ: "BƯỚC 1. HỎI BỆNH", "BƯỚC 5. ĐIỀU TRỊ", "I. ĐẠI CƯƠNG".
+CẤU TRÚC 2 — sections (Chia nhỏ Chapter):
+  Từ khoá: Đánh số 1, 2, 3, Số La Mã (I, II, III...), hoặc tiêu đề in đậm/ALL CAPS là chủ đề con của Cấp 1.
+  Ví dụ: "1. THIẾT KẾ NGHIÊN CỨU", "2. THU THẬP DỮ LIỆU", "I. ĐẠI CƯƠNG".
   ⚠ LƯU Ý QUAN TRỌNG: Sections hoàn toàn CÓ THỂ CÓ ngay đoạn văn nội dung bên dưới nó.
 
 CẤP 3, 4+ — subsections, subsubsections... (Chi tiết hoá Section):
@@ -236,7 +233,7 @@ QUY TẮC BẮT BUỘC KHI CÓ CÂY TOC NỀN (Phase 1 hoặc TOC tích lũy)
 ══════════════════════════════════════════════
 CẢNH BÁO: NAMESPACE SỐ THỨ TỰ TRÙNG GIỮA CÁC CHƯƠNG
 ══════════════════════════════════════════════
-  Nhiều chương trong tài liệu y tế đều dùng lại hệ đánh số từ đầu (1., 1.1, 1.2, 1.3...).
+  Nhiều chương trong báo cáo khoa học đều dùng lại hệ đánh số từ đầu (1., 1.1, 1.2, 1.3...).
   Ví dụ: CHƯƠNG 6 có "1.4. Các biến chứng khác" và CHƯƠNG 7 CũNG có "1.4. Can thiệp ĐMV thì đầu".
   Hai node "1.4" này HOÀN TOÀN KHÁC NHAU — chúng thuộc hai chapter khác nhau.
 
@@ -250,7 +247,7 @@ CẢNH BÁO: NAMESPACE SỐ THỨ TỰ TRÙNG GIỮA CÁC CHƯƠNG
 """
 
 _PROMPT_PHASE3_SYS = (
-    "Bạn là hệ thống mapping TOC heading → ADE chunk trong tài liệu y tế OCR. "
+    "Bạn là hệ thống mapping TOC heading → ADE chunk trong báo cáo nghiên cứu khoa học OCR. "
     'Trả về DUY NHẤT JSON hợp lệ: {"mappings": [{"toc_idx": int, "chunk_id": str_or_null}]}\n\n'
     "ĐẶC ĐIỂM QUAN TRỌNG CỦA ADE CHUNKS TRONG TÀI LIỆU NÀY:\n"
     "• Nhiều tiêu đề cấp 2 (BƯỚC X, MỤC X, I/II/III...) không xuất hiện như chunk text riêng — "
@@ -263,7 +260,7 @@ _PROMPT_PHASE3_SYS = (
 )
 
 _PROMPT_LANDMARK_SYS = (
-    "Bạn là hệ thống định vị chương cấp 1 trong tài liệu y tế OCR. "
+    "Bạn là hệ thống định vị chương cấp 1 trong báo cáo nghiên cứu khoa học OCR. "
     'Trả về DUY NHẤT JSON hợp lệ: {"mappings": [{"toc_idx": int, "chunk_id": str_or_null}]}\n\n'
     "QUY TẮC QUAN TRỌNG:\n"
     "• Đây chỉ là MỘT ĐOẠN của tài liệu — nếu heading không có trong đoạn này thì null là bình thường.\n"
@@ -309,13 +306,13 @@ _PROMPT_PHASE2_ITERATIVE: str = ""
 def _init_phase2_prompts() -> None:
     global _PROMPT_PHASE2_SINGLE, _PROMPT_PHASE2_ITERATIVE
     _PROMPT_PHASE2_SINGLE = (
-        'Bạn là hệ thống xây dựng cây TOC tài liệu y tế từ văn bản OCR (Landing AI format).'
+        'Bạn là hệ thống xây dựng cây TOC báo cáo nghiên cứu khoa học từ văn bản OCR (Landing AI format).'
         ' Trả về DUY NHẤT JSON hợp lệ với key "chapters".\n\n'
         f'OUTPUT SCHEMA:\n{_PHASE2_SCHEMA}\n\n'
         f'{_PHASE2_READING_RULES}'
     )
     _PROMPT_PHASE2_ITERATIVE = (
-        'Bạn là hệ thống build và merge cây TOC tài liệu y tế theo từng chunk.'
+        'Bạn là hệ thống build và merge cây TOC báo cáo nghiên cứu khoa học theo từng chunk.'
         ' Trả về DUY NHẤT JSON hợp lệ với key "chapters".\n\n'
         f'OUTPUT SCHEMA:\n{_PHASE2_SCHEMA}\n\n'
         'NHIỆM VỤ — thực hiện tuần tự:\n'

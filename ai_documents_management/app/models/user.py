@@ -18,11 +18,11 @@ from app.models.base import Base
 
 
 class User(Base):
-    __tablename__ = "author"
+    __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('admin', 'health_department', 'hospital', 'doctor', 'author')",
-            name="ck_author_role",
+            "role IN ('admin', 'staff')",
+            name="ck_users_role",
         ),
     )
 
@@ -35,18 +35,18 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="health_department",
-        server_default=text("'health_department'"),
+        default="staff",
+        server_default=text("'staff'"),
     )
     parent_id: Mapped[int | None] = mapped_column(
         BigInteger,
-        ForeignKey("author.user_id", ondelete="RESTRICT"),
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
         nullable=True,
         index=True,
     )
     created_by_user_id: Mapped[int | None] = mapped_column(
         BigInteger,
-        ForeignKey("author.user_id", ondelete="SET NULL"),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -65,8 +65,6 @@ class User(Base):
         onupdate=func.now(),
         nullable=False,
     )
-    linh_vuc_nghien_cuu: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tom_tat_nghien_cuu: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     parent: Mapped["User | None"] = relationship(
         "User",

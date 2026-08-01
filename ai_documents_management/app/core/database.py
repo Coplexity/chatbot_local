@@ -48,7 +48,7 @@ async def migrate_users_table_to_author_schema() -> None:
                 BEGIN
                     IF to_regclass('public.users') IS NOT NULL
                        AND to_regclass('public.author') IS NULL THEN
-                        ALTER TABLE users RENAME TO author;
+                        -- ALTER TABLE users RENAME TO author; -- Disabled, users should stay as users
                     END IF;
                 END $$;
                 """
@@ -60,6 +60,32 @@ async def init_db_schema() -> None:
     """Create database tables if they do not exist."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Ensure doi_van_ban exists in case Base.metadata.create_all didn't add it (Alembic replacement)
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE guidelines
+                ADD COLUMN IF NOT EXISTS doi_van_ban TEXT
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE guidelines
+                DROP COLUMN IF EXISTS authors
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE author
+                DROP CONSTRAINT IF EXISTS ck_author_hoc_ham
+                """
+            )
+        )
 
 
 async def migrate_auth_schema_to_single_role() -> None:
@@ -72,7 +98,7 @@ async def migrate_auth_schema_to_single_role() -> None:
         await conn.execute(
             text(
                 """
-                ALTER TABLE author
+                ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS role VARCHAR(20)
                 NOT NULL DEFAULT 'viewer'
                 """
@@ -95,7 +121,7 @@ async def migrate_auth_schema_to_single_role() -> None:
                         WHERE table_schema = 'public'
                           AND table_name = 'roles'
                     ) THEN
-                        UPDATE author AS u
+                        UPDATE users AS u
                         SET role = r.name
                         FROM user_roles AS ur
                         JOIN roles AS r ON r.role_id = ur.role_id
@@ -116,7 +142,7 @@ async def migrate_user_hierarchy_schema() -> None:
         await conn.execute(
             text(
                 """
-                ALTER TABLE author
+                ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS parent_id BIGINT
                 """
             )
@@ -124,7 +150,7 @@ async def migrate_user_hierarchy_schema() -> None:
         await conn.execute(
             text(
                 """
-                ALTER TABLE author
+                ALTER TABLE users
                 ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT
                 """
             )
@@ -178,9 +204,9 @@ async def migrate_user_hierarchy_schema() -> None:
                         SELECT 1
                         FROM pg_constraint
                         WHERE conname = 'ck_users_role'
-                          AND conrelid = 'author'::regclass
+                          AND conrelid = 'users'::regclass
                     ) THEN
-                        ALTER TABLE author DROP CONSTRAINT ck_users_role;
+                        ALTER TABLE users DROP CONSTRAINT ck_users_role;
                     END IF;
                 END $$;
                 """
@@ -189,7 +215,7 @@ async def migrate_user_hierarchy_schema() -> None:
         await conn.execute(
             text(
                 """
-                UPDATE author
+                UPDATE users
                 SET role = CASE
                     WHEN lower(coalesce(role, '')) = 'admin' THEN 'admin'
                     WHEN lower(coalesce(role, '')) = 'hospital' THEN 'hospital'
@@ -201,21 +227,21 @@ async def migrate_user_hierarchy_schema() -> None:
                 """
             )
         )
-        await conn.execute(text("ALTER TABLE author ALTER COLUMN role SET DEFAULT 'health_department'"))
-        await conn.execute(text("ALTER TABLE author ALTER COLUMN role SET NOT NULL"))
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'health_department'"))
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN role SET NOT NULL"))
         await conn.execute(
             text(
                 """
-                ALTER TABLE author
-                DROP CONSTRAINT IF EXISTS ck_author_role
+                ALTER TABLE users
+                DROP CONSTRAINT IF EXISTS ck_users_role
                 """
             )
         )
         await conn.execute(
             text(
                 """
-                ALTER TABLE author
-                ADD CONSTRAINT ck_author_role
+                ALTER TABLE users
+                ADD CONSTRAINT ck_users_role
                 CHECK (role IN ('admin', 'health_department', 'hospital', 'doctor', 'author'))
                 """
             )
@@ -230,11 +256,11 @@ async def migrate_user_hierarchy_schema() -> None:
                             SELECT 1
                             FROM information_schema.columns
                             WHERE table_schema = 'public'
-                              AND table_name = 'author'
+                              AND table_name = 'users'
                               AND column_name = 'organization_id'
                        ) THEN
                         EXECUTE $sql$
-                            INSERT INTO author (email, full_name, password_hash, role, is_active)
+                            INSERT INTO users (email, full_name, password_hash, role, is_active)
                             SELECT
                                 'unit-' || o.slug || '@local.invalid',
                                 o.name,
@@ -244,7 +270,7 @@ async def migrate_user_hierarchy_schema() -> None:
                             FROM organizations AS o
                             WHERE NOT EXISTS (
                                 SELECT 1
-                                FROM author AS u
+                                FROM users AS u
                                 WHERE u.organization_id = o.organization_id
                                   AND u.role <> 'admin'
                             )
@@ -258,7 +284,7 @@ async def migrate_user_hierarchy_schema() -> None:
         await conn.execute(
             text(
                 """
-                INSERT INTO author (email, full_name, password_hash, role, is_active)
+                INSERT INTO users (email, full_name, password_hash, role, is_active)
                 SELECT
                     'default-health-department@local.invalid',
                     'Default Health Department',
@@ -266,7 +292,7 @@ async def migrate_user_hierarchy_schema() -> None:
                     'health_department',
                     false
                 WHERE EXISTS (SELECT 1 FROM guidelines WHERE owner_user_id IS NULL)
-                  AND NOT EXISTS (SELECT 1 FROM author WHERE role = 'health_department')
+                  AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'health_department')
                 ON CONFLICT (email) DO NOTHING
                 """
             )
@@ -281,7 +307,7 @@ async def migrate_user_hierarchy_schema() -> None:
                             SELECT 1
                             FROM information_schema.columns
                             WHERE table_schema = 'public'
-                              AND table_name = 'author'
+                              AND table_name = 'users'
                               AND column_name = 'organization_id'
                        )
                        AND EXISTS (
@@ -296,7 +322,7 @@ async def migrate_user_hierarchy_schema() -> None:
                                 SELECT DISTINCT ON (u.organization_id)
                                     u.organization_id,
                                     u.user_id
-                                FROM author AS u
+                                FROM users AS u
                                 WHERE u.organization_id IS NOT NULL
                                   AND u.role <> 'admin'
                                 ORDER BY u.organization_id, u.is_active DESC, u.user_id ASC
@@ -317,7 +343,7 @@ async def migrate_user_hierarchy_schema() -> None:
                 """
                 WITH fallback_owner AS (
                     SELECT user_id
-                    FROM author
+                    FROM users
                     WHERE role = 'health_department'
                     ORDER BY is_active DESC, user_id ASC
                     LIMIT 1
@@ -363,8 +389,8 @@ async def migrate_user_hierarchy_schema() -> None:
             )
         )
         for table_name, column_name in (
-            ("author", "parent_id"),
-            ("author", "created_by_user_id"),
+            ("users", "parent_id"),
+            ("users", "created_by_user_id"),
             ("guidelines", "owner_user_id"),
             ("guidelines", "created_by_user_id"),
             ("documents", "owner_user_id"),
@@ -380,10 +406,10 @@ async def migrate_user_hierarchy_schema() -> None:
                 )
             )
         legacy_fk_specs = (
-            ("author", "users_parent_id_fkey"),
-            ("author", "users_created_by_user_id_fkey"),
-            ("author", "author_parent_id_fkey"),
-            ("author", "author_created_by_user_id_fkey"),
+            ("users", "users_parent_id_fkey"),
+            ("users", "users_created_by_user_id_fkey"),
+            ("users", "author_parent_id_fkey"),
+            ("users", "author_created_by_user_id_fkey"),
             ("guidelines", "guidelines_owner_user_id_fkey"),
             ("guidelines", "guidelines_created_by_user_id_fkey"),
             ("documents", "documents_owner_user_id_fkey"),
@@ -399,13 +425,13 @@ async def migrate_user_hierarchy_schema() -> None:
             )
 
         fk_specs = (
-            ("author", "parent_id", "fk_users_parent_id", "author", "user_id", "RESTRICT"),
-            ("author", "created_by_user_id", "fk_users_created_by_user_id", "author", "user_id", "SET NULL"),
-            ("guidelines", "owner_user_id", "fk_guidelines_owner_user_id", "author", "user_id", "RESTRICT"),
-            ("guidelines", "created_by_user_id", "fk_guidelines_created_by_user_id", "author", "user_id", "SET NULL"),
-            ("documents", "owner_user_id", "fk_documents_owner_user_id", "author", "user_id", "RESTRICT"),
-            ("documents", "created_by_user_id", "fk_documents_created_by_user_id", "author", "user_id", "SET NULL"),
-            ("chunks", "owner_user_id", "fk_chunks_owner_user_id", "author", "user_id", "RESTRICT"),
+            ("users", "parent_id", "fk_users_parent_id", "users", "user_id", "RESTRICT"),
+            ("users", "created_by_user_id", "fk_users_created_by_user_id", "users", "user_id", "SET NULL"),
+            ("guidelines", "owner_user_id", "fk_guidelines_owner_user_id", "users", "user_id", "RESTRICT"),
+            ("guidelines", "created_by_user_id", "fk_guidelines_created_by_user_id", "users", "user_id", "SET NULL"),
+            ("documents", "owner_user_id", "fk_documents_owner_user_id", "users", "user_id", "RESTRICT"),
+            ("documents", "created_by_user_id", "fk_documents_created_by_user_id", "users", "user_id", "SET NULL"),
+            ("chunks", "owner_user_id", "fk_chunks_owner_user_id", "users", "user_id", "RESTRICT"),
         )
         for table_name, column_name, constraint_name, ref_table, ref_column, on_delete in fk_specs:
             await conn.execute(
@@ -432,7 +458,7 @@ async def migrate_user_hierarchy_schema() -> None:
         await conn.execute(text("ALTER TABLE guidelines ALTER COLUMN owner_user_id SET NOT NULL"))
         await conn.execute(text("ALTER TABLE documents ALTER COLUMN owner_user_id SET NOT NULL"))
         await conn.execute(text("ALTER TABLE chunks ALTER COLUMN owner_user_id SET NOT NULL"))
-        for table_name in ("author", "guidelines", "documents", "chunks"):
+        for table_name in ("users", "guidelines", "documents", "chunks"):
             await conn.execute(text(f"ALTER TABLE {table_name} DROP CONSTRAINT IF EXISTS fk_{table_name}_organization_id"))
             await conn.execute(text(f"DROP INDEX IF EXISTS ix_{table_name}_organization_id"))
             await conn.execute(text(f"ALTER TABLE {table_name} DROP COLUMN IF EXISTS organization_id"))
@@ -544,7 +570,7 @@ async def migrate_research_paper_schema() -> None:
         await conn.execute(
             text(
                 """
-                ALTER TABLE author
+                ALTER TABLE users
                     ADD COLUMN IF NOT EXISTS linh_vuc_nghien_cuu TEXT,
                     ADD COLUMN IF NOT EXISTS tom_tat_nghien_cuu TEXT
                 """

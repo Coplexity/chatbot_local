@@ -16,7 +16,7 @@ export default function InsertPage() {
   const [loaiVanBan, setLoaiVanBan] = useState('Cấp cơ sở')
   const [donViBanHanh, setDonViBanHanh] = useState('')
   const [chuDe, setChuDe] = useState('')
-  const [authors, setAuthors] = useState('')
+  const [authors, setAuthors] = useState<{ full_name: string, hoc_ham: string }[]>([])
   const [abstract, setAbstract] = useState('')
   const [versionLabel, setVersionLabel] = useState('')
   const [releaseDate, setReleaseDate] = useState('')
@@ -56,7 +56,10 @@ export default function InsertPage() {
       if (donViBanHanh) formData.append('don_vi_ban_hanh', donViBanHanh)
       if (chuDe) formData.append('chu_de', chuDe)
       if (abstract) formData.append('abstract', abstract)
-      authors.split(',').map(name => name.trim()).filter(Boolean).forEach(name => formData.append('authors', name))
+      const validAuthors = authors.filter(a => a.full_name.trim())
+      if (validAuthors.length > 0) {
+        formData.append('authors', JSON.stringify(validAuthors))
+      }
       if (versionLabel) formData.append('version_label', versionLabel)
       if (releaseDate) formData.append('release_date', releaseDate)
       if (user?.role === 'admin') {
@@ -156,8 +159,55 @@ export default function InsertPage() {
                 customPlaceholder="Nhập chủ đề"
               />
               <div className="form-group span-full">
-                <label className="form-label">Tác giả (phân cách bằng dấu phẩy)</label>
-                <input className="form-input" value={authors} onChange={e => setAuthors(e.target.value)} placeholder="Nguyễn Văn A, Trần Thị B" />
+                <label className="form-label">Tác giả (Thêm tên và học hàm/học vị nếu có)</label>
+                <div className="flex flex-col gap-2">
+                  {authors.map((author, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+                      <div className="col-span-7">
+                        <input
+                          type="text"
+                          className="form-input w-full"
+                          placeholder="Tên tác giả (VD: Nguyễn Văn A)"
+                          value={author.full_name}
+                          onChange={e => {
+                            const newAuthors = [...authors]
+                            newAuthors[idx].full_name = e.target.value
+                            setAuthors(newAuthors)
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="text"
+                          className="form-input w-full"
+                          placeholder="Học hàm/vị (GS, TS...)"
+                          value={author.hoc_ham}
+                          onChange={e => {
+                            const newAuthors = [...authors]
+                            newAuthors[idx].hoc_ham = e.target.value
+                            setAuthors(newAuthors)
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <button
+                          type="button"
+                          className="btn btn-outline w-full"
+                          onClick={() => setAuthors(authors.filter((_, i) => i !== idx))}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn btn-outline w-max"
+                    onClick={() => setAuthors([...authors, { full_name: '', hoc_ham: '' }])}
+                  >
+                    + Thêm tác giả
+                  </button>
+                </div>
               </div>
               <div className="form-group span-full">
                 <label className="form-label">Tóm tắt</label>

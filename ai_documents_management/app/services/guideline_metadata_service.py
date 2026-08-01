@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
+from app.services.author_service import AuthorService
 
 
 class GuidelineMetadataService:
@@ -42,8 +43,15 @@ class GuidelineMetadataService:
             guideline.chu_de = self._normalize_optional_text(patch["chu_de"])
         if "abstract" in patch:
             guideline.abstract = self._normalize_optional_text(patch["abstract"])
+        if "doi_van_ban" in patch:
+            guideline.doi_van_ban = self._normalize_optional_text(patch["doi_van_ban"])
+
         if "authors" in patch:
-            guideline.authors = self._normalize_authors(patch["authors"])
+            # authors is a list of dicts (parsed from AuthorSchema)
+            authors_data = patch["authors"]
+            await AuthorService(self.db).sync_authors_to_guideline(
+                guideline_id, authors_data
+            )
 
         await self.db.flush()
         return guideline
@@ -242,14 +250,6 @@ class GuidelineMetadataService:
         if normalized is None:
             raise BadRequestException("loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'.")
         return normalized
-
-    def _normalize_authors(self, value: object | None) -> list[str] | None:
-        if value is None:
-            return None
-        if not isinstance(value, list):
-            raise BadRequestException("authors must be a list of author names.")
-        names = list(dict.fromkeys(str(name).strip() for name in value if str(name).strip()))
-        return names or None
 
     def _coerce_date_or_none(self, value: object | None, *, field_name: str) -> date | None:
         if value is None:

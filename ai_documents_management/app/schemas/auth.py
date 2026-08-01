@@ -17,8 +17,6 @@ class UserSummaryResponse(BaseModel):
     role: str
     parent_id: int | None = None
     is_active: bool
-    linh_vuc_nghien_cuu: str | None = None
-    tom_tat_nghien_cuu: str | None = None
 
 
 class UserResponse(UserSummaryResponse):
@@ -44,23 +42,15 @@ class CreateUserRequest(BaseModel):
     email: str
     full_name: str | None = Field(default=None, max_length=255)
     password: str = Field(min_length=8, max_length=512)
-    role: str = "health_department"
+    role: str = "staff"
     parent_id: int | None = Field(default=None, gt=0)
-    parent_name: str | None = Field(default=None, max_length=255)
-    parent_parent_id: int | None = Field(default=None, gt=0)
     is_active: bool = True
-    linh_vuc_nghien_cuu: str | None = None
-    tom_tat_nghien_cuu: str | None = None
 
 
 class UpdateUserRoleRequest(BaseModel):
     role: str
     parent_id: int | None = Field(default=None, gt=0)
-    parent_name: str | None = Field(default=None, max_length=255)
-    parent_parent_id: int | None = Field(default=None, gt=0)
     is_active: bool | None = None
-    linh_vuc_nghien_cuu: str | None = None
-    tom_tat_nghien_cuu: str | None = None
 
 
 class UserListResponse(BaseModel):
