@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from langchain_openai import OpenAIEmbeddings
 from core import config
 from basic_mode.core.schemas import RouterState
@@ -7,7 +7,7 @@ from core.database import DatabaseManager
 
 class VectorRetrievalNode:
     def __init__(self):
-        print("â³ [Retriever] Loading Embedding Model...")
+        print("⏳ [Retriever] Loading Embedding Model...")
         self.embedding_backend = "sentence_transformers"
         self.retrieval_top_k = 10
         self.retrieval_candidate_k = 50
@@ -29,10 +29,10 @@ class VectorRetrievalNode:
         try:
             from FlagEmbedding import FlagReranker
 
-            print(f"â³ [Retriever] Loading reranker model: {self.rerank_model_name}...")
+            print(f"⏳ [Retriever] Loading reranker model: {self.rerank_model_name}...")
             self.reranker = FlagReranker(self.rerank_model_name, use_fp16=False)
         except Exception as e:
-            print(f"âš ï¸ [Retriever] KhÃ´ng thá»ƒ khá»Ÿi táº¡o reranker, fallback vá» vector-only. Error: {e}")
+            print(f"⚠️ [Retriever] Không thể khởi tạo reranker, fallback về vector-only. Error: {e}")
 
         self.db_manager = DatabaseManager()
 
@@ -58,7 +58,7 @@ class VectorRetrievalNode:
             ranked = sorted(zip(rows, scores), key=lambda x: float(x[1]), reverse=True)
             return [row for row, _ in ranked[:top_k]]
         except Exception as e:
-            print(f"âš ï¸ [Retriever] Rerank tháº¥t báº¡i, fallback vector-only. Error: {e}")
+            print(f"⚠️ [Retriever] Rerank thất bại, fallback vector-only. Error: {e}")
             return rows[:top_k]
 
     async def process(self, state: RouterState):
@@ -69,12 +69,12 @@ class VectorRetrievalNode:
         domains_data = state.get("analyzed_specialties", [])
 
         if not active_version_ids:
-            print("âš ï¸ [Retriever] KhÃ´ng cÃ³ active version Ä‘á»ƒ truy xuáº¥t.")
+            print("⚠️ [Retriever] Không có active version để truy xuất.")
             return {
                 "specialty_contexts": {},
             }
 
-        print(f"ðŸ” [Retriever] Äang truy xuáº¥t trÃªn {len(active_version_ids)} version active...")
+        print(f"🔍 [Retriever] Đang truy xuất trên {len(active_version_ids)} version active...")
         query_vec = self._embed_query(hyde_text)
         embedding_literal = "[" + ",".join(str(x) for x in query_vec) + "]"
 
@@ -111,8 +111,8 @@ class VectorRetrievalNode:
                         JOIN guideline_versions gv ON gv.version_id = c.version_id
                         JOIN guidelines g ON g.guideline_id = gv.guideline_id
                         WHERE c.version_id = ANY(%s)
-                          AND g.chu_de = %s
-                          AND g.loai_van_ban = ANY(%s)
+                          AND g.chuyen_khoa = %s
+                          AND g.ten_benh = ANY(%s)
                           AND c.embedding IS NOT NULL
                         ORDER BY c.embedding <=> %s::halfvec(3072)
                         LIMIT %s;
@@ -130,7 +130,7 @@ class VectorRetrievalNode:
                         JOIN guideline_versions gv ON gv.version_id = c.version_id
                         JOIN guidelines g ON g.guideline_id = gv.guideline_id
                         WHERE c.version_id = ANY(%s)
-                          AND g.chu_de = %s
+                          AND g.chuyen_khoa = %s
                           AND c.embedding IS NOT NULL
                         ORDER BY c.embedding <=> %s::halfvec(3072)
                         LIMIT %s;
@@ -140,7 +140,7 @@ class VectorRetrievalNode:
 
                 return domain_name, cursor.fetchall()
             except Exception as e:
-                print(f"âŒ [Retriever DB Error] {domain_name}: {e}")
+                print(f"❌ [Retriever DB Error] {domain_name}: {e}")
                 return domain_name, []
             finally:
                 if cursor:
@@ -164,11 +164,10 @@ class VectorRetrievalNode:
                 chunk_id, chunk_text, chunk_abstract = row
                 # Use stable chunk_id as citation reference so IDs are durable for audit.
                 ref_id = f"[{str(chunk_id)}]"
-                abstract_part = f"\nTÃ“M Táº®T: {chunk_abstract}" if chunk_abstract else ""
-                formatted_chunks.append(f"{ref_id}{abstract_part}\nNá»˜I DUNG: {chunk_text}")
+                abstract_part = f"\nTÓM TẮT: {chunk_abstract}" if chunk_abstract else ""
+                formatted_chunks.append(f"{ref_id}{abstract_part}\nNỘI DUNG: {chunk_text}")
             specialty_contexts[domain_name] = "\n\n".join(formatted_chunks)
 
         return {
             "specialty_contexts": specialty_contexts,
         }
-

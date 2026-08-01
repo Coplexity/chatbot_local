@@ -5,8 +5,10 @@ from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.models.guideline_author import GuidelineAuthor
 from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
 from app.services.author_service import AuthorService
@@ -36,25 +38,26 @@ class GuidelineMetadataService:
                 field_name="title",
             )
         if "loai_van_ban" in patch:
-            guideline.loai_van_ban = self._normalize_document_level(patch["loai_van_ban"])
+            guideline.loai_van_ban = self._normalize_document_level(
+                patch["loai_van_ban"]
+            )
         if "don_vi_ban_hanh" in patch:
-            guideline.don_vi_ban_hanh = self._normalize_optional_text(patch["don_vi_ban_hanh"])
+            guideline.don_vi_ban_hanh = self._normalize_optional_text(
+                patch["don_vi_ban_hanh"]
+            )
         if "chu_de" in patch:
             guideline.chu_de = self._normalize_optional_text(patch["chu_de"])
         if "abstract" in patch:
             guideline.abstract = self._normalize_optional_text(patch["abstract"])
-        if "doi_van_ban" in patch:
-            guideline.doi_van_ban = self._normalize_optional_text(patch["doi_van_ban"])
 
         if "authors" in patch:
-            # authors is a list of dicts (parsed from AuthorSchema)
             authors_data = patch["authors"]
-            await AuthorService(self.db).sync_authors_to_guideline(
-                guideline_id, authors_data
-            )
+            author_service = AuthorService(self.db)
+            guideline.author_names = author_service.extract_author_names(authors_data)
+            await author_service.sync_authors_to_guideline(guideline_id, authors_data)
 
         await self.db.flush()
-        return guideline
+        return await self._get_guideline_or_raise(guideline_id, with_authors=True)
 
     async def update_version_metadata(
         self,
@@ -127,8 +130,15 @@ class GuidelineMetadataService:
         guideline_id: int,
         *,
         for_update: bool = False,
+        with_authors: bool = False,
     ) -> Guideline:
         stmt = select(Guideline).where(Guideline.guideline_id == guideline_id)
+        if with_authors:
+            stmt = stmt.options(
+                selectinload(Guideline.guideline_authors).selectinload(
+                    GuidelineAuthor.author
+                )
+            )
         if for_update:
             stmt = stmt.with_for_update()
         guideline = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -236,10 +246,10 @@ class GuidelineMetadataService:
         text = str(value).strip()
         return text or None
 
-    def _normalize_document_level(self, value: object | None) -> str | None:
+    def _normalize_document_level(self, value: object | None) -> str:
         text = self._normalize_optional_text(value)
         if text is None:
-            return None
+            return "Cấp cơ sở"
         aliases = {
             "cap co so": "Cấp cơ sở",
             "cấp cơ sở": "Cấp cơ sở",
@@ -248,7 +258,9 @@ class GuidelineMetadataService:
         }
         normalized = aliases.get(text.casefold())
         if normalized is None:
-            raise BadRequestException("loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'.")
+            raise BadRequestException(
+                "loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'."
+            )
         return normalized
 
     def _coerce_date_or_none(self, value: object | None, *, field_name: str) -> date | None:

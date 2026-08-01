@@ -3,27 +3,89 @@ from core.schemas import RouterState
 
 
 class ActiveVersionFilterNode:
-    """Return only active versions within the already authorized catalogue scope."""
+    """Lọc các version active từ guideline_versions theo bệnh đã route."""
 
     def __init__(self):
+        print("⏳ [Version Filter] Initializing...")
         self.db_manager = DatabaseManager()
 
-    def process(self, state: RouterState) -> dict:
-        guideline_ids = state.get("filtered_guideline_ids", [])
-        document_types = state.get("selected_document_types", {})
-        topics = [item.get("name") for item in state.get("selected_topics", []) if item.get("name")]
-        if not guideline_ids or not topics:
+    def process(self, state: RouterState):
+        routed_diseases = state.get("routed_diseases", {})
+        analyzed_specialties = state.get("analyzed_specialties", [])
+        filtered_guideline_ids = state.get("filtered_guideline_ids")
+
+        if filtered_guideline_ids is not None and not filtered_guideline_ids:
+            print("⚠️ [Version Filter] Không có guideline nào sau lọc owner_user_id.")
             return {"active_version_ids": []}
-        clauses, params = ["g.guideline_id = ANY(%s)", "g.chu_de = ANY(%s)"], [guideline_ids, topics]
-        pairs = [(topic, doc_type) for topic, types in document_types.items() for doc_type in types]
-        if pairs:
-            clauses.append("(" + " OR ".join("(g.chu_de = %s AND g.loai_van_ban = %s)" for _ in pairs) + ")")
-            params.extend(value for pair in pairs for value in pair)
-        conn = cursor = None
+
+        specialty_values = [item["name"] for item in analyzed_specialties if item.get("name")]
+
+        if not routed_diseases and not specialty_values:
+            print("⚠️ [Version Filter] Không có dữ liệu để lọc version active.")
+            return {"active_version_ids": []}
+
+        candidate_pairs = [
+            (chuyen_khoa, ten_benh)
+            for chuyen_khoa, disease_names in routed_diseases.items()
+            for ten_benh in disease_names
+            if chuyen_khoa and ten_benh
+        ]
+
+        # Loại duplicate, giữ thứ tự xuất hiện.
+        candidate_pairs = list(dict.fromkeys(candidate_pairs))
+
+        conn = None
+        cursor = None
         try:
-            conn = self.db_manager.get_connection(); cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT gv.version_id FROM guideline_versions gv JOIN guidelines g ON g.guideline_id = gv.guideline_id WHERE gv.status = 'active' AND " + " AND ".join(clauses) + " ORDER BY gv.version_id", tuple(params))
-            return {"active_version_ids": [row[0] for row in cursor.fetchall()]}
+            conn = self.db_manager.get_connection()
+            cursor = conn.cursor()
+            guideline_filter_sql = "AND g.guideline_id = ANY(%s)" if filtered_guideline_ids is not None else ""
+
+            if candidate_pairs:
+                pair_conditions = " OR ".join(
+                    ["(g.chuyen_khoa = %s AND g.ten_benh = %s)"] * len(candidate_pairs)
+                )
+                params = [value for pair in candidate_pairs for value in pair]
+                if filtered_guideline_ids is not None:
+                    params.append(filtered_guideline_ids)
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT gv.version_id
+                    FROM guideline_versions gv
+                    JOIN guidelines g ON g.guideline_id = gv.guideline_id
+                    WHERE gv.status = 'active'
+                      AND ({pair_conditions})
+                      {guideline_filter_sql}
+                    ORDER BY gv.version_id;
+                    """,
+                    tuple(params),
+                )
+            else:
+                params = [specialty_values]
+                if filtered_guideline_ids is not None:
+                    params.append(filtered_guideline_ids)
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT gv.version_id
+                    FROM guideline_versions gv
+                    JOIN guidelines g ON g.guideline_id = gv.guideline_id
+                    WHERE gv.status = 'active'
+                      AND g.chuyen_khoa = ANY(%s)
+                      {guideline_filter_sql}
+                    ORDER BY gv.version_id;
+                    """,
+                    tuple(params),
+                )
+
+            rows = cursor.fetchall()
+            version_ids = [row[0] for row in rows]
+            print(f"🧾 [Version Filter] Active version IDs: {version_ids}")
+            return {"active_version_ids": version_ids}
+        except Exception as e:
+            print(f"❌ [Version Filter Error] {e}")
+            return {"active_version_ids": []}
         finally:
-            if cursor: cursor.close()
-            if conn: conn.close()
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()

@@ -1,12 +1,12 @@
-﻿from core.database import DatabaseManager
+from core.database import DatabaseManager
 from core.schemas import RouterState
 
 
 class GuidelineOwnerFilterNode:
-    """Filter scientific documents by the authorized guideline owner scope."""
+    """Lọc guidelines theo owner_user_id trước khi định tuyến chuyên khoa."""
 
     def __init__(self):
-        print("â³ [Guideline Owner Filter] Initializing...")
+        print("⏳ [Guideline Owner Filter] Initializing...")
         self.db_manager = DatabaseManager()
 
     @staticmethod
@@ -22,7 +22,7 @@ class GuidelineOwnerFilterNode:
             try:
                 return [int(part) for part in parts]
             except ValueError:
-                print(f"âš ï¸ [Guideline Owner Filter] user_id khÃ´ng há»£p lá»‡: {user_id!r}")
+                print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
                 return []
         if isinstance(user_id, str):
             raw_parts = [part.strip() for part in user_id.split(",")]
@@ -32,9 +32,9 @@ class GuidelineOwnerFilterNode:
             try:
                 return [int(part) for part in parts]
             except ValueError:
-                print(f"âš ï¸ [Guideline Owner Filter] user_id khÃ´ng há»£p lá»‡: {user_id!r}")
+                print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
                 return []
-        print(f"âš ï¸ [Guideline Owner Filter] user_id khÃ´ng há»£p lá»‡: {user_id!r}")
+        print(f"⚠️ [Guideline Owner Filter] user_id không hợp lệ: {user_id!r}")
         return []
 
     @staticmethod
@@ -42,7 +42,7 @@ class GuidelineOwnerFilterNode:
         cursor.execute(
             """
             SELECT user_id
-            FROM author
+            FROM users
             WHERE role = 'admin'
             ORDER BY user_id;
             """
@@ -53,7 +53,7 @@ class GuidelineOwnerFilterNode:
         raw_user_ids = state.get("user_ids")
         user_ids = self._normalize_user_ids(raw_user_ids)
         if user_ids == []:
-            return {"filtered_guideline_ids": [], "filtered_specialties": [], "filtered_topics": []}
+            return {"filtered_guideline_ids": [], "filtered_specialties": []}
 
         conn = None
         cursor = None
@@ -65,9 +65,9 @@ class GuidelineOwnerFilterNode:
             if user_ids is None:
                 user_ids = self._load_admin_user_ids(cursor)
                 if not user_ids:
-                    print("âš ï¸ [Guideline Owner Filter] KhÃ´ng tÃ¬m tháº¥y user role='admin'.")
-                    return {"filtered_guideline_ids": [], "filtered_specialties": [], "filtered_topics": []}
-                print(f"ðŸ§© [Guideline Owner Filter] KhÃ´ng cÃ³ user_ids, dÃ¹ng admin user_ids={user_ids}.")
+                    print("⚠️ [Guideline Owner Filter] Không tìm thấy user role='admin'.")
+                    return {"filtered_guideline_ids": [], "filtered_specialties": []}
+                print(f"🧩 [Guideline Owner Filter] Không có user_ids, dùng admin user_ids={user_ids}.")
 
             owner_filter_sql = ""
             params = []
@@ -75,16 +75,16 @@ class GuidelineOwnerFilterNode:
                 owner_filter_sql = "AND owner_user_id = ANY(%s)"
                 params.append(user_ids)
             else:
-                print("â„¹ï¸ [Guideline Owner Filter] KhÃ´ng cÃ³ user_ids, dÃ¹ng toÃ n bá»™ guidelines.")
+                print("ℹ️ [Guideline Owner Filter] Không có user_ids, dùng toàn bộ guidelines.")
 
             cursor.execute(
                 f"""
-                SELECT guideline_id, chu_de
+                SELECT guideline_id, chuyen_khoa
                 FROM guidelines
-                WHERE chu_de IS NOT NULL
-                  AND btrim(chu_de) <> ''
+                WHERE chuyen_khoa IS NOT NULL
+                  AND btrim(chuyen_khoa) <> ''
                   {owner_filter_sql}
-                ORDER BY chu_de, guideline_id;
+                ORDER BY chuyen_khoa, guideline_id;
                 """,
                 tuple(params),
             )
@@ -95,21 +95,19 @@ class GuidelineOwnerFilterNode:
 
             if user_ids is not None:
                 print(
-                    f"ðŸ§© [Guideline Owner Filter] user_ids={user_ids}: "
-                    f"lá»c Ä‘Æ°á»£c {len(guideline_ids)} guideline(s), {len(specialties)} chuyÃªn khoa."
+                    f"🧩 [Guideline Owner Filter] user_ids={user_ids}: "
+                    f"lọc được {len(guideline_ids)} guideline(s), {len(specialties)} chuyên khoa."
                 )
 
             return {
                 "filtered_guideline_ids": guideline_ids,
                 "filtered_specialties": specialties,
-                "filtered_topics": specialties,
             }
         except Exception as e:
-            print(f"âŒ [Guideline Owner Filter DB Error] {e}")
-            return {"filtered_guideline_ids": [], "filtered_specialties": [], "filtered_topics": []}
+            print(f"❌ [Guideline Owner Filter DB Error] {e}")
+            return {"filtered_guideline_ids": [], "filtered_specialties": []}
         finally:
             if cursor:
                 cursor.close()
             if conn:
                 conn.close()
-

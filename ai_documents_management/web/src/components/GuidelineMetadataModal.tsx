@@ -3,7 +3,7 @@ import { Save, X } from 'lucide-react'
 import { api } from '../lib/api'
 import SelectOrCustomInputField from './SelectOrCustomInputField'
 import useGuidelineFilterOptions from '../hooks/useGuidelineFilterOptions'
-import type { GuidelineListItem, UpdateGuidelineMetadataResponse } from '../lib/types'
+import type { AuthorSchema, GuidelineListItem, UpdateGuidelineMetadataResponse } from '../lib/types'
 
 interface Props {
   guideline: GuidelineListItem
@@ -17,8 +17,8 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
   const [loaiVanBan, setLoaiVanBan] = useState(guideline.loai_van_ban ?? 'Cấp cơ sở')
   const [donViBanHanh, setDonViBanHanh] = useState(guideline.don_vi_ban_hanh ?? '')
   const [chuDe, setChuDe] = useState(guideline.chu_de ?? '')
-  const [authors, setAuthors] = useState<{ full_name: string, hoc_ham?: string | null }[]>(
-    guideline.authors?.length ? [...guideline.authors] : []
+  const [authors, setAuthors] = useState<AuthorSchema[]>(
+    guideline.authors?.length ? [...guideline.authors] : [],
   )
   const [abstract, setAbstract] = useState(guideline.abstract ?? '')
   const [submitting, setSubmitting] = useState(false)
@@ -42,7 +42,12 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
       loai_van_ban: loaiVanBan,
       don_vi_ban_hanh: donViBanHanh,
       chu_de: chuDe,
-      authors: authors.filter(a => a.full_name.trim()),
+      authors: authors
+        .map(author => ({
+          full_name: author.full_name.trim(),
+          hoc_ham: author.hoc_ham?.trim() || null,
+        }))
+        .filter(author => author.full_name),
       abstract,
     }
 
@@ -57,6 +62,14 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const updateAuthor = (idx: number, patch: Partial<AuthorSchema>) => {
+    setAuthors(current =>
+      current.map((author, authorIdx) =>
+        authorIdx === idx ? { ...author, ...patch } : author,
+      ),
+    )
   }
 
   return (
@@ -115,7 +128,7 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
               customPlaceholder="Nhập chủ đề"
             />
             <div className="form-group span-full">
-              <label className="form-label">Tác giả (Thêm tên và học hàm/học vị nếu có)</label>
+              <label className="form-label">Tác giả</label>
               <div className="flex flex-col gap-2">
                 {authors.map((author, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-start">
@@ -123,13 +136,9 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
                       <input
                         type="text"
                         className="form-input w-full"
-                        placeholder="Tên tác giả (VD: Nguyễn Văn A)"
+                        placeholder="Tên tác giả"
                         value={author.full_name}
-                        onChange={e => {
-                          const newAuthors = [...authors]
-                          newAuthors[idx].full_name = e.target.value
-                          setAuthors(newAuthors)
-                        }}
+                        onChange={event => updateAuthor(idx, { full_name: event.target.value })}
                         disabled={submitting}
                       />
                     </div>
@@ -137,13 +146,9 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
                       <input
                         type="text"
                         className="form-input w-full"
-                        placeholder="Học hàm/vị (GS, TS...)"
+                        placeholder="Học hàm/vị"
                         value={author.hoc_ham || ''}
-                        onChange={e => {
-                          const newAuthors = [...authors]
-                          newAuthors[idx].hoc_ham = e.target.value
-                          setAuthors(newAuthors)
-                        }}
+                        onChange={event => updateAuthor(idx, { hoc_ham: event.target.value })}
                         disabled={submitting}
                       />
                     </div>
@@ -151,7 +156,7 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
                       <button
                         type="button"
                         className="btn btn-outline w-full"
-                        onClick={() => setAuthors(authors.filter((_, i) => i !== idx))}
+                        onClick={() => setAuthors(current => current.filter((_, authorIdx) => authorIdx !== idx))}
                         disabled={submitting}
                       >
                         Xóa
@@ -162,7 +167,7 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
                 <button
                   type="button"
                   className="btn btn-outline w-max"
-                  onClick={() => setAuthors([...authors, { full_name: '', hoc_ham: '' }])}
+                  onClick={() => setAuthors(current => [...current, { full_name: '', hoc_ham: '' }])}
                   disabled={submitting}
                 >
                   + Thêm tác giả
@@ -174,9 +179,6 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
               <textarea className="form-input" value={abstract} onChange={event => setAbstract(event.target.value)} disabled={submitting} rows={4} />
             </div>
           </div>
-          {/* <div className="metadata-modal-footnote">
-            Các trường metadata sẽ được lưu theo nội dung hiện tại của form. Trường để trống sẽ được backend chuẩn hóa về rỗng hoặc null tùy field.
-          </div> */}
           <div className="modal-footer metadata-modal-footer">
             <button
               type="button"
@@ -198,4 +200,3 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
     </div>
   )
 }
-

@@ -26,12 +26,11 @@ class GuidelineListItem(BaseModel):
 
     guideline_id: int
     title: str
-    loai_van_ban: str | None = None
+    loai_van_ban: str
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
     authors: list[AuthorSchema] | None = None
-    doi_van_ban: str | None = None
     owner_user_id: int
     owner: UserSummaryResponse | None = None
     created_by_user_id: int | None = None
@@ -117,7 +116,6 @@ class UpdateGuidelineMetadataRequest(BaseModel):
     chu_de: str | None = None
     abstract: str | None = None
     authors: list[AuthorSchema] | None = None
-    doi_van_ban: str | None = None
 
 
 class UpdateGuidelineMetadataResponse(BaseModel):
@@ -125,12 +123,11 @@ class UpdateGuidelineMetadataResponse(BaseModel):
 
     guideline_id: int
     title: str
-    loai_van_ban: str | None = None
+    loai_van_ban: str
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
     authors: list[AuthorSchema] | None = None
-    doi_van_ban: str | None = None
     owner_user_id: int
 
 
@@ -187,12 +184,11 @@ class WorkspaceGuidelineInfo(BaseModel):
 
     guideline_id: int
     title: str
-    loai_van_ban: str | None = None
+    loai_van_ban: str
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
     authors: list[AuthorSchema] | None = None
-    doi_van_ban: str | None = None
     owner_user_id: int
     owner: UserSummaryResponse | None = None
 

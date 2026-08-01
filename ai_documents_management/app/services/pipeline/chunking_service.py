@@ -777,7 +777,7 @@ class BBoxChunkingService:
 
         _META_KEYS = (
             "title", "loai_van_ban", "don_vi_ban_hanh", "chu_de",
-            "abstract", "authors", "doi_van_ban", "source_file",
+            "abstract", "authors", "source_file",
         )
         result = {k: toc_copy.get(k) for k in _META_KEYS}
         result["chapters"] = top_chunks

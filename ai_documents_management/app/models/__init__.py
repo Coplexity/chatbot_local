@@ -1,4 +1,6 @@
 from app.models.base import Base
+from app.models.guideline_author import guideline_authors
+from app.models.author import Author
 from app.models.chunk import Chunk
 from app.models.chunk_rebuild_job import ChunkRebuildJob
 from app.models.document import Document
@@ -12,6 +14,8 @@ from app.models.guideline_author import GuidelineAuthor
 
 __all__ = [
     "Base",
+    "Author",
+    "guideline_authors",
     "Guideline",
     "GuidelineVersion",
     "VersionIngestionJob",

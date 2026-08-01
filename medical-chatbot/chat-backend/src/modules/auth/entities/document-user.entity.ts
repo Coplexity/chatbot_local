@@ -8,7 +8,7 @@ export enum DocumentUserRole {
   VIEWER = "viewer",
 }
 
-@Entity("author", { synchronize: false })
+@Entity("users", { synchronize: false })
 @Check(`role IN ('admin', 'editor', 'viewer')`)
 @Index(["email"], { unique: true })
 export class DocumentUserEntity {

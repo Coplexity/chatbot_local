@@ -1,5 +1,6 @@
 import { BookOpen, LogOut, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { roleLabel } from '../lib/roles'
 import { useAuth } from '../store/auth'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -14,7 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Link>
         
         <div className="navbar-spacer" />
-        {user && ['admin', 'health_department', 'hospital'].includes(user.role) && (
+        {user && user.role === 'admin' && (
           <Link to="/admin/users" className="btn btn-ghost btn-sm">
             <Users size={15} /> Tài khoản
           </Link>
@@ -24,7 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
               {user?.full_name ?? user?.email}
             </span>
-            <span className="badge badge-default text-sm">{user?.role}</span>
+            <span className="badge badge-default text-sm">{roleLabel(user?.role)}</span>
             {user?.parent && (
               <span className="badge badge-default text-sm">Thuộc: {user.parent.full_name ?? user.parent.email}</span>
             )}

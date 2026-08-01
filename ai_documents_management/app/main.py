@@ -9,21 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.router import api_router
-from app.core.bootstrap import bootstrap_auth_data
 from app.core.config import settings
-from app.core.database import (
-    AsyncSessionLocal,
-    init_db_schema,
-    migrate_users_table_to_author_schema,
-    migrate_chunks_text_abstract_schema,
-    migrate_documents_original_filename_schema,
-    migrate_documents_pipeline_mode_schema,
-    migrate_research_paper_schema,
-    migrate_user_hierarchy_schema,
-    migrate_sections_enriched_schema,
-    migrate_sections_quality_schema,
-    migrate_auth_schema_to_single_role,
-)
+from app.core.database import validate_database_schema
 
 FRONTEND_DIST = Path(__file__).parent.parent / "web" / "dist"
 
@@ -63,26 +50,8 @@ async def lifespan(app: FastAPI):
         settings.APP_NAME,
         settings.APP_VERSION,
     )
-    if settings.AUTO_CREATE_TABLES:
-        await migrate_users_table_to_author_schema()
-        await init_db_schema()
-        await migrate_auth_schema_to_single_role()
-        await migrate_user_hierarchy_schema()
-        await migrate_research_paper_schema()
-        await migrate_sections_quality_schema()
-        await migrate_sections_enriched_schema()
-        await migrate_chunks_text_abstract_schema()
-        await migrate_documents_pipeline_mode_schema()
-        await migrate_documents_original_filename_schema()
-        logger.info("Database schema ready.")
-
-    async with AsyncSessionLocal() as session:
-        try:
-            await bootstrap_auth_data(session)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    await validate_database_schema()
+    logger.info("Database schema validated (read-only; no startup migrations).")
 
     yield
     # Shutdown

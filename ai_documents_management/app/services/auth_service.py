@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import re
-import unicodedata
-
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -51,6 +48,15 @@ class AuthService:
     @classmethod
     def normalize_role(cls, role: str) -> str:
         normalized = role.strip().lower()
+        legacy_role_map = {
+            "user": cls.ROLE_STAFF,
+            "editor": cls.ROLE_STAFF,
+            "viewer": cls.ROLE_STAFF,
+            "health_department": cls.ROLE_STAFF,
+            "hospital": cls.ROLE_STAFF,
+            "doctor": cls.ROLE_STAFF,
+        }
+        normalized = legacy_role_map.get(normalized, normalized)
         if normalized not in cls.ROLE_DESCRIPTIONS:
             raise BadRequestException(
                 "Unknown role. Allowed values: admin, staff."
@@ -134,7 +140,6 @@ class AuthService:
         role: str,
         full_name: str | None = None,
         is_active: bool = True,
-        **kwargs,
     ) -> User:
         normalized_email = self.normalize_email(email)
         if await self.get_user_by_email(normalized_email):
@@ -172,7 +177,6 @@ class AuthService:
         user_id: int,
         role: str,
         is_active: bool | None = None,
-        **kwargs,
     ) -> User:
         user = await self.get_user_by_id(user_id)
         if user is None:

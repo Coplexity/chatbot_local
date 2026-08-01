@@ -1,12 +1,12 @@
-﻿from core.database import DatabaseManager
+from core.database import DatabaseManager
 from basic_mode.core.schemas import RouterState
 
 
 class ActiveVersionFilterNode:
-    """Lá»c cÃ¡c version active tá»« guideline_versions theo bá»‡nh Ä‘Ã£ route."""
+    """Lọc các version active từ guideline_versions theo bệnh đã route."""
 
     def __init__(self):
-        print("â³ [Version Filter] Initializing...")
+        print("⏳ [Version Filter] Initializing...")
         self.db_manager = DatabaseManager()
 
     def process(self, state: RouterState):
@@ -15,23 +15,23 @@ class ActiveVersionFilterNode:
         filtered_guideline_ids = state.get("filtered_guideline_ids")
 
         if filtered_guideline_ids is not None and not filtered_guideline_ids:
-            print("âš ï¸ [Version Filter] KhÃ´ng cÃ³ guideline nÃ o sau lá»c owner_user_id.")
+            print("⚠️ [Version Filter] Không có guideline nào sau lọc owner_user_id.")
             return {"active_version_ids": []}
 
         specialty_values = [item["name"] for item in analyzed_specialties if item.get("name")]
 
         if not routed_diseases and not specialty_values:
-            print("âš ï¸ [Version Filter] KhÃ´ng cÃ³ dá»¯ liá»‡u Ä‘á»ƒ lá»c version active.")
+            print("⚠️ [Version Filter] Không có dữ liệu để lọc version active.")
             return {"active_version_ids": []}
 
         candidate_pairs = [
-            (chu_de, loai_van_ban)
-            for chu_de, disease_names in routed_diseases.items()
-            for loai_van_ban in disease_names
-            if chu_de and loai_van_ban
+            (chuyen_khoa, ten_benh)
+            for chuyen_khoa, disease_names in routed_diseases.items()
+            for ten_benh in disease_names
+            if chuyen_khoa and ten_benh
         ]
 
-        # Loáº¡i duplicate, giá»¯ thá»© tá»± xuáº¥t hiá»‡n.
+        # Loại duplicate, giữ thứ tự xuất hiện.
         candidate_pairs = list(dict.fromkeys(candidate_pairs))
 
         conn = None
@@ -43,7 +43,7 @@ class ActiveVersionFilterNode:
 
             if candidate_pairs:
                 pair_conditions = " OR ".join(
-                    ["(g.chu_de = %s AND g.loai_van_ban = %s)"] * len(candidate_pairs)
+                    ["(g.chuyen_khoa = %s AND g.ten_benh = %s)"] * len(candidate_pairs)
                 )
                 params = [value for pair in candidate_pairs for value in pair]
                 if filtered_guideline_ids is not None:
@@ -70,7 +70,7 @@ class ActiveVersionFilterNode:
                     FROM guideline_versions gv
                     JOIN guidelines g ON g.guideline_id = gv.guideline_id
                     WHERE gv.status = 'active'
-                      AND g.chu_de = ANY(%s)
+                      AND g.chuyen_khoa = ANY(%s)
                       {guideline_filter_sql}
                     ORDER BY gv.version_id;
                     """,
@@ -79,14 +79,13 @@ class ActiveVersionFilterNode:
 
             rows = cursor.fetchall()
             version_ids = [row[0] for row in rows]
-            print(f"ðŸ§¾ [Version Filter] Active version IDs: {version_ids}")
+            print(f"🧾 [Version Filter] Active version IDs: {version_ids}")
             return {"active_version_ids": version_ids}
         except Exception as e:
-            print(f"âŒ [Version Filter Error] {e}")
+            print(f"❌ [Version Filter Error] {e}")
             return {"active_version_ids": []}
         finally:
             if cursor:
                 cursor.close()
             if conn:
                 conn.close()
-

@@ -40,7 +40,7 @@ LANDMARK_OVERLAP         = 10
 # ── TOC schema ────────────────────────────────────────────────────────────────
 _METADATA_KEYS = [
     "title", "loai_van_ban", "don_vi_ban_hanh", "chu_de",
-    "abstract", "authors", "doi_van_ban", "source_file", "chapters",
+    "abstract", "authors", "source_file", "chapters",
 ]
 
 _DEPTH_CHILD_KEYS: dict[int, str] = {
@@ -65,7 +65,6 @@ _METADATA_SCHEMA = """\
 | chu_de            | Chủ đề, lĩnh vực nghiên cứu của đề tài.                        |
 | abstract          | Tóm tắt đề tài (thường nằm ở đầu báo cáo).                     |
 | authors           | Mảng chứa tên các tác giả, nhóm nghiên cứu. VD: ["Nguyễn Văn A", "Trần B"] |
-| doi_van_ban       | Mã DOI của bài báo/đề tài nếu có, ngược lại null.              |
 | source_file       | Tên file Markdown (đã cung cấp, điền vào đây).                |"""
 
 _STRUCTURE_RULES = """\
@@ -91,7 +90,6 @@ OUTPUT SCHEMA:
   "chu_de": "...",
   "abstract": "...",
   "authors": [],
-  "doi_van_ban": null,
   "source_file": "...",
   "chapters": [
     {{

@@ -88,3 +88,18 @@ class AuthorService:
             return parsed
         except json.JSONDecodeError:
             raise BadRequestException("Invalid JSON format for authors.")
+
+    def extract_author_names(self, authors_data: list[dict[str, Any]] | None) -> list[str] | None:
+        if not authors_data:
+            return None
+
+        names: list[str] = []
+        seen: set[str] = set()
+        for author in authors_data:
+            name = str(author.get("full_name", "")).strip()
+            key = name.casefold()
+            if not name or key in seen:
+                continue
+            seen.add(key)
+            names.append(name)
+        return names or None

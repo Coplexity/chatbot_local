@@ -38,12 +38,11 @@ class GuidelineCommandService:
         self,
         current_user: User,
         title: str,
-        loai_van_ban: str | None,
+        loai_van_ban: str,
         don_vi_ban_hanh: str | None,
         chu_de: str | None,
         abstract: str | None,
         authors_json: str | None,
-        doi_van_ban: str | None,
         owner_user_id: int | None,
         version_label: str | None,
         release_date: date | None,
@@ -61,21 +60,21 @@ class GuidelineCommandService:
             owner_user_id=owner_user_id,
         )
 
+        author_service = AuthorService(self.db)
+        parsed_authors = author_service.parse_authors_json(authors_json)
         guideline = Guideline(
             title=title.strip(),
             loai_van_ban=self._normalize_document_level(loai_van_ban),
             don_vi_ban_hanh=don_vi_ban_hanh.strip() if don_vi_ban_hanh else None,
             chu_de=chu_de.strip() if chu_de else None,
             abstract=abstract.strip() if abstract else None,
-            doi_van_ban=doi_van_ban.strip() if doi_van_ban else None,
+            author_names=author_service.extract_author_names(parsed_authors),
             owner_user_id=resolved_owner_user_id,
             created_by_user_id=int(current_user.user_id),
         )
         self.db.add(guideline)
         await self.db.flush()
 
-        author_service = AuthorService(self.db)
-        parsed_authors = author_service.parse_authors_json(authors_json)
         await author_service.sync_authors_to_guideline(guideline.guideline_id, parsed_authors)
 
         resolved_version_label = await self._resolve_version_label(
@@ -232,9 +231,9 @@ class GuidelineCommandService:
             raise BadRequestException("Guideline title is required.")
         self._validate_pdf_upload(upload_file)
 
-    def _normalize_document_level(self, value: str | None) -> str | None:
+    def _normalize_document_level(self, value: str | None) -> str:
         if not value or not value.strip():
-            return None
+            return "Cấp cơ sở"
         aliases = {
             "cap co so": "Cấp cơ sở",
             "cấp cơ sở": "Cấp cơ sở",
@@ -243,7 +242,9 @@ class GuidelineCommandService:
         }
         normalized = aliases.get(value.strip().casefold())
         if normalized is None:
-            raise BadRequestException("loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'.")
+            raise BadRequestException(
+                "loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'."
+            )
         return normalized
 
     def _validate_pdf_upload(self, upload_file: UploadFile | None) -> None:
@@ -307,7 +308,7 @@ class GuidelineCommandService:
             await self.db.execute(
                 select(User).where(
                     User.user_id == owner_user_id,
-                    User.role != "admin", #tạm ẩn
+                    User.role != "admin",
                     User.is_active.is_(True),
                 )
             )

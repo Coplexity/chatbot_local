@@ -1,4 +1,4 @@
-﻿from typing import TypedDict, List, Dict
+from typing import TypedDict, List, Dict
 from pydantic import BaseModel, Field
 
 
@@ -21,28 +21,27 @@ class RouterState(TypedDict):
 
 
 class SpecialtyDetail(BaseModel):
-    name: str = Field(description="TÃªn chuyÃªn khoa náº±m trong danh sÃ¡ch chu_de láº¥y Ä‘á»™ng tá»« database (guidelines.chu_de).")
+    name: str = Field(description="Tên chuyên khoa nằm trong danh sách chuyen_khoa lấy động từ database (guidelines.chuyen_khoa).")
 
 
 class RouteDecision(BaseModel):
-    detected_intent: str = Field(description="Loáº¡i input Ä‘Æ°á»£c phÃ¡t hiá»‡n: SYMPTOM_BASED, DISEASE_BASED, TREATMENT_BASED, GENERAL_INFO_BASED, DIAGNOSTIC_BASED, hoáº·c PROGNOSIS_BASED.")
-    routing_reasoning: str = Field(description="Giáº£i thÃ­ch táº¡i sao cÃ¡c chuyÃªn khoa nÃ y Ä‘Æ°á»£c chá»n dá»±a trÃªn intent Ä‘Ã£ phÃ¡t hiá»‡n.")
-    analyzed_specialties: List[SpecialtyDetail] = Field(description="Danh sÃ¡ch cÃ¡c khoa liÃªn quan.")
-    hypothetical_document: str = Field(description="Äoáº¡n vÄƒn HyDE tÃ³m táº¯t triá»‡u chá»©ng, cÃ¢u há»i cá»§a bá»‡nh nhÃ¢n.")
+    detected_intent: str = Field(description="Loại input được phát hiện: SYMPTOM_BASED, DISEASE_BASED, TREATMENT_BASED, GENERAL_INFO_BASED, DIAGNOSTIC_BASED, hoặc PROGNOSIS_BASED.")
+    routing_reasoning: str = Field(description="Giải thích tại sao các chuyên khoa này được chọn dựa trên intent đã phát hiện.")
+    analyzed_specialties: List[SpecialtyDetail] = Field(description="Danh sách các khoa liên quan.")
+    hypothetical_document: str = Field(description="Đoạn văn HyDE tóm tắt triệu chứng, câu hỏi của bệnh nhân.")
 
 
 class SpecialtyDiseaseDecision(BaseModel):
-    loai_van_ban: List[str] = Field(
+    ten_benh: List[str] = Field(
         default_factory=list,
-        description="Danh sÃ¡ch bá»‡nh phÃ¹ há»£p trong má»™t chuyÃªn khoa cá»¥ thá»ƒ."
+        description="Danh sách bệnh phù hợp trong một chuyên khoa cụ thể."
     )
 
 
 class ValidationResult(BaseModel):
     category: str = Field(
-        description="PhÃ¢n loáº¡i cÃ¢u há»i: 'greeting' (chÃ o há»i), 'medical' (liÃªn quan y táº¿), hoáº·c 'off_topic' (khÃ´ng liÃªn quan)"
+        description="Phân loại câu hỏi: 'greeting' (chào hỏi), 'medical' (liên quan y tế), hoặc 'off_topic' (không liên quan)"
     )
     is_medical_related: bool = Field(
-        description="True náº¿u category lÃ  'medical', False náº¿u khÃ´ng. DÃ¹ng cho backward compatibility."
+        description="True nếu category là 'medical', False nếu không. Dùng cho backward compatibility."
     )
-

@@ -1,25 +1,38 @@
-from sqlalchemy import ARRAY, BigInteger, ForeignKey, Identity, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
+
+from sqlalchemy import ARRAY, BigInteger, CheckConstraint, ForeignKey, Identity, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.guideline_author import GuidelineAuthor
     from app.models.author import Author
+    from app.models.guideline_author import GuidelineAuthor
+
 
 class Guideline(Base):
     __tablename__ = "guidelines"
+    __table_args__ = (
+        CheckConstraint(
+            "loai_van_ban IN ('Cấp cơ sở', 'Cấp trung ương')",
+            name="ck_guidelines_loai_van_ban",
+        ),
+    )
 
     guideline_id: Mapped[int] = mapped_column(
         BigInteger, Identity(), primary_key=True
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    loai_van_ban: Mapped[str | None] = mapped_column(Text, nullable=True)
+    loai_van_ban: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="Cấp cơ sở",
+        server_default="Cấp cơ sở",
+    )
     don_vi_ban_hanh: Mapped[str | None] = mapped_column(Text, nullable=True)
     chu_de: Mapped[str | None] = mapped_column(Text, nullable=True)
     abstract: Mapped[str | None] = mapped_column(Text, nullable=True)
-    doi_van_ban: Mapped[str | None] = mapped_column(Text, nullable=True)
+    author_names: Mapped[list[str] | None] = mapped_column("authors", ARRAY(Text), nullable=True)
     owner_user_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("users.user_id", ondelete="RESTRICT"),
@@ -43,7 +56,10 @@ class Guideline(Base):
         "GuidelineVersion", back_populates="guideline", lazy="select"
     )
     guideline_authors: Mapped[list["GuidelineAuthor"]] = relationship(
-        "GuidelineAuthor", back_populates="guideline", cascade="all, delete-orphan", lazy="selectin"
+        "GuidelineAuthor",
+        back_populates="guideline",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     def __repr__(self) -> str:

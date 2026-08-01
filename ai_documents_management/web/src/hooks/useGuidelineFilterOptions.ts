@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import type { GuidelineFilterOptionsResponse } from '../lib/types'
 
@@ -32,4 +32,3 @@ export default function useGuidelineFilterOptions() {
 
   return options
 }
-

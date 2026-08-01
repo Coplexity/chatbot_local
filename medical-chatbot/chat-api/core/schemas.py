@@ -1,73 +1,76 @@
-from typing import Any, TypedDict
-
+from typing import TypedDict, List, Dict
 from pydantic import BaseModel, Field
 
 
-class ScientificIntentDecision(BaseModel):
-    intent: str = Field(description="One of greeting, off_topic, text_to_sql, aggregate.")
-
-
-class CatalogueFilters(BaseModel):
-    """Only these fields may be used when building a catalogue query."""
-    guideline_id: int | None = None
-    chu_de: str | None = None
-    loai_van_ban: str | None = None
-    author: str | None = None
-    doi_van_ban: str | None = None
-
-
-class TopicDetail(BaseModel):
-    name: str
-
-
-class TopicRouteDecision(BaseModel):
-    selected_topics: list[TopicDetail] = Field(default_factory=list)
-    hypothetical_document: str = ""
-
-
-class DocumentTypeRouteDecision(BaseModel):
-    loai_van_ban: list[str] = Field(default_factory=list)
-
-
 class DocumentContext(TypedDict):
-    version_id: int
-    guideline_id: int
-    chu_de: str
-    loai_van_ban: str
-    authors: list[str]
+    document_id: str
+    disease_name: str
+    specialty: str
     doc_rank: int
     context: str
 
 
-class DocumentReport(DocumentContext):
+class DocumentReport(TypedDict):
+    document_id: str
+    disease_name: str
+    specialty: str
+    doc_rank: int
     report: str
 
 
-class RouterState(TypedDict, total=False):
+class DiseaseReport(TypedDict):
+    disease_name: str
+    specialty: str
+    report: str
+    source_document_ids: List[str]
+
+
+class SpecialtyReport(TypedDict):
+    specialty: str
+    report: str
+    disease_names: List[str]
+
+
+class RouterState(TypedDict):
     query: str
-    user_ids: int | str | list[int | str] | None
+    user_ids: int | str | None
     role: str
-    intent: str
-    filtered_guideline_ids: list[int]
-    filtered_topics: list[str]
-    selected_topics: list[dict[str, str]]
-    selected_document_types: dict[str, list[str]]
-    active_version_ids: list[int]
+    is_medical_related: bool
+    validation_category: str  # "greeting", "medical", "off_topic"
+    filtered_guideline_ids: list
+    filtered_specialties: list
+    analyzed_specialties: list
+    routed_diseases: Dict[str, List[str]]
+    active_version_ids: list
     hypothetical_document: str
-    document_contexts: list[DocumentContext]
-    document_reports: list[DocumentReport]
-    topic_reports: list[dict[str, Any]]
-    author_report_items: list[dict[str, Any]]
+    specialty_contexts: Dict[str, str]
+    document_contexts: List[DocumentContext]
+    specialty_reports: Dict[str, str]
+    document_reports: List[DocumentReport]
+    disease_reports: List[DiseaseReport]
+    specialty_report_items: List[SpecialtyReport]
     response: str
+    response_raw: str
 
+class SpecialtyDetail(BaseModel):
+    name: str = Field(description="Tên chuyên khoa nằm trong danh sách chuyen_khoa lấy động từ database (guidelines.chuyen_khoa).")
 
-# Temporary import aliases keep the running service loadable while the legacy
-# medical nodes are migrated in subsequent changes.
-SpecialtyDetail = TopicDetail
-RouteDecision = TopicRouteDecision
-SpecialtyDiseaseDecision = DocumentTypeRouteDecision
+class RouteDecision(BaseModel):
+    detected_intent: str = Field(description="Loại input được phát hiện: SYMPTOM_BASED, DISEASE_BASED, TREATMENT_BASED, GENERAL_INFO_BASED, DIAGNOSTIC_BASED, hoặc PROGNOSIS_BASED.")
+    routing_reasoning: str = Field(description="Giải thích tại sao các chuyên khoa này được chọn dựa trên intent đã phát hiện.")
+    analyzed_specialties: List[SpecialtyDetail] = Field(description="Danh sách các khoa liên quan.")
+    hypothetical_document: str = Field(description="Đoạn văn HyDE tóm tắt triệu chứng, câu hỏi của bệnh nhân.")
 
+class SpecialtyDiseaseDecision(BaseModel):
+    ten_benh: List[str] = Field(
+        default_factory=list,
+        description="Danh sách bệnh phù hợp trong một chuyên khoa cụ thể."
+    )
 
 class ValidationResult(BaseModel):
-    category: str = "aggregate"
-    is_medical_related: bool = False
+    category: str = Field(
+        description="Phân loại câu hỏi: 'greeting' (chào hỏi), 'medical' (liên quan y tế), hoặc 'off_topic' (không liên quan)"
+    )
+    is_medical_related: bool = Field(
+        description="True nếu category là 'medical', False nếu không. Dùng cho backward compatibility."
+    )

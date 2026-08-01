@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, Eye, Edit2, Trash2, Layers } from 'lucide-react'
 import { api } from '../lib/api'
+import { roleLabel } from '../lib/roles'
 import type {
   GuidelineListItem,
   GuidelineListResponse,
@@ -36,7 +37,12 @@ export default function ListPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [versionModalGuideline, setVersionModalGuideline] = useState<{ id: number; title: string } | null>(null)
   const [editingGuideline, setEditingGuideline] = useState<GuidelineListItem | null>(null)
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({ don_vi_ban_hanhs: [], loai_van_bans: [], chu_des: [], authors: [] })
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    don_vi_ban_hanhs: [],
+    loai_van_bans: [],
+    chu_des: [],
+    authors: [],
+  })
 
   const fetchFilterOptions = useCallback(async () => {
     try {
@@ -113,7 +119,7 @@ export default function ListPage() {
     await fetchGuidelines()
   }
 
-  const canCreate = ['admin', 'health_department', 'hospital', 'doctor'].includes(user?.role ?? '')
+  const canCreate = ['admin', 'staff'].includes(user?.role ?? '')
 
   return (
     <div className="list-page h-full flex-col">
@@ -146,7 +152,7 @@ export default function ListPage() {
                 <option value="">Tất cả tài khoản sở hữu</option>
                 {owners.map(owner => (
                   <option key={owner.user_id} value={owner.user_id}>
-                    {owner.full_name || owner.email} - {owner.role}
+                    {owner.full_name || owner.email} - {roleLabel(owner.role)}
                   </option>
                 ))}
               </select>
@@ -158,7 +164,7 @@ export default function ListPage() {
               <input
                 type="text"
                 className="form-input"
-                placeholder="Tìm theo tiêu đề, tên bệnh, nhà xuất bản..."
+                placeholder="Tìm theo tiêu đề, chủ đề hoặc tác giả..."
                 style={{ paddingLeft: 36, maxWidth: '100%' }}
                 value={search}
                 onChange={e => {
@@ -370,4 +376,3 @@ export default function ListPage() {
     </div>
   )
 }
-
