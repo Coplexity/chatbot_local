@@ -144,19 +144,25 @@ class GuidelineIngestionJobService:
                 version = await service._get_version_or_raise(job.version_id, for_update=True)
                 document = await service._get_document_or_raise(job.document_id, version_id=job.version_id)
                 version_id = int(version.version_id)
+                guideline_id = int(version.guideline_id)
+
+                # The OCR/LLM pipeline can run for minutes. Do not hold a DB
+                # transaction/connection idle during that work; Supabase may
+                # close it before we persist sections.
+                await session.commit()
 
                 pipeline_service = DocumentIngestionPipelineService(session)
                 await pipeline_service.process_document(
-                    guideline_id=int(version.guideline_id),
-                    version_id=int(version.version_id),
+                    guideline_id=guideline_id,
+                    version_id=version_id,
                     document=document,
                 )
 
                 previous_active_versions_updated = 0
                 if service._is_active_status(job.target_status):
                     previous_active_versions_updated = await service._deactivate_active_versions(
-                        guideline_id=int(version.guideline_id),
-                        exclude_version_id=int(version.version_id),
+                        guideline_id=guideline_id,
+                        exclude_version_id=version_id,
                     )
                 version.status = job.target_status
                 await service._mark_job_succeeded(

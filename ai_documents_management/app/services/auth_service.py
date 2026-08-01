@@ -19,8 +19,8 @@ class AuthService:
     ROLE_STAFF = "staff"
 
     ROLE_DESCRIPTIONS: dict[str, str] = {
-        ROLE_ADMIN: "Full access to all accounts and documents.",
-        ROLE_STAFF: "Staff account with access to owned documents.",
+        ROLE_ADMIN: "Full access to all accounts and documents. Can create staff accounts.",
+        ROLE_STAFF: "Can read all documents. Can manage own uploaded documents.",
     }
     ROLE_ORDER: tuple[str, ...] = (
         ROLE_ADMIN,
@@ -32,7 +32,10 @@ class AuthService:
 
     @classmethod
     def get_available_roles(cls, current_user: User | None = None) -> list[dict[str, str]]:
-        role_names = cls.ROLE_ORDER if current_user is None or current_user.role == cls.ROLE_ADMIN else ()
+        if current_user is None or current_user.role == cls.ROLE_ADMIN:
+            role_names = cls.ROLE_ORDER
+        else:
+            role_names = ()
         return [
             {"name": role_name, "description": cls.ROLE_DESCRIPTIONS[role_name]}
             for role_name in role_names
@@ -81,15 +84,14 @@ class AuthService:
         stmt = (
             select(User)
             .options(selectinload(User.parent))
-            .order_by(User.role.asc(), User.parent_id.asc().nullsfirst(), User.user_id.asc())
+            .order_by(User.role.asc(), User.user_id.asc())
         )
         users = list((await self.db.execute(stmt)).scalars().all())
         if current_user.role == self.ROLE_ADMIN:
             return users
-
-        allowed_ids = self._collect_descendant_ids(users, int(current_user.user_id))
-        allowed_ids.add(int(current_user.user_id))
-        return [user for user in users if int(user.user_id) in allowed_ids]
+        
+        # Staff can only see themselves in user list (or maybe we don't allow them to list users)
+        return [user for user in users if int(user.user_id) == int(current_user.user_id)]
 
     async def authenticate_user(self, email: str, password: str) -> User | None:
         user = await self.get_user_by_email(email)
@@ -137,9 +139,6 @@ class AuthService:
         password: str,
         role: str,
         full_name: str | None = None,
-        parent_id: int | None = None,
-        parent_name: str | None = None,
-        parent_parent_id: int | None = None,
         is_active: bool = True,
     ) -> User:
         normalized_email = self.normalize_email(email)
@@ -150,21 +149,17 @@ class AuthService:
 
         normalized_role = self.normalize_role(role)
         self._ensure_can_create_role(current_user=current_user, role=normalized_role)
-        resolved_parent_id = await self._resolve_parent_id_for_role(
-            current_user=current_user,
-            role=normalized_role,
-            parent_id=parent_id,
-            parent_name=parent_name,
-            parent_parent_id=parent_parent_id,
-        )
-        normalized_full_name = self._normalize_display_name(full_name, role=normalized_role)
+        
+        normalized_full_name = full_name.strip() if full_name else ""
+        if not normalized_full_name and normalized_role != self.ROLE_ADMIN:
+            raise BadRequestException("Display name is required.")
 
         user = User(
             email=normalized_email,
             password_hash=get_password_hash(password),
             full_name=normalized_full_name,
             role=normalized_role,
-            parent_id=resolved_parent_id,
+            parent_id=int(current_user.user_id) if normalized_role != self.ROLE_ADMIN else None,
             created_by_user_id=int(current_user.user_id),
             is_active=is_active,
         )
@@ -181,9 +176,6 @@ class AuthService:
         current_user: User,
         user_id: int,
         role: str,
-        parent_id: int | None = None,
-        parent_name: str | None = None,
-        parent_parent_id: int | None = None,
         is_active: bool | None = None,
     ) -> User:
         user = await self.get_user_by_id(user_id)
@@ -197,13 +189,6 @@ class AuthService:
         self._ensure_can_create_role(current_user=current_user, role=normalized_role)
 
         user.role = normalized_role
-        user.parent_id = await self._resolve_parent_id_for_role(
-            current_user=current_user,
-            role=normalized_role,
-            parent_id=parent_id,
-            parent_name=parent_name,
-            parent_parent_id=parent_parent_id,
-        )
         if is_active is not None:
             user.is_active = bool(is_active)
         await self.db.flush()
@@ -215,46 +200,9 @@ class AuthService:
     def _ensure_can_create_role(self, *, current_user: User, role: str) -> None:
         if current_user.role == self.ROLE_ADMIN:
             return
-        raise BadRequestException("Current account cannot create or assign roles.")
+        raise BadRequestException("Current account cannot create or assign this role.")
 
     def _ensure_can_manage_user(self, *, current_user: User, target_user: User) -> None:
         if current_user.role == self.ROLE_ADMIN:
             return
         raise NotFoundException("User", target_user.user_id)
-
-    async def _resolve_parent_id_for_role(
-        self,
-        *,
-        current_user: User,
-        role: str,
-        parent_id: int | None,
-        parent_name: str | None,
-        parent_parent_id: int | None,
-    ) -> int | None:
-        return None
-
-    def _normalize_display_name(self, full_name: str | None, *, role: str) -> str | None:
-        value = full_name.strip() if full_name else ""
-        if value:
-            return value
-        if role == self.ROLE_ADMIN:
-            return None
-        raise BadRequestException("Display name is required for non-admin accounts.")
-
-    def _collect_descendant_ids(self, users: list[User], root_user_id: int) -> set[int]:
-        children_by_parent: dict[int, list[int]] = {}
-        for user in users:
-            if user.parent_id is None:
-                continue
-            children_by_parent.setdefault(int(user.parent_id), []).append(int(user.user_id))
-
-        descendants: set[int] = set()
-        stack = list(children_by_parent.get(root_user_id, []))
-        while stack:
-            user_id = stack.pop()
-            if user_id in descendants:
-                continue
-            descendants.add(user_id)
-            stack.extend(children_by_parent.get(user_id, []))
-        return descendants
-

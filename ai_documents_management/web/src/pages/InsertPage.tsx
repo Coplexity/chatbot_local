@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, Save } from 'lucide-react'
 import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
 import SelectOrCustomInputField from '../components/SelectOrCustomInputField'
 import useGuidelineFilterOptions from '../hooks/useGuidelineFilterOptions'
 import { useAuth } from '../store/auth'
-import type { CreateGuidelineResponse, UserListResponse, UserResponse } from '../lib/types'
+import type { AuthorSchema, CreateGuidelineResponse, UserListResponse, UserResponse } from '../lib/types'
 
 export default function InsertPage() {
   const navigate = useNavigate()
@@ -17,7 +17,7 @@ export default function InsertPage() {
   const [loaiVanBan, setLoaiVanBan] = useState('Cấp cơ sở')
   const [donViBanHanh, setDonViBanHanh] = useState('')
   const [chuDe, setChuDe] = useState('')
-  const [authors, setAuthors] = useState('')
+  const [authors, setAuthors] = useState<AuthorSchema[]>([])
   const [abstract, setAbstract] = useState('')
   const [versionLabel, setVersionLabel] = useState('')
   const [releaseDate, setReleaseDate] = useState('')
@@ -39,6 +39,14 @@ export default function InsertPage() {
       .catch(() => setError('Không thể tải danh sách tài khoản sở hữu.'))
   }, [user?.role, user?.user_id])
 
+  const updateAuthor = (idx: number, patch: Partial<AuthorSchema>) => {
+    setAuthors(current =>
+      current.map((author, authorIdx) =>
+        authorIdx === idx ? { ...author, ...patch } : author,
+      ),
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!file) {
@@ -51,17 +59,22 @@ export default function InsertPage() {
 
     try {
       const formData = new FormData()
+      const validAuthors = authors
+        .map(author => ({
+          full_name: author.full_name.trim(),
+          hoc_ham: author.hoc_ham?.trim() || null,
+        }))
+        .filter(author => author.full_name)
+
       formData.append('title', title)
       formData.append('file', file)
       formData.append('loai_van_ban', loaiVanBan)
       if (donViBanHanh) formData.append('don_vi_ban_hanh', donViBanHanh)
       if (chuDe) formData.append('chu_de', chuDe)
       if (abstract) formData.append('abstract', abstract)
-      authors
-        .split(',')
-        .map(name => name.trim())
-        .filter(Boolean)
-        .forEach(name => formData.append('authors', name))
+      if (validAuthors.length > 0) {
+        formData.append('authors', JSON.stringify(validAuthors))
+      }
       if (versionLabel) formData.append('version_label', versionLabel)
       if (releaseDate) formData.append('release_date', releaseDate)
       if (user?.role === 'admin') {
@@ -74,7 +87,7 @@ export default function InsertPage() {
       }
 
       const res = await api.post<CreateGuidelineResponse>('/guidelines', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
 
       navigate(`/guidelines/${res.data.guideline_id}/versions/${res.data.version_id}`)
@@ -131,7 +144,7 @@ export default function InsertPage() {
                   required
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder="Ví dụ: Hướng dẫn chẩn đoán và điều trị hen phế quản"
+                  placeholder="Ví dụ: Hướng dẫn chẩn đoán và điều trị"
                 />
               </div>
               <div className="form-group">
@@ -158,13 +171,47 @@ export default function InsertPage() {
                 customPlaceholder="Nhập chủ đề"
               />
               <div className="form-group span-full">
-                <label className="form-label">Tác giả (phân cách bằng dấu phẩy)</label>
-                <input
-                  className="form-input"
-                  value={authors}
-                  onChange={e => setAuthors(e.target.value)}
-                  placeholder="Nguyễn Văn A, Trần Thị B"
-                />
+                <label className="form-label">Tác giả</label>
+                <div className="flex flex-col gap-2">
+                  {authors.map((author, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+                      <div className="col-span-7">
+                        <input
+                          type="text"
+                          className="form-input w-full"
+                          placeholder="Tên tác giả"
+                          value={author.full_name}
+                          onChange={e => updateAuthor(idx, { full_name: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <input
+                          type="text"
+                          className="form-input w-full"
+                          placeholder="Học hàm/vị"
+                          value={author.hoc_ham || ''}
+                          onChange={e => updateAuthor(idx, { hoc_ham: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <button
+                          type="button"
+                          className="btn btn-outline w-full"
+                          onClick={() => setAuthors(current => current.filter((_, authorIdx) => authorIdx !== idx))}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn btn-outline w-max"
+                    onClick={() => setAuthors(current => [...current, { full_name: '', hoc_ham: '' }])}
+                  >
+                    + Thêm tác giả
+                  </button>
+                </div>
               </div>
               <div className="form-group span-full">
                 <label className="form-label">Tóm tắt</label>

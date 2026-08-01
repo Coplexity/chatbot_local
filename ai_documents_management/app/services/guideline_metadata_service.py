@@ -5,11 +5,13 @@ from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.models.guideline_author import GuidelineAuthor
 from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
-from app.services.paper_author_service import PaperAuthorService
+from app.services.author_service import AuthorService
 
 
 class GuidelineMetadataService:
@@ -47,15 +49,15 @@ class GuidelineMetadataService:
             guideline.chu_de = self._normalize_optional_text(patch["chu_de"])
         if "abstract" in patch:
             guideline.abstract = self._normalize_optional_text(patch["abstract"])
+
         if "authors" in patch:
-            guideline.authors = self._normalize_authors(patch["authors"])
-            await PaperAuthorService(self.db).sync_guideline_authors(
-                guideline_id=guideline.guideline_id,
-                author_names=guideline.authors,
-            )
+            authors_data = patch["authors"]
+            author_service = AuthorService(self.db)
+            guideline.author_names = author_service.extract_author_names(authors_data)
+            await author_service.sync_authors_to_guideline(guideline_id, authors_data)
 
         await self.db.flush()
-        return guideline
+        return await self._get_guideline_or_raise(guideline_id, with_authors=True)
 
     async def update_version_metadata(
         self,
@@ -128,8 +130,15 @@ class GuidelineMetadataService:
         guideline_id: int,
         *,
         for_update: bool = False,
+        with_authors: bool = False,
     ) -> Guideline:
         stmt = select(Guideline).where(Guideline.guideline_id == guideline_id)
+        if with_authors:
+            stmt = stmt.options(
+                selectinload(Guideline.guideline_authors).selectinload(
+                    GuidelineAuthor.author
+                )
+            )
         if for_update:
             stmt = stmt.with_for_update()
         guideline = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -253,22 +262,6 @@ class GuidelineMetadataService:
                 "loai_van_ban must be 'Cấp cơ sở' or 'Cấp trung ương'."
             )
         return normalized
-
-    def _normalize_authors(self, value: object | None) -> list[str] | None:
-        if value is None:
-            return None
-        if not isinstance(value, list):
-            raise BadRequestException("authors must be a list of author names.")
-        names: list[str] = []
-        seen: set[str] = set()
-        for raw_name in value:
-            name = str(raw_name).strip()
-            key = name.casefold()
-            if not name or key in seen:
-                continue
-            seen.add(key)
-            names.append(name)
-        return names or None
 
     def _coerce_date_or_none(self, value: object | None, *, field_name: str) -> date | None:
         if value is None:

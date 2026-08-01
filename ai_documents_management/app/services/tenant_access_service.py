@@ -20,15 +20,8 @@ class TenantAccessService:
         for_update: bool = False,
     ) -> Guideline:
         stmt = select(Guideline).where(Guideline.guideline_id == guideline_id)
-        if current_user.role != "admin":
-            if for_update:
-                stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
-            else:
-                stmt = stmt.where(
-                    Guideline.owner_user_id.in_(
-                        await self.get_visible_owner_user_ids(current_user)
-                    )
-                )
+        if current_user.role != "admin" and for_update:
+            stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
         if for_update:
             stmt = stmt.with_for_update()
         guideline = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -48,15 +41,8 @@ class TenantAccessService:
             .join(Guideline, Guideline.guideline_id == GuidelineVersion.guideline_id)
             .where(GuidelineVersion.version_id == version_id)
         )
-        if current_user.role != "admin":
-            if for_update:
-                stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
-            else:
-                stmt = stmt.where(
-                    Guideline.owner_user_id.in_(
-                        await self.get_visible_owner_user_ids(current_user)
-                    )
-                )
+        if current_user.role != "admin" and for_update:
+            stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
         if for_update:
             stmt = stmt.with_for_update()
         row = (await self.db.execute(stmt)).first()
@@ -71,37 +57,23 @@ class TenantAccessService:
         document_id: int,
         current_user: User,
     ) -> Document:
+        # Everyone can read all documents now
         stmt = (
             select(Document)
             .join(GuidelineVersion, GuidelineVersion.version_id == Document.version_id)
             .join(Guideline, Guideline.guideline_id == GuidelineVersion.guideline_id)
             .where(Document.document_id == document_id)
         )
-        if current_user.role != "admin":
-            visible_ids = await self.get_visible_owner_user_ids(current_user)
-            stmt = stmt.where(Guideline.owner_user_id.in_(visible_ids))
         document = (await self.db.execute(stmt)).scalar_one_or_none()
         if document is None:
             raise NotFoundException("Document", document_id)
         return document
 
-    async def get_visible_owner_user_ids(self, current_user: User) -> list[int]:
-        owner_ids = [int(current_user.user_id)]
-        parent_id = current_user.parent_id
-        visited = set(owner_ids)
-        while parent_id is not None and int(parent_id) not in visited:
-            parent = (
-                await self.db.execute(
-                    select(User.user_id, User.parent_id).where(User.user_id == parent_id)
-                )
-            ).first()
-            if parent is None:
-                break
-            user_id, next_parent_id = parent
-            owner_ids.append(int(user_id))
-            visited.add(int(user_id))
-            parent_id = next_parent_id
-        return owner_ids
+    async def get_visible_owner_user_ids(self, current_user: User) -> list[int] | None:
+        # Return None means "all"
+        if current_user.role == "admin":
+            return None
+        return None
 
     def can_manage_owner(self, *, current_user: User, owner_user_id: int) -> bool:
         return current_user.role == "admin" or int(current_user.user_id) == int(owner_user_id)
@@ -111,4 +83,4 @@ class TenantAccessService:
             return "admin"
         if int(current_user.user_id) == int(owner_user_id):
             return "owned"
-        return "inherited"
+        return "public"

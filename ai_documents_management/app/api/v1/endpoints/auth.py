@@ -103,9 +103,6 @@ async def create_user(
         password=payload.password,
         role=payload.role,
         full_name=payload.full_name,
-        parent_id=payload.parent_id,
-        parent_name=payload.parent_name,
-        parent_parent_id=payload.parent_parent_id,
         is_active=payload.is_active,
     )
     return UserResponse.model_validate(user)
@@ -126,9 +123,6 @@ async def update_user_role(
         current_user=current_user,
         user_id=user_id,
         role=payload.role,
-        parent_id=payload.parent_id,
-        parent_name=payload.parent_name,
-        parent_parent_id=payload.parent_parent_id,
         is_active=payload.is_active,
     )
     return UserResponse.model_validate(user)

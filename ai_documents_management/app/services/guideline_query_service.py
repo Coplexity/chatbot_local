@@ -11,7 +11,8 @@ from app.core.text_normalization import (
 from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
 from app.models.user import User
-from app.services.tenant_access_service import TenantAccessService
+from app.models.author import Author
+from app.models.guideline_author import GuidelineAuthor
 
 
 class GuidelineQueryService:
@@ -45,18 +46,28 @@ class GuidelineQueryService:
         )
         offset = (page - 1) * page_size
 
-        total_stmt = select(func.count()).select_from(Guideline).where(*filters)
+        total_stmt = select(func.count(Guideline.guideline_id.distinct())).select_from(Guideline)
+        if self._needs_author_join(search, authors):
+            total_stmt = total_stmt.join(GuidelineAuthor, Guideline.guideline_id == GuidelineAuthor.guideline_id, isouter=True)
+            total_stmt = total_stmt.join(Author, GuidelineAuthor.author_id == Author.author_id, isouter=True)
+        total_stmt = total_stmt.where(*filters)
         total = int((await self.db.execute(total_stmt)).scalar_one())
 
         guidelines_stmt = (
             select(Guideline)
-            .options(selectinload(Guideline.owner))
-            .where(*filters)
-            .order_by(Guideline.guideline_id.desc())
-            .offset(offset)
-            .limit(page_size)
+            .options(selectinload(Guideline.owner), selectinload(Guideline.guideline_authors).selectinload(GuidelineAuthor.author))
         )
-        guidelines = list((await self.db.execute(guidelines_stmt)).scalars().all())
+        if self._needs_author_join(search, authors):
+            guidelines_stmt = guidelines_stmt.join(GuidelineAuthor, Guideline.guideline_id == GuidelineAuthor.guideline_id, isouter=True)
+            guidelines_stmt = guidelines_stmt.join(Author, GuidelineAuthor.author_id == Author.author_id, isouter=True)
+
+        guidelines_stmt = guidelines_stmt.where(*filters).order_by(Guideline.guideline_id.desc()).offset(offset).limit(page_size)
+        
+        # Need to use distinct if joining
+        if self._needs_author_join(search, authors):
+            guidelines = list((await self.db.execute(guidelines_stmt)).unique().scalars().all())
+        else:
+            guidelines = list((await self.db.execute(guidelines_stmt)).scalars().all())
 
         guideline_ids = [guideline.guideline_id for guideline in guidelines]
         active_versions = await self._get_active_versions(guideline_ids)
@@ -106,6 +117,9 @@ class GuidelineQueryService:
         )
         versions = list((await self.db.execute(versions_stmt)).scalars().all())
         return versions, total
+        
+    def _needs_author_join(self, search: str | None, authors: list[str] | None) -> bool:
+        return bool(normalize_search_text(search)) or bool(authors)
 
     async def _build_guideline_filters(
         self,
@@ -133,7 +147,7 @@ class GuidelineQueryService:
                     self._normalized_text_expr(Guideline.don_vi_ban_hanh).like(keyword),
                     self._normalized_text_expr(Guideline.chu_de).like(keyword),
                     self._normalized_text_expr(Guideline.abstract).like(keyword),
-                    self._normalized_text_expr(cast(Guideline.authors, Text)).like(keyword),
+                    self._normalized_text_expr(Author.full_name).like(keyword),
                 )
             )
         self._append_normalized_contains_filter(filters=filters, column=Guideline.title, value=title)
@@ -143,7 +157,7 @@ class GuidelineQueryService:
         if authors:
             self._append_normalized_contains_filter(
                 filters=filters,
-                column=cast(Guideline.authors, Text),
+                column=cast(Guideline.author_names, Text),
                 value=", ".join(authors),
             )
 
@@ -155,15 +169,9 @@ class GuidelineQueryService:
         current_user: User,
         owner_user_id: int | None = None,
     ) -> list[object]:
-        if current_user.role == "admin":
-            return [Guideline.owner_user_id == owner_user_id] if owner_user_id else []
-
-        visible_owner_ids = await TenantAccessService(self.db).get_visible_owner_user_ids(current_user)
         if owner_user_id is not None:
-            if int(owner_user_id) not in visible_owner_ids:
-                return [Guideline.owner_user_id == -1]
             return [Guideline.owner_user_id == owner_user_id]
-        return [Guideline.owner_user_id.in_(visible_owner_ids)]
+        return []
 
     def _append_normalized_contains_filter(
         self,
@@ -213,11 +221,13 @@ class GuidelineQueryService:
             "authors": list(
                 (
                     await self.db.execute(
-                        select(func.unnest(Guideline.authors))
+                        select(Author.full_name)
+                        .join(GuidelineAuthor, GuidelineAuthor.author_id == Author.author_id)
+                        .join(Guideline, Guideline.guideline_id == GuidelineAuthor.guideline_id)
                         .where(*tenant_filters)
-                        .where(Guideline.authors.isnot(None))
+                        .where(Author.full_name.isnot(None))
                         .distinct()
-                        .order_by(func.unnest(Guideline.authors))
+                        .order_by(Author.full_name)
                     )
                 ).scalars().all()
             ),

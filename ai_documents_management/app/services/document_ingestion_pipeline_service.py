@@ -47,6 +47,7 @@ class DocumentIngestionPipelineService:
         self._persistence_service = PipelinePersistenceService(db=db)
         self._pipeline_selector_service = DocumentPipelineSelectorService()
         self._spatial_pdf_service: SpatialPdfPipelineService | None = None
+    '''Khởi tạo và định tuyến các dịch vụ con cần thiết cho việc xử lý tài liệu gồm: OCR, Markdown, TOC, Chunking, Persistence, Pipeline Selection, Spatial PDF'''
 
     async def process_document(
         self,
@@ -54,7 +55,7 @@ class DocumentIngestionPipelineService:
         version_id: int,
         document: Document,
     ) -> dict[str, object]:
-        pdf_path = self._resolve_pdf_path(document)
+        pdf_path = self._resolve_pdf_path(document) 
         artifact_dir = self._build_artifact_dir(guideline_id=guideline_id, version_id=version_id)
         artifact_dir.mkdir(parents=True, exist_ok=True)
         logger.info(

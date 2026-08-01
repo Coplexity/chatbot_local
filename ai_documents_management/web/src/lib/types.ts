@@ -56,6 +56,11 @@ export interface UpdateUserRoleRequest {
 }
 
 // Guidelines
+export interface AuthorSchema {
+  full_name: string
+  hoc_ham?: string | null
+}
+
 export interface GuidelineVersionSummary {
   version_id: number
   version_label: string | null
@@ -72,7 +77,7 @@ export interface GuidelineListItem {
   don_vi_ban_hanh: string | null
   chu_de: string | null
   abstract: string | null
-  authors: string[] | null
+  authors: AuthorSchema[] | null
   owner_user_id: number
   owner: UserSummaryResponse | null
   created_by_user_id: number | null
@@ -137,7 +142,7 @@ export interface WorkspaceGuidelineInfo {
   don_vi_ban_hanh: string | null
   chu_de: string | null
   abstract: string | null
-  authors: string[] | null
+  authors: AuthorSchema[] | null
   owner_user_id: number
   owner: UserSummaryResponse | null
 }
@@ -243,7 +248,7 @@ export interface UpdateGuidelineMetadataRequest {
   don_vi_ban_hanh?: string | null
   chu_de?: string | null
   abstract?: string | null
-  authors?: string[] | null
+  authors?: AuthorSchema[] | null
 }
 
 export interface UpdateGuidelineMetadataResponse {
@@ -253,7 +258,7 @@ export interface UpdateGuidelineMetadataResponse {
   don_vi_ban_hanh: string | null
   chu_de: string | null
   abstract: string | null
-  authors: string[] | null
+  authors: AuthorSchema[] | null
   owner_user_id: number
 }
 

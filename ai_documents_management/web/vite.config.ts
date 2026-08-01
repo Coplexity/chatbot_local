@@ -1,15 +1,23 @@
-﻿import { defineConfig } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true,
+    watch: {
+      usePolling: true
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.API_URL || 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/versions': {
+        target: process.env.API_URL || 'http://localhost:8000',
+        changeOrigin: true,
+      }
     },
   },
 })

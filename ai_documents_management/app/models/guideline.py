@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ARRAY, BigInteger, CheckConstraint, ForeignKey, Identity, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.guideline_author import guideline_authors
+
+if TYPE_CHECKING:
+    from app.models.author import Author
+    from app.models.guideline_author import GuidelineAuthor
 
 
 class Guideline(Base):
@@ -27,7 +32,7 @@ class Guideline(Base):
     don_vi_ban_hanh: Mapped[str | None] = mapped_column(Text, nullable=True)
     chu_de: Mapped[str | None] = mapped_column(Text, nullable=True)
     abstract: Mapped[str | None] = mapped_column(Text, nullable=True)
-    authors: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
+    author_names: Mapped[list[str] | None] = mapped_column("authors", ARRAY(Text), nullable=True)
     owner_user_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("users.user_id", ondelete="RESTRICT"),
@@ -50,13 +55,17 @@ class Guideline(Base):
     versions: Mapped[list["GuidelineVersion"]] = relationship(
         "GuidelineVersion", back_populates="guideline", lazy="select"
     )
-    author_entities: Mapped[list["Author"]] = relationship(
-        "Author",
-        secondary=guideline_authors,
-        back_populates="guidelines",
+    guideline_authors: Mapped[list["GuidelineAuthor"]] = relationship(
+        "GuidelineAuthor",
+        back_populates="guideline",
+        cascade="all, delete-orphan",
         lazy="selectin",
-        order_by=guideline_authors.c.author_order,
     )
 
     def __repr__(self) -> str:
         return f"<Guideline id={self.guideline_id} title={self.title!r}>"
+
+    @property
+    def authors(self) -> list["Author"]:
+        sorted_gas = sorted(self.guideline_authors, key=lambda ga: ga.author_order)
+        return [ga.author for ga in sorted_gas if ga.author]

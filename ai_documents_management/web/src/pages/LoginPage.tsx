@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../store/auth'
 import { Lock, Mail } from 'lucide-react'
+import { useAuth } from '../store/auth'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -45,7 +45,7 @@ export default function LoginPage() {
                 style={{ paddingLeft: 36 }}
                 placeholder="admin@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
               />
             </div>
@@ -60,9 +60,9 @@ export default function LoginPage() {
                 type="password"
                 className="form-input"
                 style={{ paddingLeft: 36 }}
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
               />
             </div>
@@ -76,4 +76,3 @@ export default function LoginPage() {
     </div>
   )
 }
-

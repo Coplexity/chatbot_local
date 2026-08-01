@@ -9,6 +9,8 @@ from app.models.guideline_version import GuidelineVersion
 from app.models.version_ingestion_job import VersionIngestionJob
 from app.models.section import Section
 from app.models.user import User
+from app.models.author import Author
+from app.models.guideline_author import GuidelineAuthor
 
 __all__ = [
     "Base",
@@ -22,4 +24,6 @@ __all__ = [
     "Chunk",
     "ChunkRebuildJob",
     "User",
+    "Author",
+    "GuidelineAuthor",
 ]

@@ -6,6 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.auth import UserSummaryResponse
 
 
+class AuthorSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    full_name: str
+    hoc_ham: str | None = None
+
+
 class GuidelineVersionSummary(BaseModel):
     version_id: int
     version_label: str | None = None
@@ -24,7 +30,7 @@ class GuidelineListItem(BaseModel):
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
-    authors: list[str] | None = None
+    authors: list[AuthorSchema] | None = None
     owner_user_id: int
     owner: UserSummaryResponse | None = None
     created_by_user_id: int | None = None
@@ -109,7 +115,7 @@ class UpdateGuidelineMetadataRequest(BaseModel):
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
-    authors: list[str] | None = None
+    authors: list[AuthorSchema] | None = None
 
 
 class UpdateGuidelineMetadataResponse(BaseModel):
@@ -121,7 +127,7 @@ class UpdateGuidelineMetadataResponse(BaseModel):
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
-    authors: list[str] | None = None
+    authors: list[AuthorSchema] | None = None
     owner_user_id: int
 
 
@@ -182,7 +188,7 @@ class WorkspaceGuidelineInfo(BaseModel):
     don_vi_ban_hanh: str | None = None
     chu_de: str | None = None
     abstract: str | None = None
-    authors: list[str] | None = None
+    authors: list[AuthorSchema] | None = None
     owner_user_id: int
     owner: UserSummaryResponse | None = None
 

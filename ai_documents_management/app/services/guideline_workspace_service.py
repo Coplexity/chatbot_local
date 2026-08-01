@@ -8,6 +8,7 @@ from app.models.document import Document
 from app.models.guideline import Guideline
 from app.models.guideline_version import GuidelineVersion
 from app.models.section import Section
+from app.models.guideline_author import GuidelineAuthor
 
 
 class GuidelineWorkspaceService:
@@ -23,7 +24,10 @@ class GuidelineWorkspaceService:
         version_row = (
             await self.db.execute(
                 select(GuidelineVersion, Guideline)
-                .options(selectinload(Guideline.owner))
+                .options(
+                    selectinload(Guideline.owner),
+                    selectinload(Guideline.guideline_authors).selectinload(GuidelineAuthor.author)
+                )
                 .join(
                     Guideline,
                     Guideline.guideline_id == GuidelineVersion.guideline_id,
