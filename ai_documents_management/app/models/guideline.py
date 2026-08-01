@@ -6,6 +6,7 @@ from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.guideline_author import GuidelineAuthor
+    from app.models.author import Author
 
 class Guideline(Base):
     __tablename__ = "guidelines"
@@ -47,3 +48,8 @@ class Guideline(Base):
 
     def __repr__(self) -> str:
         return f"<Guideline id={self.guideline_id} title={self.title!r}>"
+
+    @property
+    def authors(self) -> list["Author"]:
+        sorted_gas = sorted(self.guideline_authors, key=lambda ga: ga.author_order)
+        return [ga.author for ga in sorted_gas if ga.author]
