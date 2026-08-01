@@ -33,7 +33,7 @@ from app.services.version_asset_service import VersionAssetService
 
 router = APIRouter(prefix='/versions', tags=['Versions'])
 
-MANAGE_ROLES = ('health_department', 'hospital', 'doctor', 'staff', 'admin')
+MANAGE_ROLES = ('staff', 'admin')
 
 
 def _version_access_flags(current_user, owner_user_id: int) -> tuple[bool, str]:

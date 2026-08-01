@@ -15,7 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Link>
         
         <div className="navbar-spacer" />
-        {user && ['admin', 'health_department', 'hospital'].includes(user.role) && (
+        {user && user.role === 'admin' && (
           <Link to="/admin/users" className="btn btn-ghost btn-sm">
             <Users size={15} /> Tài khoản
           </Link>

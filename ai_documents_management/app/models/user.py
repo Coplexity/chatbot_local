@@ -20,7 +20,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('admin', 'health_department', 'hospital', 'doctor', 'staff')",
+            "role IN ('admin', 'staff')",
             name="ck_users_role",
         ),
     )
@@ -34,8 +34,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="health_department",
-        server_default=text("'health_department'"),
+        default="staff",
+        server_default=text("'staff'"),
     )
     parent_id: Mapped[int | None] = mapped_column(
         BigInteger,

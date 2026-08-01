@@ -119,7 +119,7 @@ export default function ListPage() {
     await fetchGuidelines()
   }
 
-  const canCreate = ['admin', 'health_department', 'hospital', 'doctor', 'staff'].includes(user?.role ?? '')
+  const canCreate = ['admin', 'staff'].includes(user?.role ?? '')
 
   return (
     <div className="list-page h-full flex-col">

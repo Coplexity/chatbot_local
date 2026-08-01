@@ -12,7 +12,7 @@ class Author(Base):
     __tablename__ = "author"
     __table_args__ = (
         CheckConstraint(
-            "hoc_ham IS NULL OR hoc_ham IN ('TS', 'ThS', 'PGS TS')",
+            "hoc_ham IS NULL OR hoc_ham IN ('GS', 'TS', 'ThS', 'PGS TS')",
             name="ck_author_hoc_ham",
         ),
     )

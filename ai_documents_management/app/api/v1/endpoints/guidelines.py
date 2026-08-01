@@ -102,7 +102,7 @@ async def list_guidelines(
 @router.post("", response_model=CreateGuidelineResponse, status_code=202, summary="Create Guideline")
 async def create_guideline(
     db: DBSession,
-    current_user: Annotated[object, Depends(require_roles("health_department", "hospital", "doctor", "staff", "admin"))],
+    current_user: Annotated[object, Depends(require_roles("staff", "admin"))],
     title: Annotated[str, Form(min_length=1, max_length=1000)],
     file: Annotated[UploadFile, File()],
     loai_van_ban: Annotated[str, Form(max_length=255)] = "Cấp cơ sở",
@@ -158,7 +158,7 @@ async def update_guideline_metadata(
     guideline_id: int,
     payload: UpdateGuidelineMetadataRequest,
     db: DBSession,
-    current_user: Annotated[object, Depends(require_roles("health_department", "hospital", "doctor", "staff", "admin"))],
+    current_user: Annotated[object, Depends(require_roles("staff", "admin"))],
 ) -> UpdateGuidelineMetadataResponse:
     await TenantAccessService(db).ensure_guideline_access(
         guideline_id=guideline_id,
@@ -181,7 +181,7 @@ async def update_guideline_metadata(
 async def delete_guideline(
     guideline_id: int,
     db: DBSession,
-    current_user: Annotated[object, Depends(require_roles("health_department", "hospital", "doctor", "staff", "admin"))],
+    current_user: Annotated[object, Depends(require_roles("staff", "admin"))],
 ) -> DeleteGuidelineResponse:
     await TenantAccessService(db).ensure_guideline_access(
         guideline_id=guideline_id,
@@ -202,7 +202,7 @@ async def delete_guideline(
 async def create_guideline_version(
     guideline_id: int,
     db: DBSession,
-    current_user: Annotated[object, Depends(require_roles("health_department", "hospital", "doctor", "staff", "admin"))],
+    current_user: Annotated[object, Depends(require_roles("staff", "admin"))],
     file: Annotated[UploadFile, File()],
     version_label: Annotated[str | None, Form(max_length=50)] = None,
     release_date: Annotated[date | None, Form()] = None,

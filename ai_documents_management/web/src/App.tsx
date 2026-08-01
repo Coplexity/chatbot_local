@@ -19,7 +19,7 @@ function AccountManagerRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth()
   if (!isAuthenticated) return <Navigate to="/login" replace />
   if (!user) return null
-  if (!['admin', 'health_department', 'hospital'].includes(user.role)) return <Navigate to="/guidelines" replace />
+  if (user.role !== 'admin') return <Navigate to="/guidelines" replace />
   return <Layout>{children}</Layout>
 }
 
