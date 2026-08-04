@@ -1,13 +1,14 @@
 from langchain_openai import ChatOpenAI
 
 from core import config
-from core.prompts import CATALOGUE_NL_PROMPT
+from core.prompts import CATALOGUE_NL_PROMPT, CONFIDENT_INSTRUCTION, HEDGED_INSTRUCTION_TEMPLATE
 
 
 class CatalogueResultFormatterNode:
-    """Nhận rows/columns thô (từ SafeCatalogueSearchNode.execute) và dùng LLM
-    diễn giải lại thành câu trả lời tự nhiên. Không tự ý bịa thêm dữ liệu
-    ngoài rows/columns được truyền vào — chỉ diễn đạt lại."""
+    """Nhận rows/columns thô + cờ confident từ SafeCatalogueSearchNode, dùng
+    LLM diễn giải lại thành câu trả lời tự nhiên. confident=True -> trả lời
+    dứt khoát; confident=False -> mở đầu bằng rào đón, nêu rõ giá trị đã
+    suy đoán (confirmed_values). Không tự ý bịa thêm dữ liệu ngoài rows/columns."""
 
     def __init__(self):
         print("⏳ [Catalogue NL Formatter] Initializing...")
@@ -23,35 +24,41 @@ class CatalogueResultFormatterNode:
             lines.append("- " + ", ".join(parts))
         return "\n".join(lines)
 
-    def _build_prompt(self, query: str, rows, columns) -> str:
+    def _build_prompt(self, query: str, rows, columns, confident: bool, confirmed_values: str) -> str:
+        confidence_instruction = (
+            CONFIDENT_INSTRUCTION
+            if confident
+            else HEDGED_INSTRUCTION_TEMPLATE.format(confirmed_values=confirmed_values)
+        )
         return CATALOGUE_NL_PROMPT.format(
+            confidence_instruction=confidence_instruction,
             query=query,
             columns=", ".join(columns),
             rows_text=self._rows_to_text(rows, columns),
         )
 
-    def process(self, query: str, rows, columns) -> str:
+    def process(self, query: str, rows, columns, confident: bool = True, confirmed_values: str = "") -> str:
         """Bản không-stream, dùng cho CLI / batch."""
         if not rows:
             return "Không tìm thấy kết quả phù hợp với yêu cầu tra cứu của bạn."
-        prompt = self._build_prompt(query, rows, columns)
+        prompt = self._build_prompt(query, rows, columns, confident, confirmed_values)
         try:
             result = self.llm.invoke(prompt).content
         except Exception as exc:
             print(f"❌ [Catalogue NL Formatter] LLM error: {exc}")
-            return self._rows_to_text(rows, columns)  # fallback về format thô
+            return self._rows_to_text(rows, columns)
         return result.strip()
 
-    async def stream_process(self, query: str, rows, columns):
-        """Bản stream, dùng cho API stream (giống các node khác trong workflow)."""
+    async def stream_process(self, query: str, rows, columns, confident: bool = True, confirmed_values: str = ""):
+        """Bản stream, dùng cho SSE (khớp với ChatbotApp)."""
         if not rows:
             yield "Không tìm thấy kết quả phù hợp với yêu cầu tra cứu của bạn."
             return
-        prompt = self._build_prompt(query, rows, columns)
+        prompt = self._build_prompt(query, rows, columns, confident, confirmed_values)
         try:
             async for chunk in self.llm.astream(prompt):
                 if chunk.content:
                     yield chunk.content
         except Exception as exc:
             print(f"❌ [Catalogue NL Formatter] LLM stream error: {exc}")
-            yield self._rows_to_text(rows, columns)  # fallback về format thô
+            yield self._rows_to_text(rows, columns)

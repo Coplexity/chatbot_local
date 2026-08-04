@@ -51,3 +51,14 @@ class RouterState(TypedDict, total=False):
 
 class ValidationResult(BaseModel):
     intent: str = Field(description="One of greeting, off_topic, text_to_sql, aggregate.")
+
+class ExtractedFilter(BaseModel):
+    authors: list[str] = Field(default_factory=list)
+    chu_de: list[str] = Field(default_factory=list)
+    guideline_titles: list[str] = Field(default_factory=list)
+
+
+class TextToSqlDecision(BaseModel):
+    sql: str
+    filter: ExtractedFilter
+    intent: str = Field(default="", description="Loại thao tác: tìm kiếm/đếm/liệt kê...")

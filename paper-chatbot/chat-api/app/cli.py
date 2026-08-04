@@ -242,6 +242,7 @@ class ChatbotApp:
         state.update(workflow.guideline_filter.process(state))
         yield "trace", f"Lọc guidelines: Tìm thấy {len(state.get('filtered_guideline_ids', []))} guideline phù hợp."
 
+        # text-to-sql path: catalogue search + NL formatter
         if validation_category == "text_to_sql":
             yield "trace", "Catalogue: extracting safe filters and querying permitted documents..."
             outcome = workflow.catalogue_search.process(state)
@@ -252,9 +253,13 @@ class ChatbotApp:
                 return
 
             rows, columns = outcome["rows"], outcome["columns"]
+            confident = outcome.get("confident", True)              
+            confirmed_values = outcome.get("confirmed_values", "")  
 
             yield "trace", "Catalogue: đang diễn giải kết quả sang ngôn ngữ tự nhiên..."
-            async for text_chunk in workflow.catalogue_nl_formatter.stream_process(query, rows, columns):
+            async for text_chunk in workflow.catalogue_nl_formatter.stream_process(
+                query, rows, columns, confident, confirmed_values   # ← thêm 2 tham số
+            ):
                 cleaned = emit_clean(text_chunk)
                 if cleaned:
                     yield "chunk", cleaned
@@ -262,7 +267,6 @@ class ChatbotApp:
             if tail:
                 yield "chunk", tail
             return
-
         # 2) Topic routing
         yield "trace", "Chủ đề: Đang chọn chu_de từ catalogue được cấp quyền..."
         state.update(workflow.topic_router.process(state))

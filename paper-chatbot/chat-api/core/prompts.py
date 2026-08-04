@@ -269,28 +269,74 @@ CHỈ ĐƯỢC DÙNG 3 BẢNG SAU, KHÔNG được dùng bảng nào khác:
   doi_van_ban, abstract, owner_user_id, created_by_user_id
 - author (a): author_id, full_name, hoc_ham, is_active, linh_vuc_nghien_cuu, tom_tat_nghien_cuu
 - guideline_authors (ga): guideline_id, author_id, author_order
-  (bảng trung gian bắt buộc dùng để JOIN guidelines với author)
   JOIN: ga.guideline_id = g.guideline_id AND ga.author_id = a.author_id
 
-QUY TẮC:
-1. Chỉ trả về đúng câu bắt đầu bằng SELECT duy nhất.
-2. Trừ các câu lệnh sử dụng COUNT, còn lại luôn có LIMIT, tối đa 50.
-3. Chỉ trả về câu SQL thuần túy, không giải thích, không markdown fence.
+QUY TẮC BẮT BUỘC:
+1. SELECT list PHẢI có cột guideline_id và chu_de (hệ thống dùng để giới hạn quyền truy cập).
+2. Luôn có LIMIT, tối đa 50.
+3. Không tự thêm điều kiện quyền truy cập nào — hệ thống sẽ tự thêm sau.
 
-MỘT SỐ VÍ DỤ VÀ HƯỚNG GIẢI QUYẾT:
-- "Tìm tất cả bài báo về chủ đề X" → SELECT * FROM guidelines WHERE chu_de ILIKE '%X%' LIMIT 50;
-- "Tìm bài báo của tác giả Y" → SELECT g.* FROM guidelines g JOIN guideline_authors ga ON g.guideline_id = ga.guideline_id JOIN author a ON ga.author_id = a.author_id WHERE a.full_name ILIKE '%Y%' LIMIT 50;
-- "Tìm số lượng bài báo thuộc chủ đề X" → SELECT COUNT(*) FROM guidelines WHERE chu_de ILIKE '%X%';
-- "Tìm số lượng tác giả có bài báo về chủ đề X" → SELECT COUNT(DISTINCT a.author_id) FROM author a JOIN guideline_authors ga ON a.author_id = ga.author_id JOIN guidelines g ON ga.guideline_id = g.guideline_id WHERE g.chu_de ILIKE '%X%';
+NGOÀI RA, hãy trích xuất:
+- filter.authors: tên tác giả được nhắc tới trong câu hỏi (rỗng nếu không có).
+- filter.chu_de: chủ đề được nhắc tới (rỗng nếu không có).
+- filter.guideline_titles: tên văn bản được nhắc tới (rỗng nếu không có).
+- intent: loại thao tác (ví dụ: tìm kiếm, đếm số lượng, liệt kê).
+
+MỘT SỐ VÍ DỤ:
+- "Tìm tất cả bài báo về chủ đề X" → sql: SELECT guideline_id, title, chu_de FROM guidelines WHERE chu_de ILIKE '%X%' LIMIT 50; filter.chu_de: ["X"]
+- "Tìm bài báo của tác giả Y" → sql: SELECT g.guideline_id, g.title, g.chu_de FROM guidelines g JOIN guideline_authors ga ON g.guideline_id = ga.guideline_id JOIN author a ON ga.author_id = a.author_id WHERE a.full_name ILIKE '%Y%' LIMIT 50; filter.authors: ["Y"]
+- "Tìm số lượng bài báo thuộc chủ đề X" → sql: SELECT guideline_id, chu_de FROM guidelines WHERE chu_de ILIKE '%X%'; filter.chu_de: ["X"]; intent: "đếm số lượng"
 
 USER INPUT:
 {query}"""
+
+
+TEXT_TO_SQL_RETRY_PROMPT = """Bạn là chuyên gia viết câu lệnh SQL PostgreSQL.
+
+Lượt tìm kiếm trước không ra kết quả. Hệ thống đã xác nhận các giá trị CHÍNH XÁC
+sau đây tồn tại thật trong dữ liệu (đã khớp từ câu hỏi gốc của người dùng):
+{confirmed_values}
+
+Hãy viết lại câu SQL, dùng ĐÚNG các giá trị đã xác nhận ở trên (không suy diễn
+thêm giá trị khác), theo đúng các quy tắc:
+
+CHỈ được viết câu lệnh SELECT để đọc dữ liệu. TUYỆT ĐỐI KHÔNG được viết:
+DELETE, UPDATE, INSERT, ALTER, CREATE, DROP, TRUNCATE, GRANT, REVOKE.
+
+CHỈ ĐƯỢC DÙNG 3 BẢNG SAU, KHÔNG được dùng bảng nào khác:
+- guidelines (g): guideline_id, title, chu_de, loai_van_ban, don_vi_ban_hanh,
+  doi_van_ban, abstract, owner_user_id, created_by_user_id
+- author (a): author_id, full_name, hoc_ham, is_active, linh_vuc_nghien_cuu, tom_tat_nghien_cuu
+- guideline_authors (ga): guideline_id, author_id, author_order
+  JOIN: ga.guideline_id = g.guideline_id AND ga.author_id = a.author_id
+
+QUY TẮC BẮT BUỘC:
+1. SELECT list PHẢI có cột guideline_id và chu_de.
+2. Luôn có LIMIT, tối đa 50.
+3. Dùng phép so khớp CHÍNH XÁC (=) với các giá trị đã xác nhận, không dùng ILIKE nữa.
+
+CÂU HỎI GỐC: {query}"""
+
+CONFIDENT_INSTRUCTION = (
+    "Dữ liệu này khớp CHÍNH XÁC với câu hỏi. Trả lời thẳng, dứt khoát — "
+    "ví dụ nếu hỏi số lượng tác giả, nêu rõ có bao nhiêu và liệt kê tên."
+)
+
+HEDGED_INSTRUCTION_TEMPLATE = (
+    "Dữ liệu này KHÔNG khớp chính xác 100% — hệ thống đã tự động suy đoán "
+    "gần đúng dựa trên: {confirmed_values}. "
+    "Mở đầu câu trả lời bằng cách nói rõ bạn không chắc chắn hoàn toàn, "
+    "nêu cụ thể giá trị đã dùng để suy đoán (ví dụ: 'tôi không chắc, nhưng "
+    "nếu tác giả là X' / 'nếu chủ đề là Y' / 'nếu văn bản là Z'), sau đó mới đưa ra kết quả."
+)
 
 CATALOGUE_NL_PROMPT = """Bạn là trợ lý học thuật. Dưới đây là kết quả truy vấn catalogue \
 (dạng bảng) tương ứng với câu hỏi của người dùng.
 Hãy trình bày lại bằng ngôn ngữ tự nhiên, súc tích, dễ đọc.
 QUAN TRỌNG: chỉ diễn đạt lại đúng dữ liệu trong bảng bên dưới, không suy diễn hay \
 thêm thông tin nào ngoài bảng. Nếu một cột không rõ ý nghĩa, cứ nêu nguyên giá trị.
+
+{confidence_instruction}
 
 Câu hỏi người dùng: {query}
 
@@ -300,3 +346,11 @@ Dữ liệu:
 
 Trả lời bằng tiếng Việt, không dùng markdown code fence.
 """
+
+RESPONSE_FORMAT_PROMPT = """Dựa trên câu hỏi và dữ liệu tra cứu dưới đây, viết câu trả lời TỰ NHIÊN,
+ngắn gọn bằng tiếng Việt. Không thêm thông tin ngoài dữ liệu được cung cấp.
+
+{confidence_instruction}
+
+CÂU HỎI: {query}
+DỮ LIỆU (JSON): {rows_json}"""
