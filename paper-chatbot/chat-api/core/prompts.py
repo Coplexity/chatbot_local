@@ -28,6 +28,7 @@ Phân loại câu hỏi/yêu cầu của người dùng thành 4 loại: greetin
 3. TEXT_TO_SQL (Yêu cầu truy vấn dữ liệu):
    - Các câu hỏi yêu cầu truy vấn dữ liệu trong cơ sở dữ liệu nghiên cứu.
    - Bao gồm:
+     + Hỏi có bao nhiêu tác giả, chủ đề, tên văn bản, hoặc chủ đề này, tác giả này có bao nhiêu văn bản.
      + Tìm kiếm bài báo theo tiêu đề, DOI, PMID, tác giả, tạp chí, chủ đề, từ khóa.
      + Lọc theo năm xuất bản, guideline, lĩnh vực, loại tài liệu hoặc các metadata khác.
      + Thống kê số lượng bài báo theo năm, tác giả, chủ đề, guideline, tạp chí,...
@@ -273,8 +274,14 @@ CHỈ ĐƯỢC DÙNG 3 BẢNG SAU, KHÔNG được dùng bảng nào khác:
 
 QUY TẮC BẮT BUỘC:
 1. SELECT list PHẢI có cột guideline_id và chu_de (hệ thống dùng để giới hạn quyền truy cập).
-2. Luôn có LIMIT, tối đa 50.
-3. Không tự thêm điều kiện quyền truy cập nào — hệ thống sẽ tự thêm sau.
+2. SELECT list PHẢI LUÔN có thêm g.title (tên văn bản) — kể cả khi câu hỏi không hỏi trực tiếp về tên,
+   vì bước sau cần tên thật để liệt kê cho người dùng, không chỉ ID.
+3. Nếu câu hỏi liên quan đến tác giả (đếm, tìm, liệt kê tác giả), SELECT list PHẢI có thêm
+   a.author_id VÀ a.full_name — không chỉ có author_id.
+4. Luôn có LIMIT, tối đa 50.
+5. Không tự thêm điều kiện quyền truy cập nào — hệ thống sẽ tự thêm sau.
+6. Không được dùng ; vì tôi còn bọc nó trong 1 câu SQL nữa.
+7. TUYỆT ĐỐI KHÔNG dùng COUNT/GROUP BY — hệ thống sẽ tự đếm chính xác ở bước sau. Chỉ liệt kê rows thô.
 
 NGOÀI RA, hãy trích xuất:
 - filter.authors: tên tác giả được nhắc tới trong câu hỏi (rỗng nếu không có).
@@ -284,8 +291,9 @@ NGOÀI RA, hãy trích xuất:
 
 MỘT SỐ VÍ DỤ:
 - "Tìm tất cả bài báo về chủ đề X" → sql: SELECT guideline_id, title, chu_de FROM guidelines WHERE chu_de ILIKE '%X%' LIMIT 50; filter.chu_de: ["X"]
-- "Tìm bài báo của tác giả Y" → sql: SELECT g.guideline_id, g.title, g.chu_de FROM guidelines g JOIN guideline_authors ga ON g.guideline_id = ga.guideline_id JOIN author a ON ga.author_id = a.author_id WHERE a.full_name ILIKE '%Y%' LIMIT 50; filter.authors: ["Y"]
-- "Tìm số lượng bài báo thuộc chủ đề X" → sql: SELECT guideline_id, chu_de FROM guidelines WHERE chu_de ILIKE '%X%'; filter.chu_de: ["X"]; intent: "đếm số lượng"
+- "Tìm bài báo của tác giả Y" → sql: SELECT g.guideline_id, g.title, g.chu_de, a.author_id, a.full_name FROM guidelines g JOIN guideline_authors ga ON g.guideline_id = ga.guideline_id JOIN author a ON ga.author_id = a.author_id WHERE a.full_name ILIKE '%Y%' LIMIT 50; filter.authors: ["Y"]
+- "Có bao nhiêu văn bản thuộc chủ đề X" → sql: SELECT guideline_id, title, chu_de FROM guidelines WHERE chu_de ILIKE '%X%' LIMIT 50; filter.chu_de: ["X"]; intent: "đếm số lượng"
+- "Có bao nhiêu tác giả viết về chủ đề X" → sql: SELECT g.guideline_id, g.title, g.chu_de, a.author_id, a.full_name FROM guidelines g JOIN guideline_authors ga ON g.guideline_id = ga.guideline_id JOIN author a ON ga.author_id = a.author_id WHERE g.chu_de ILIKE '%X%' LIMIT 50; filter.chu_de: ["X"]; intent: "đếm số lượng"
 
 USER INPUT:
 {query}"""
@@ -312,8 +320,12 @@ CHỈ ĐƯỢC DÙNG 3 BẢNG SAU, KHÔNG được dùng bảng nào khác:
 
 QUY TẮC BẮT BUỘC:
 1. SELECT list PHẢI có cột guideline_id và chu_de.
-2. Luôn có LIMIT, tối đa 50.
-3. Dùng phép so khớp CHÍNH XÁC (=) với các giá trị đã xác nhận, không dùng ILIKE nữa.
+2. SELECT list PHẢI LUÔN có thêm g.title — kể cả khi câu hỏi không hỏi trực tiếp về tên.
+3. Nếu câu hỏi liên quan đến tác giả, SELECT list PHẢI có thêm a.author_id VÀ a.full_name.
+4. Luôn có LIMIT, tối đa 50.
+5. Dùng phép so khớp CHÍNH XÁC (=) với các giá trị đã xác nhận, không dùng ILIKE nữa.
+6. Không được dùng ; vì tôi còn bọc nó trong 1 câu SQL nữa.
+7. TUYỆT ĐỐI KHÔNG dùng COUNT/GROUP BY — hệ thống sẽ tự đếm chính xác ở bước sau. Chỉ liệt kê rows thô.
 
 CÂU HỎI GỐC: {query}"""
 
@@ -338,19 +350,28 @@ thêm thông tin nào ngoài bảng. Nếu một cột không rõ ý nghĩa, c�
 
 {confidence_instruction}
 
+QUY TẮC ĐẾM SỐ LƯỢNG VÀ LIỆT KÊ (BẮT BUỘC):
+- Nếu câu hỏi hỏi "bao nhiêu"/"số lượng", TUYỆT ĐỐI KHÔNG tự đếm bằng cách nhìn qua bảng dữ liệu
+  thô bên dưới — dễ đếm sai khi có dòng lặp. PHẢI dùng đúng con số ở phần "SỐ LIỆU ĐÃ TÍNH SẴN",
+  chọn đúng dòng khớp với đối tượng được hỏi (vd hỏi "bao nhiêu tác giả" → dùng số ở cột full_name;
+  hỏi "bao nhiêu văn bản" → dùng số ở cột title).
+- Sau khi nêu con số, PHẢI liệt kê cụ thể TÊN của các giá trị đó (nếu phần "SỐ LIỆU ĐÃ TÍNH SẴN"
+  có kèm "Danh sách" cho cột tương ứng) — ví dụ hỏi có bao nhiêu tác giả thì nêu rõ có bao nhiêu
+  người và TÊN từng người trong "Danh sách" của cột full_name; hỏi có bao nhiêu văn bản thì nêu
+  số lượng và TÊN từng văn bản trong "Danh sách" của cột title.
+- CHỈ dùng đúng tên có trong "Danh sách" đã cho, không tự bịa thêm hay đoán tên khác.
+- Nếu "Danh sách" có ghi "còn N giá trị khác không liệt kê hết", hãy nói rõ số lượng đã liệt kê
+  và còn bao nhiêu chưa liệt kê hết, không tự bịa thêm tên cho phần còn thiếu.
+
 Câu hỏi người dùng: {query}
 
 Cột dữ liệu: {columns}
-Dữ liệu:
+
+SỐ LIỆU ĐÃ TÍNH SẴN (đếm và liệt kê giá trị duy nhất theo từng cột):
+{distinct_summary}
+
+Dữ liệu thô (tham khảo thêm nếu cần):
 {rows_text}
 
 Trả lời bằng tiếng Việt, không dùng markdown code fence.
 """
-
-RESPONSE_FORMAT_PROMPT = """Dựa trên câu hỏi và dữ liệu tra cứu dưới đây, viết câu trả lời TỰ NHIÊN,
-ngắn gọn bằng tiếng Việt. Không thêm thông tin ngoài dữ liệu được cung cấp.
-
-{confidence_instruction}
-
-CÂU HỎI: {query}
-DỮ LIỆU (JSON): {rows_json}"""

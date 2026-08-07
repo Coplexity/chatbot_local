@@ -8,7 +8,7 @@ export class DatabaseSchemaService implements OnApplicationBootstrap {
   constructor(private readonly dataSource: DataSource) { }
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.ensureBackendSchema();
+    // await this.ensureBackendSchema();
   }
 
   private async ensureBackendSchema(): Promise<void> {

@@ -50,3 +50,17 @@ class ScientificSearchWorkflow:
         state.update(await self.topic_aggregator.process(state))
         state.update(await self.synthesizer.process(state))
         return state
+
+    async def run_catalogue(self, state: RouterState) -> RouterState:
+        """Non-SSE fallback through exactly the same catalogue pipeline."""
+        state.update(self.question_validator.process(state))
+        state.update(self.guideline_filter.process(state))
+        state.update(await self.catalogue_search.process(state))
+        state.update(await self.catalogue_nl_formatter.stream_process(
+            query=state.get("query"),
+            rows=state.get("catalogue_rows"),
+            columns=state.get("catalogue_columns"),
+            confident=state.get("catalogue_confident", True),
+            confirmed_values=state.get("catalogue_confirmed_values", ""),
+        ))
+        return state

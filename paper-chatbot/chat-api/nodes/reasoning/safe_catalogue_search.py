@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from rapidfuzz import process as fuzz_process
@@ -18,13 +19,26 @@ FORBIDDEN_PATTERN = re.compile(r"\b(" + "|".join(FORBIDDEN_KEYWORDS) + r")\b", r
 ALLOWED_TABLES = {"guidelines", "author", "guideline_authors"}
 TABLE_REF_PATTERN = re.compile(r"\b(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.IGNORECASE)
 
-FUZZY_THRESHOLD_STRICT = 85
-FUZZY_THRESHOLD_TOPIC = 80
-SEMANTIC_THRESHOLD_TOPIC = 0.75
+COUNT_PATTERN = re.compile(r"\bCOUNT\s*\(", re.IGNORECASE)
+GROUP_BY_PATTERN = re.compile(r"\bGROUP\s+BY\b", re.IGNORECASE)
+
+FUZZY_THRESHOLD_STRICT = 60
+FUZZY_THRESHOLD_TOPIC = 60
+SEMANTIC_THRESHOLD_TOPIC = 0.6
 
 
 def _extract_tables(sql: str) -> set[str]:
     return {m.group(1).lower() for m in TABLE_REF_PATTERN.finditer(sql)}
+
+
+def _strip_diacritics(text: str) -> str:
+    """Bỏ dấu tiếng Việt + hạ chữ thường, dùng làm lớp so khớp phụ khi
+    fuzzy match trên chuỗi có dấu thất bại (vd người dùng gõ 'xa hoi' thay
+    vì 'Xã hội' — 2 chuỗi lệch nhiều ký tự byte nên fuzzy match trên bản
+    có dấu dễ trượt ngưỡng dù về ý nghĩa là khớp)."""
+    normalized = unicodedata.normalize("NFD", text or "")
+    without_marks = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    return without_marks.lower().strip()
 
 
 class SafeCatalogueSearchNode:
@@ -32,15 +46,22 @@ class SafeCatalogueSearchNode:
 
     CHỈ trả về dữ liệu thô (rows/columns) + cờ confident + confirmed_values —
     KHÔNG tự diễn giải câu trả lời. Việc format tự nhiên (giọng điệu chắc
-    chắn/dè dặt) do CatalogueResultFormatterNode đảm nhiệm ở downstream.
+    chắn/dè dặt, đếm/liệt kê) do CatalogueResultFormatterNode đảm nhiệm.
 
     Output có thể là:
       - {"error_response": str}  — không có quyền hoặc LLM lỗi hẳn
       - {"rows": [...], "columns": [...], "confident": bool, "confirmed_values": str}
-        (rows có thể rỗng nếu không tìm thấy gì, formatter tự xử lý case đó)
 
     Quyền truy cập được ép ở CẢ 2 lượt bằng outer-wrap: kết quả luôn bị lọc
-    theo guideline_id ∈ filtered_guideline_ids AND chu_de ∈ filtered_topics."""
+    theo guideline_id ∈ filtered_guideline_ids AND chu_de ∈ filtered_topics.
+
+    SELECT list bắt buộc luôn có title (và full_name nếu đụng bảng tác giả),
+    cấm COUNT/GROUP BY — để CatalogueResultFormatterNode luôn có đủ dữ liệu
+    thô để tự đếm chính xác và liệt kê tên cụ thể, không chỉ trả về 1 con số.
+
+    Matching (_match_strict/_match_topic) thử theo thứ tự: fuzzy trên chuỗi
+    gốc -> fuzzy trên chuỗi đã bỏ dấu -> semantic (chỉ _match_topic) — để
+    chịu được cả lỗi gõ gần đúng lẫn input thiếu dấu tiếng Việt hoàn toàn."""
 
     def __init__(self):
         print("⏳ [Catalogue Search] Initializing...")
@@ -92,14 +113,25 @@ class SafeCatalogueSearchNode:
 
         # ---------- Fallback: fuzzy/semantic match ----------
         f = decision.filter
+        print(
+            f"🔍 [Catalogue Fallback] filter từ LLM#1: "
+            f"authors={f.authors} chu_de={f.chu_de} titles={f.guideline_titles}"
+        )
         if not f.authors and not f.chu_de and not f.guideline_titles:
+            print("🔍 [Catalogue Fallback] Bỏ qua fallback vì LLM#1 không trích được filter nào.")
             return {"rows": [], "columns": []}
 
         matched_authors, ok_authors = self._match_strict(f.authors, self._load_known_authors(guideline_ids))
         matched_topics, ok_topics = self._match_topic(f.chu_de, topics)
         matched_titles, ok_titles = self._match_strict(f.guideline_titles, self._load_known_titles(guideline_ids))
+        print(
+            f"🔍 [Catalogue Fallback] matched_authors={matched_authors} ok={ok_authors} | "
+            f"matched_topics={matched_topics} ok={ok_topics} (known={topics}) | "
+            f"matched_titles={matched_titles} ok={ok_titles}"
+        )
 
         if not (ok_authors and ok_topics and ok_titles):
+            print("🔍 [Catalogue Fallback] Dừng vì có ít nhất 1 filter không match được gì.")
             return {"rows": [], "columns": []}
 
         confirmed_parts = []
@@ -144,27 +176,39 @@ class SafeCatalogueSearchNode:
     def _validate(sql: str) -> str | None:
         if not sql:
             return "empty SQL"
-        if not sql.upper().startswith("SELECT"):
-            return "not a SELECT statement"
         forbidden_match = FORBIDDEN_PATTERN.search(sql)
         if forbidden_match:
             return f"forbidden keyword: {forbidden_match.group()}"
-        if re.search(r"\bUNION\b", sql, re.IGNORECASE):
-            return "UNION not allowed"
+
         tables = _extract_tables(sql)
         disallowed = tables - ALLOWED_TABLES
         if disallowed:
             return f"disallowed tables: {disallowed}"
+
+        if COUNT_PATTERN.search(sql):
+            return "COUNT not allowed: hệ thống tự đếm ở bước sau, chỉ liệt kê rows thô"
+        if GROUP_BY_PATTERN.search(sql):
+            return "GROUP BY not allowed: hệ thống tự đếm ở bước sau, chỉ liệt kê rows thô"
+
         if not re.search(r"\bguideline_id\b", sql, re.IGNORECASE):
             return "missing guideline_id in SELECT list"
         if not re.search(r"\bchu_de\b", sql, re.IGNORECASE):
             return "missing chu_de in SELECT list"
+        if not re.search(r"\btitle\b", sql, re.IGNORECASE):
+            return "missing title in SELECT list"
+        if ("author" in tables or "guideline_authors" in tables) and not re.search(
+            r"\bfull_name\b", sql, re.IGNORECASE
+        ):
+            return "query touches author table but missing full_name in SELECT list"
+
         return None
 
     @staticmethod
     def _wrap_with_scope(inner_sql: str) -> str:
+        cleaned = re.sub(r";+\s*$", "", inner_sql.strip())
+        escaped = cleaned.replace("%", "%%")
         return f"""
-            SELECT * FROM ({inner_sql}) AS scoped
+            SELECT * FROM ({escaped}) AS scoped
             WHERE scoped.guideline_id = ANY(%s)
               AND scoped.chu_de = ANY(%s)
             LIMIT 50;
@@ -173,32 +217,57 @@ class SafeCatalogueSearchNode:
     # ---------- Matching ----------
 
     def _match_strict(self, queries: list[str], known_values: list[str]) -> tuple[list[str], bool]:
+        """Fuzzy match trên chuỗi gốc trước; nếu trượt, thử lại trên bản đã
+        bỏ dấu (phòng trường hợp người dùng gõ tên tác giả/tên văn bản
+        không dấu, ví dụ 'Nguyen Van A' thay vì 'Nguyễn Văn A')."""
         if not queries:
             return [], True
         if not known_values:
             return [], False
+
+        stripped_known = {_strip_diacritics(v): v for v in known_values}
         matched = set()
         for q in queries:
             result = fuzz_process.extractOne(q, known_values, score_cutoff=FUZZY_THRESHOLD_STRICT)
             if result:
                 matched.add(result[0])
+                continue
+            stripped_q = _strip_diacritics(q)
+            result_stripped = fuzz_process.extractOne(
+                stripped_q, list(stripped_known.keys()), score_cutoff=FUZZY_THRESHOLD_STRICT
+            )
+            if result_stripped:
+                matched.add(stripped_known[result_stripped[0]])
+
         if not matched:
             return [], False
         return list(matched), True
 
     def _match_topic(self, queries: list[str], known_values: list[str]) -> tuple[list[str], bool]:
+        """Thứ tự thử: fuzzy trên chuỗi gốc -> fuzzy trên bản bỏ dấu ->
+        semantic match (embedding) cho phần vẫn chưa khớp được gì."""
         if not queries:
             return [], True
         if not known_values:
             return [], False
+
+        stripped_known = {_strip_diacritics(v): v for v in known_values}
         matched = set()
         unresolved = []
         for q in queries:
             result = fuzz_process.extractOne(q, known_values, score_cutoff=FUZZY_THRESHOLD_TOPIC)
             if result:
                 matched.add(result[0])
+                continue
+            stripped_q = _strip_diacritics(q)
+            result_stripped = fuzz_process.extractOne(
+                stripped_q, list(stripped_known.keys()), score_cutoff=FUZZY_THRESHOLD_TOPIC
+            )
+            if result_stripped:
+                matched.add(stripped_known[result_stripped[0]])
             else:
                 unresolved.append(q)
+
         if unresolved:
             matched.update(self._semantic_match(unresolved, known_values, SEMANTIC_THRESHOLD_TOPIC))
         if not matched:

@@ -115,7 +115,7 @@ class VectorRetrievalNode:
                         (c.embedding <=> %s::halfvec(3072)) AS semantic_distance,
                         ROW_NUMBER() OVER (
                             PARTITION BY gv.version_id
-                            ORDER BY c.embedding <=> %s::halfvec(3072)
+                            ORDER BY (c.embedding <=> %s::halfvec(3072))
                         ) AS rank_in_document
                     FROM chunks c
                     JOIN guideline_versions gv ON gv.version_id = c.version_id
