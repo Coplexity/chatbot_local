@@ -169,9 +169,20 @@ class GuidelineQueryService:
         current_user: User,
         owner_user_id: int | None = None,
     ) -> list[object]:
+        filters: list[object] = []
+        if current_user.role != "admin":
+            admin_subquery = select(User.user_id).where(User.role == "admin")
+            filters.append(
+                or_(
+                    Guideline.owner_user_id == current_user.user_id,
+                    Guideline.owner_user_id.in_(admin_subquery)
+                )
+            )
+            
         if owner_user_id is not None:
-            return [Guideline.owner_user_id == owner_user_id]
-        return []
+            filters.append(Guideline.owner_user_id == owner_user_id)
+            
+        return filters
 
     def _append_normalized_contains_filter(
         self,

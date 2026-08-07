@@ -68,14 +68,14 @@ export default function UpdatePage() {
             <h2 className="form-section-title">Thông tin phiên bản cập nhật</h2>
             <div className="form-grid">
               <div className="form-group">
-                <label className="form-label">Số hiệu / Nhãn phiên bản *</label>
+                <label className="form-label">Mã DOI *</label>
                 <input
                   type="text"
                   className="form-input"
                   required
                   value={versionLabel}
                   onChange={e => setVersionLabel(e.target.value)}
-                  placeholder="Ví dụ: 1245/QĐ-BYT"
+                  placeholder="Ví dụ: 10.1234/abc"
                 />
               </div>
               <div className="form-group">
