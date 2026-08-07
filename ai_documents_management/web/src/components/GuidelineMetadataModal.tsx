@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import SelectOrCustomInputField from './SelectOrCustomInputField'
 import useGuidelineFilterOptions from '../hooks/useGuidelineFilterOptions'
 import type { AuthorSchema, GuidelineListItem, UpdateGuidelineMetadataResponse } from '../lib/types'
+import AuthorAutocomplete from './AuthorAutocomplete'
 
 interface Props {
   guideline: GuidelineListItem
@@ -132,23 +133,13 @@ export default function GuidelineMetadataModal({ guideline, onClose, onSaved }: 
               <div className="flex flex-col gap-2">
                 {authors.map((author, idx) => (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-start">
-                    <div className="col-span-7">
-                      <input
-                        type="text"
-                        className="form-input w-full"
-                        placeholder="Tên tác giả"
+                    <div className="col-span-10">
+                      <AuthorAutocomplete
                         value={author.full_name}
-                        onChange={event => updateAuthor(idx, { full_name: event.target.value })}
-                        disabled={submitting}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <input
-                        type="text"
-                        className="form-input w-full"
-                        placeholder="Học hàm/vị"
-                        value={author.hoc_ham || ''}
-                        onChange={event => updateAuthor(idx, { hoc_ham: event.target.value })}
+                        onChange={(fullName, hocHam) => {
+                          const combined = hocHam ? `${hocHam} ${fullName}` : fullName;
+                          updateAuthor(idx, { full_name: combined, hoc_ham: '' })
+                        }}
                         disabled={submitting}
                       />
                     </div>

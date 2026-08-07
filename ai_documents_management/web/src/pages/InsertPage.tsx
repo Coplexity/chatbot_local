@@ -4,6 +4,7 @@ import { ChevronLeft, Save } from 'lucide-react'
 import { api } from '../lib/api'
 import { roleLabel } from '../lib/roles'
 import SelectOrCustomInputField from '../components/SelectOrCustomInputField'
+import AuthorAutocomplete from '../components/AuthorAutocomplete'
 import useGuidelineFilterOptions from '../hooks/useGuidelineFilterOptions'
 import { useAuth } from '../store/auth'
 import type { AuthorSchema, CreateGuidelineResponse, UserListResponse, UserResponse } from '../lib/types'
@@ -175,22 +176,13 @@ export default function InsertPage() {
                 <div className="flex flex-col gap-2">
                   {authors.map((author, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-2 items-start">
-                      <div className="col-span-7">
-                        <input
-                          type="text"
-                          className="form-input w-full"
-                          placeholder="Tên tác giả"
+                      <div className="col-span-10">
+                        <AuthorAutocomplete
                           value={author.full_name}
-                          onChange={e => updateAuthor(idx, { full_name: e.target.value })}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <input
-                          type="text"
-                          className="form-input w-full"
-                          placeholder="Học hàm/vị"
-                          value={author.hoc_ham || ''}
-                          onChange={e => updateAuthor(idx, { hoc_ham: e.target.value })}
+                          onChange={(fullName, hocHam) => {
+                            const combined = hocHam ? `${hocHam} ${fullName}` : fullName;
+                            updateAuthor(idx, { full_name: combined, hoc_ham: '' })
+                          }}
                         />
                       </div>
                       <div className="col-span-2">
@@ -224,13 +216,13 @@ export default function InsertPage() {
             <h2 className="form-section-title">Thông tin phiên bản xuất bản</h2>
             <div className="form-grid">
               <div className="form-group">
-                <label className="form-label">Số hiệu / Nhãn phiên bản</label>
+                <label className="form-label">Mã DOI</label>
                 <input
                   type="text"
                   className="form-input"
                   value={versionLabel}
                   onChange={e => setVersionLabel(e.target.value)}
-                  placeholder="Ví dụ: 1234/QĐ-BYT"
+                  placeholder="Ví dụ: 10.1234/abc"
                 />
               </div>
               <div className="form-group">

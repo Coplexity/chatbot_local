@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
@@ -20,8 +20,17 @@ class TenantAccessService:
         for_update: bool = False,
     ) -> Guideline:
         stmt = select(Guideline).where(Guideline.guideline_id == guideline_id)
-        if current_user.role != "admin" and for_update:
-            stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
+        if current_user.role != "admin":
+            if for_update:
+                stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
+            else:
+                admin_subquery = select(User.user_id).where(User.role == "admin")
+                stmt = stmt.where(
+                    or_(
+                        Guideline.owner_user_id == current_user.user_id,
+                        Guideline.owner_user_id.in_(admin_subquery)
+                    )
+                )
         if for_update:
             stmt = stmt.with_for_update()
         guideline = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -41,8 +50,17 @@ class TenantAccessService:
             .join(Guideline, Guideline.guideline_id == GuidelineVersion.guideline_id)
             .where(GuidelineVersion.version_id == version_id)
         )
-        if current_user.role != "admin" and for_update:
-            stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
+        if current_user.role != "admin":
+            if for_update:
+                stmt = stmt.where(Guideline.owner_user_id == current_user.user_id)
+            else:
+                admin_subquery = select(User.user_id).where(User.role == "admin")
+                stmt = stmt.where(
+                    or_(
+                        Guideline.owner_user_id == current_user.user_id,
+                        Guideline.owner_user_id.in_(admin_subquery)
+                    )
+                )
         if for_update:
             stmt = stmt.with_for_update()
         row = (await self.db.execute(stmt)).first()
@@ -57,13 +75,20 @@ class TenantAccessService:
         document_id: int,
         current_user: User,
     ) -> Document:
-        # Everyone can read all documents now
         stmt = (
             select(Document)
             .join(GuidelineVersion, GuidelineVersion.version_id == Document.version_id)
             .join(Guideline, Guideline.guideline_id == GuidelineVersion.guideline_id)
             .where(Document.document_id == document_id)
         )
+        if current_user.role != "admin":
+            admin_subquery = select(User.user_id).where(User.role == "admin")
+            stmt = stmt.where(
+                or_(
+                    Guideline.owner_user_id == current_user.user_id,
+                    Guideline.owner_user_id.in_(admin_subquery)
+                )
+            )
         document = (await self.db.execute(stmt)).scalar_one_or_none()
         if document is None:
             raise NotFoundException("Document", document_id)

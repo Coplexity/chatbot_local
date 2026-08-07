@@ -74,12 +74,19 @@ export class ChatApiProviderService {
     return Boolean(user_ids?.some(userId => userId.trim()));
   }
 
-  private async resolvePayloadUserIds(user_ids?: string[]): Promise<string[]> {
+  private async resolvePayloadUserIds(
+    user_ids?: string[],
+    userId?: string | null,
+  ): Promise<string[]> {
     if (this.hasUserIds(user_ids)) {
       return user_ids ?? [];
     }
 
-    return this.adminUserIdsService.getAdminUserIds();
+    const adminIds = await this.adminUserIdsService.getAdminUserIds();
+    if (userId && !adminIds.includes(userId)) {
+      return [...adminIds, userId];
+    }
+    return adminIds;
   }
 
   private parseSseMessage(rawMessage: string): ParsedSseMessage | null {
@@ -202,7 +209,7 @@ export class ChatApiProviderService {
         throw new Error("No user message found");
       }
 
-      const payloadUserIds = await this.resolvePayloadUserIds(user_ids);
+      const payloadUserIds = await this.resolvePayloadUserIds(user_ids, userId);
       const requestBody = {
         query: lastUserMessage.content,
         role: ROLE_MAPPING[role] || role,
@@ -309,7 +316,7 @@ export class ChatApiProviderService {
         throw new Error("No user message found");
       }
 
-      const payloadUserIds = await this.resolvePayloadUserIds(user_ids);
+      const payloadUserIds = await this.resolvePayloadUserIds(user_ids, userId);
       const requestBody = {
         query: lastUserMessage.content,
         role: ROLE_MAPPING[role] || role,
