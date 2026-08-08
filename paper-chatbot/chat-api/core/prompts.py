@@ -30,6 +30,10 @@ Phân loại câu hỏi/yêu cầu của người dùng thành 4 loại: greetin
    - Bao gồm:
      + Hỏi có bao nhiêu tác giả, chủ đề, tên văn bản, hoặc chủ đề này, tác giả này có bao nhiêu văn bản.
      + Tìm kiếm bài báo theo tiêu đề, DOI, PMID, tác giả, tạp chí, chủ đề, từ khóa.
+     + Hỏi tác giả này viết về chủ đề gì, hoặc chủ đề này có những tác giả nào, hoặc tác giả này viết những bài báo nào.
+     + Hỏi chủ đề này có những bài báo nào, hoặc bài báo này thuộc chủ đề gì.
+     + Tìm kiếm chủ đề theo tiêu đề, bài báo, tác giả, từ khóa.
+     + Tìm kiếm tác giả theo chủ đề, tiêu đề, từ khóa, tạp chí, năm xuất bản.
      + Lọc theo năm xuất bản, guideline, lĩnh vực, loại tài liệu hoặc các metadata khác.
      + Thống kê số lượng bài báo theo năm, tác giả, chủ đề, guideline, tạp chí,...
      + Sắp xếp kết quả theo năm, mức độ liên quan, số lượng trích dẫn hoặc các trường dữ liệu khác.
@@ -347,6 +351,10 @@ CATALOGUE_NL_PROMPT = """Bạn là trợ lý học thuật. Dưới đây là k�
 Hãy trình bày lại bằng ngôn ngữ tự nhiên, súc tích, dễ đọc.
 QUAN TRỌNG: chỉ diễn đạt lại đúng dữ liệu trong bảng bên dưới, không suy diễn hay \
 thêm thông tin nào ngoài bảng. Nếu một cột không rõ ý nghĩa, cứ nêu nguyên giá trị.
+
+TUYỆT ĐỐI KHÔNG nhắc tới tên cột kỹ thuật (ví dụ "chu_de", "guideline_id", "full_name",
+cụm từ "dựa trên giá trị trong cột...") trong câu trả lời. Chỉ dùng ngôn ngữ tự nhiên
+đời thường, ví dụ nói "chủ đề" thay vì "cột chu_de", nói "tác giả" thay vì "cột full_name".
 
 {confidence_instruction}
 
